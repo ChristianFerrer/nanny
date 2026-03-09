@@ -275,33 +275,100 @@ El Admin es donde los padres **controlan la fuente de verdad** (Capa 3). Nanny e
 - Preferencias de notificacion (horarios, frecuencia, canales)
 - Zona horaria
 
-**B. Hijos**
-- Agregar/editar hijos (nombre, fecha nacimiento, emoji)
-- Datos del colegio (nombre, maestra, grado, telefono cole)
-- Datos medicos: medico habitual, telefono medico
-- Alergias y condiciones medicas (agregar, editar, eliminar)
-- Preferencias fijas (marca pañales, formula, tallas ropa/zapatos)
-- Actividades (nombre, dias, horario, ubicacion)
+**B. Perfil por Hijo**
 
-**C. Red de Apoyo**
-- Agregar/editar contactos (abuela, tio, niñera, vecina)
-- Telefono, metodo de contacto preferido (WhatsApp/SMS)
-- Notas de disponibilidad ("solo entre semana", "despues de las 3")
-- Costo por hora (si aplica)
-- Contactos de emergencia con orden de prioridad
-
-**D. Integraciones**
-- Emails conectados (cole, doctor, actividades)
-- Estado de sincronizacion de calendarios
-- Permisos y accesos
-
-**E. Log por Hijo** — Historial de lo que Nanny ha registrado
-
-Cada hijo tiene un log visible donde los padres ven **todo lo que Nanny ha entendido y registrado**. Esto es el audit log (Capa 0) presentado de forma amigable.
+Cada hijo tiene su propio perfil editable con pestañas. Es la vista completa de la Capa 3 (identidad estable + estado operativo) para ese hijo, con un historial de todo lo que Nanny ha registrado.
 
 ```
 ┌─────────────────────────────────────────┐
-│  📋 Log de Pau                          │
+│  👧 Pau Lopez           6 años          │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌──────┐┌──────┐┌──────┐┌──────┐      │
+│  │ Info ││Salud ││Activ.││Histor│      │
+│  └──┬───┘└──────┘└──────┘└──────┘      │
+│     ▼                                   │
+│  INFORMACION GENERAL                    │
+│  ┌─────────────────────────────────┐    │
+│  │ Nombre: Pau Lopez  ✏️           │    │
+│  │ Nacimiento: 15 jun 2019  ✏️     │    │
+│  │ Emoji: 👧  ✏️                    │    │
+│  ├─────────────────────────────────┤    │
+│  │ 🏫 COLEGIO                      │    │
+│  │ Colegio Montessori  ✏️          │    │
+│  │ Maestra: Miss Carmen  ✏️        │    │
+│  │ Grado: 1ro primaria  ✏️         │    │
+│  │ Tel cole: 55-9999-0000  ✏️      │    │
+│  ├─────────────────────────────────┤    │
+│  │ 👟 PREFERENCIAS                  │    │
+│  │ Talla ropa: 6  ✏️               │    │
+│  │ Talla zapato: 19  ✏️            │    │
+│  │ [+ Agregar preferencia]         │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+Pestañas del perfil:
+
+**Info** — Datos generales, colegio, preferencias fijas (tallas, marcas)
+
+**Salud** — Dividido en identidad estable y estado operativo:
+
+```
+┌─────────────────────────────────────────┐
+│  👧 Pau Lopez > Salud                   │
+├─────────────────────────────────────────┤
+│                                         │
+│  🏥 MEDICO HABITUAL                     │
+│  Dr. Rodriguez  ✏️                      │
+│  Tel: 55-1111-2222  ✏️                  │
+│                                         │
+│  ⚠️ ALERGIAS Y CONDICIONES (permanente) │
+│  ┌─────────────────────────────────┐    │
+│  │ 🥜 Alergia al mani — severa    │    │
+│  │    Registrado: 8 mar (chat mama)│    │
+│  │              [Editar] [Eliminar]│    │
+│  └─────────────────────────────────┘    │
+│  [+ Agregar alergia/condicion]          │
+│                                         │
+│  💊 TRATAMIENTOS ACTIVOS (temporal)     │
+│  ┌─────────────────────────────────┐    │
+│  │ Antibiotico cada 8hrs           │    │
+│  │ Inicio: 9 mar → Fin: 14 mar    │    │
+│  │ Confirmado: ✅ mama              │    │
+│  │              [Editar] [Eliminar]│    │
+│  └─────────────────────────────────┘    │
+│  [+ Agregar tratamiento]               │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Actividades** — Rutinas vigentes con horarios y ubicación
+
+```
+┌─────────────────────────────────────────┐
+│  👧 Pau Lopez > Actividades             │
+├─────────────────────────────────────────┤
+│                                         │
+│  🏊 Natacion                            │
+│  Mar y Jue 3:00pm — Club Acuatico  ✏️  │
+│  Vigente desde: ene 2026               │
+│                                         │
+│  🎹 Piano                               │
+│  Jue 5:00pm — Academia Mozart  ✏️      │
+│  Vigente desde: mar 2026               │
+│                                         │
+│  [+ Agregar actividad]                  │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Historial** — Log cronologico de todo lo que Nanny ha registrado sobre este hijo. Es el audit log (Capa 0) presentado de forma amigable.
+
+```
+┌─────────────────────────────────────────┐
+│  👧 Pau Lopez > Historial               │
 ├─────────────────────────────────────────┤
 │                                         │
 │  Hoy, 9 mar                            │
@@ -333,7 +400,7 @@ Cada hijo tiene un log visible donde los padres ven **todo lo que Nanny ha enten
 └─────────────────────────────────────────┘
 ```
 
-Cada entrada del log muestra:
+Cada entrada del historial muestra:
 - **Que** registro Nanny (dato + categoria)
 - **Fuente** — de donde lo extrajo (chat mama, chat papa, email cole)
 - **Confirmacion** — si fue confirmado y por quien
@@ -341,6 +408,18 @@ Cada entrada del log muestra:
 - **Acciones** — editar o eliminar si Nanny entendio mal
 
 Esto le da al padre **visibilidad total y control** sobre lo que Nanny sabe de su hijo.
+
+**C. Red de Apoyo**
+- Agregar/editar contactos (abuela, tio, niñera, vecina)
+- Telefono, metodo de contacto preferido (WhatsApp/SMS)
+- Notas de disponibilidad ("solo entre semana", "despues de las 3")
+- Costo por hora (si aplica)
+- Contactos de emergencia con orden de prioridad
+
+**D. Integraciones**
+- Emails conectados (cole, doctor, actividades)
+- Estado de sincronizacion de calendarios
+- Permisos y accesos
 
 ### Pantalla 7: Metricas — Dashboard Fase 2
 
@@ -975,10 +1054,11 @@ AuditLog[]
 
 **Admin (Pantalla 6)**
 - [ ] Gestion de datos familiares (telefonos, emails, calendarios)
-- [ ] Gestion de hijos (datos escolares, medicos, alergias, preferencias, actividades)
+- [ ] Perfil por hijo con pestañas: Info, Salud, Actividades, Historial
+- [ ] Separacion estable vs operativo en Salud (alergias permanentes vs tratamientos activos)
+- [ ] Historial por hijo: log cronologico de todo lo que Nanny registro (audit log amigable)
 - [ ] Gestion de red de apoyo (contactos, disponibilidad, costos)
-- [ ] Log por hijo: historial visible de todo lo que Nanny registro (audit log amigable)
-- [ ] Acciones de correccion: editar/eliminar datos que Nanny entendio mal
+- [ ] Acciones de correccion en todo el Admin: editar/eliminar datos que Nanny entendio mal
 
 **Metricas (Pantalla 7 — solo equipo interno)**
 - [ ] Dashboard de adopcion (familias activas, msgs/dia, retencion)
