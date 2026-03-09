@@ -313,6 +313,69 @@
     background: var(--nanny-bg);
   }
 
+  .chat-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    animation: slideUp 0.3s ease;
+    margin: 4px 0;
+  }
+
+  .chat-choice-btn {
+    padding: 10px 18px;
+    border: 2px solid var(--primary);
+    border-radius: 20px;
+    background: white;
+    color: var(--primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chat-choice-btn:active, .chat-choice-btn.chosen {
+    background: var(--primary);
+    color: white;
+  }
+
+  .chat-child-card {
+    background: var(--gray-100);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideUp 0.3s ease;
+    align-self: center;
+    max-width: 85%;
+    margin: 2px 0;
+  }
+
+  .chat-child-card .child-emoji { font-size: 24px; }
+  .chat-child-card .child-name { font-weight: 700; font-size: 15px; color: var(--gray-800); }
+  .chat-child-card .child-age { font-size: 13px; color: var(--gray-500); }
+
+  .chat-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-self: center;
+    max-width: 90%;
+    justify-content: center;
+    animation: slideUp 0.3s ease;
+    margin: 2px 0;
+  }
+
+  .chat-tag {
+    padding: 6px 12px;
+    background: var(--nanny-bg);
+    border: 1px solid var(--primary-light);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--gray-700);
+  }
+
   .med-card {
     background: #FFF8E1;
     border-radius: 12px;
@@ -871,209 +934,10 @@
     <div class="welcome-logo">👶</div>
     <h1>Nanny</h1>
     <p>El asistente inteligente que organiza la vida de tus hijos.<br>Tú cuidas a tus hijos. Nanny cuida los detalles.</p>
-    <button class="btn btn-white btn-block" onclick="goTo('screen-onboard-1')">Comenzar</button>
+    <button class="btn btn-white btn-block" onclick="goTo('screen-chat');startOnboarding();">Comenzar</button>
   </div>
 
-  <!-- SCREEN 2: Onboarding Step 1 - Add Kids -->
-  <div class="screen onboarding-screen" id="screen-onboard-1">
-    <div class="onboarding-header">
-      <div class="step-indicator">
-        <div class="step-dot active"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-      </div>
-      <h2>Tus hijos</h2>
-      <p>Cuantos hijos tienes?</p>
-    </div>
-    <div class="onboarding-content">
-      <div class="nanny-bubble-onboarding">
-        <div class="nanny-label">Nanny</div>
-        <p>Hola! Soy Nanny. Voy a ayudarte a organizar todo lo de tus hijos. Empecemos por conocerlos.</p>
-      </div>
-      <div id="kids-list">
-        <div class="child-card">
-          <div class="child-avatar" style="background:#FFE0E6;">👧</div>
-          <div class="child-info">
-            <h4>Pau</h4>
-            <p>6 anios - 1o Primaria</p>
-          </div>
-        </div>
-        <div class="child-card">
-          <div class="child-avatar" style="background:#E0F2F1;">👶</div>
-          <div class="child-info">
-            <h4>Mati</h4>
-            <p>1 anio</p>
-          </div>
-        </div>
-      </div>
-      <div class="nanny-bubble-onboarding" style="margin-top:16px;">
-        <div class="nanny-label">Nanny</div>
-        <p>Pau de 6 y Mati de 1. Ya los tengo. Vamos a lo importante...</p>
-      </div>
-    </div>
-    <div class="onboarding-footer">
-      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-2')">Continuar</button>
-    </div>
-  </div>
-
-  <!-- SCREEN 3: Onboarding Step 2 - Urgent Stuff -->
-  <div class="screen onboarding-screen" id="screen-onboard-2">
-    <div class="onboarding-header">
-      <div class="step-indicator">
-        <div class="step-dot done"></div>
-        <div class="step-dot active"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-      </div>
-      <h2>Esta semana</h2>
-      <p>Algo urgente que no se te pueda olvidar?</p>
-    </div>
-    <div class="onboarding-content">
-      <div class="nanny-bubble-onboarding">
-        <div class="nanny-label">Nanny</div>
-        <p>Si tuvieras que recordar UNA cosa esta semana de tus hijos, cual seria?</p>
-      </div>
-      <div style="margin:16px 0;">
-        <div class="quick-option selected" onclick="this.classList.toggle('selected')">💊 Medicacion</div>
-        <div class="quick-option" onclick="this.classList.toggle('selected')">📅 Cita medica</div>
-        <div class="quick-option selected" onclick="this.classList.toggle('selected')">🎒 Algo del cole</div>
-        <div class="quick-option" onclick="this.classList.toggle('selected')">🛒 Compra urgente</div>
-      </div>
-      <div class="med-card">
-        <div><span class="med-icon">💊</span><span class="med-title">Medicacion de Pau</span></div>
-        <div class="med-detail">Antibiotico cada 8 horas hasta el viernes</div>
-        <div class="med-detail">Ultima toma: hoy 10:00am</div>
-        <div class="med-detail" style="color:var(--primary);font-weight:600;margin-top:6px;">
-          Proxima toma: 6:00pm - Te aviso 5 min antes
-        </div>
-      </div>
-      <div class="med-card" style="background:#F3E5F5;border-color:#CE93D8;">
-        <div><span class="med-icon">🎒</span><span class="med-title">Cole de Pau</span></div>
-        <div class="med-detail">Disfraz de animal para el lunes</div>
-        <div class="med-detail" style="color:var(--primary);font-weight:600;margin-top:6px;">
-          Te recuerdo el sabado para prepararlo
-        </div>
-      </div>
-    </div>
-    <div class="onboarding-footer">
-      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-3')">Continuar</button>
-    </div>
-  </div>
-
-  <!-- SCREEN 4: Onboarding Step 3 - Essentials -->
-  <div class="screen onboarding-screen" id="screen-onboard-3">
-    <div class="onboarding-header">
-      <div class="step-indicator">
-        <div class="step-dot done"></div>
-        <div class="step-dot done"></div>
-        <div class="step-dot active"></div>
-        <div class="step-dot"></div>
-      </div>
-      <h2>Lo basico</h2>
-      <p>Datos que Nanny debe saber</p>
-    </div>
-    <div class="onboarding-content">
-      <div class="nanny-bubble-onboarding">
-        <div class="nanny-label">Nanny</div>
-        <p>Un par de cosas mas y estamos listos:</p>
-      </div>
-      <div style="margin-top:12px;">
-        <div class="child-card" style="flex-direction:column;align-items:stretch;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            <span style="font-size:24px;">👧</span>
-            <strong>Pau</strong>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <div class="quick-option selected" style="font-size:13px;">🏫 Colegio Montessori</div>
-            <div class="quick-option selected" style="font-size:13px;">🏥 Dr. Garcia</div>
-            <div class="quick-option selected" style="font-size:13px;">⚠️ Alergia: mani</div>
-            <div class="quick-option selected" style="font-size:13px;">🏊 Natacion Mar/Jue</div>
-            <div class="quick-option selected" style="font-size:13px;">🎹 Piano Jue 5pm</div>
-          </div>
-        </div>
-        <div class="child-card" style="flex-direction:column;align-items:stretch;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            <span style="font-size:24px;">👶</span>
-            <strong>Mati</strong>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <div class="quick-option selected" style="font-size:13px;">🧷 Paniales Huggies E3</div>
-            <div class="quick-option selected" style="font-size:13px;">🍼 NAN 2 sin lactosa</div>
-            <div class="quick-option selected" style="font-size:13px;">😴 Siesta 2pm</div>
-            <div class="quick-option selected" style="font-size:13px;">🏥 Dra. Lopez</div>
-          </div>
-        </div>
-      </div>
-      <div class="nanny-bubble-onboarding" style="margin-top:16px;">
-        <div class="nanny-label">Nanny</div>
-        <p>Perfecto! Ya conozco a Pau y Mati. Ahora invitemos al otro papa/mama para que los dos tengan todo sincronizado.</p>
-      </div>
-    </div>
-    <div class="onboarding-footer">
-      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-4')">Invitar a Papa</button>
-    </div>
-  </div>
-
-  <!-- SCREEN 5: Onboarding Step 4 - Invite -->
-  <div class="screen onboarding-screen" id="screen-onboard-4">
-    <div class="onboarding-header">
-      <div class="step-indicator">
-        <div class="step-dot done"></div>
-        <div class="step-dot done"></div>
-        <div class="step-dot done"></div>
-        <div class="step-dot active"></div>
-      </div>
-      <h2>Invitar a Papa</h2>
-      <p>Para que ambos esten sincronizados</p>
-    </div>
-    <div class="onboarding-content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
-      <div style="font-size:80px;margin-bottom:24px;">📱</div>
-      <div class="nanny-bubble-onboarding" style="text-align:left;">
-        <div class="nanny-label">Nanny</div>
-        <p>Le envio un mensaje a Papa por WhatsApp con la invitacion. Va a ver esto:</p>
-      </div>
-      <div style="background:var(--papa-bg);border-radius:12px;padding:14px;margin:12px 0;text-align:left;width:100%;">
-        <p style="font-size:13px;color:var(--gray-800);line-height:1.6;">
-          <strong>Mama te invito a Nanny</strong> - el asistente de Pau y Mati<br><br>
-          👧 Pau: 💊 Antibiotico c/8hrs | 🎒 Disfraz lunes<br>
-          👶 Mati: 🧷 Paniales Huggies E3<br><br>
-          <span style="color:var(--primary);font-weight:600;">Abrir Nanny &rarr;</span>
-        </p>
-      </div>
-      <p style="font-size:13px;color:var(--gray-600);margin-top:8px;">Papa ve la info de sus hijos y quiere entrar.</p>
-    </div>
-    <div class="onboarding-footer">
-      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-done')" style="background:#25D366;">Enviar invitacion por WhatsApp</button>
-      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="goTo('screen-onboard-done')">Despues</button>
-    </div>
-  </div>
-
-  <!-- SCREEN 6: Onboarding Done -->
-  <div class="screen onboarding-screen" id="screen-onboard-done">
-    <div class="onboarding-content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
-      <div style="font-size:80px;margin-bottom:24px;">🎉</div>
-      <h2 style="font-size:24px;color:var(--gray-900);margin-bottom:12px;">Nanny esta lista!</h2>
-      <p style="font-size:15px;color:var(--gray-600);line-height:1.6;margin-bottom:32px;">
-        Ya conozco a Pau y Mati.<br>
-        Te aviso a las 5:55pm para el antibiotico.<br>
-        El sabado te recuerdo el disfraz.<br><br>
-        <strong>Cuando quieras decirme algo de tus hijos, escribelo en el chat.</strong>
-      </p>
-      <div style="background:var(--nanny-bg);border-radius:16px;padding:16px;width:100%;text-align:left;">
-        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">Proximas notificaciones:</div>
-        <div style="font-size:14px;color:var(--gray-800);line-height:2;">
-          🔔 Hoy 5:55pm — Antibiotico Pau<br>
-          🔔 Hoy 10:00pm — Antibiotico Pau (si aplica)<br>
-          🔔 Sabado 10am — Preparar disfraz de animal<br>
-          🔔 Domingo 8pm — Resumen semanal
-        </div>
-      </div>
-    </div>
-    <div class="onboarding-footer">
-      <button class="btn btn-primary btn-block" onclick="goTo('screen-chat');startChatDemo();">Ir al chat</button>
-    </div>
-  </div>
+  <!-- Onboarding screens removed - everything is chat-based now -->
 
   <!-- SCREEN 7: Chat -->
   <div class="screen chat-screen" id="screen-chat">
@@ -1283,11 +1147,32 @@ function goTo(screenId) {
   document.getElementById(screenId).classList.add('active');
 }
 
-// Chat demo
-const chatMessages = [
-  // ── DIA 1: LUNES - Se conocen, Nanny aprende ──
-  { type: 'day', text: 'Lunes — Dia 1', delay: 800 },
-  { type: 'system', text: 'Nanny creo el grupo "Familia Ferrer"', delay: 500 },
+// ═══════════════════════════════════════════
+// ONBOARDING CHAT (Nanny asks, user taps)
+// ═══════════════════════════════════════════
+const onboardingMessages = [
+  { type: 'nanny', sender: 'Nanny', text: 'Hola! Soy Nanny. Voy a ayudarte a que nada de tus hijos se te pase. Cuantos hijos tienes?', delay: 1000 },
+  { type: 'choices', options: ['1 hijo', '2 hijos', '3 hijos'], answer: 1, delay: 400 },
+  { type: 'nanny', sender: 'Nanny', text: 'Dos! Cuentame de ellos.', delay: 1200 },
+  { type: 'childCard', emoji: '👧', name: 'Pau', age: '6 anios', delay: 800 },
+  { type: 'childCard', emoji: '👶', name: 'Mati', age: '1 anio', delay: 600 },
+  { type: 'nanny', sender: 'Nanny', text: 'Pau de 6 y Mati de 1. Algo urgente esta semana que no se pueda olvidar?', delay: 1500 },
+  { type: 'choices', options: ['💊 Medicacion', '🎒 Algo del cole', '🛒 Compras'], answer: 0, delay: 400 },
+  { type: 'tags', items: ['💊 Antibiotico Pau c/8hrs hasta viernes', '🎒 Disfraz de animal para el lunes'], delay: 800 },
+  { type: 'nanny', sender: 'Nanny', text: 'Listo, estoy pendiente del antibiotico y el disfraz. Algun dato importante de cada uno?', delay: 1500 },
+  { type: 'tags', items: ['🏫 Cole Montessori', '⚠️ Alergia: mani', '🏊 Natacion Mar/Jue', '🧷 Paniales Huggies E3', '🍼 NAN 2 sin lactosa', '😴 Siesta 2pm'], delay: 800 },
+  { type: 'nanny', sender: 'Nanny', text: 'Perfecto. Quieres invitar a Papa para que los dos esten sincronizados?', delay: 1500 },
+  { type: 'choices', options: ['Invitar a Papa', 'Despues'], answer: 0, delay: 400 },
+  { type: 'system', text: 'Papa se unio al grupo', delay: 1000 },
+  { type: 'nanny', sender: 'Nanny', text: 'Listo! Ya estamos los tres. Yo me quedo por aqui, si necesitan algo de los chicos solo escriban. Mientras tanto, yo les aviso lo importante.', delay: 1500 },
+];
+
+// ═══════════════════════════════════════════
+// WEEK DEMO (Day 1-7 parent conversations)
+// ═══════════════════════════════════════════
+const weekMessages = [
+  // ── DIA 1: LUNES ──
+  { type: 'day', text: 'Lunes — Dia 1', delay: 2000 },
   { type: 'mama', sender: 'Mama', text: 'Amor ya llegaste a la casa?', delay: 1500 },
   { type: 'papa', sender: 'Papa', text: 'Saliendo, llego en 30', delay: 1800 },
   { type: 'mama', sender: 'Mama', text: 'Mati ya casi no tiene paniales, puedes pasar a comprar?', delay: 2200 },
@@ -1296,7 +1181,7 @@ const chatMessages = [
   { type: 'papa', sender: 'Papa', text: 'Eso! Gracias, ya paso', delay: 1800 },
   { type: 'summary', text: 'Nanny aprendio la marca de paniales, organizo la compra y le recordo a Papa antes de llegar a casa.', delay: 2500 },
 
-  // ── DIA 3: MIERCOLES - Nanny empieza a anticipar ──
+  // ── DIA 3: MIERCOLES ──
   { type: 'day', text: 'Miercoles — Dia 3', delay: 1500 },
   { type: 'nanny', sender: 'Nanny', text: 'El disfraz de animal de Pau es el lunes. Aun no eligen cual hacer.', delay: 1500 },
   { type: 'mama', sender: 'Mama', text: 'Ay es verdad! Se me habia olvidado por completo', delay: 2000 },
@@ -1306,7 +1191,7 @@ const chatMessages = [
   { type: 'nanny', sender: 'Nanny', text: 'Anoto: sabado preparar disfraz con Pau', delay: 1000 },
   { type: 'summary', text: 'Nanny aviso del disfraz 4 dias antes. Sin ese recordatorio, se enteraban el domingo en la noche.', delay: 2500 },
 
-  // ── DIA 5: VIERNES - Nanny conecta puntos ──
+  // ── DIA 5: VIERNES ──
   { type: 'day', text: 'Viernes — Dia 5', delay: 1500 },
   { type: 'mama', sender: 'Mama', text: 'Oye el cumple de Sofia es maniana! Hay que comprarle algo', delay: 2000 },
   { type: 'papa', sender: 'Papa', text: 'Cierto. Yo puedo pasar a comprar algo en la maniana', delay: 1800 },
@@ -1315,42 +1200,51 @@ const chatMessages = [
   { type: 'mama', sender: 'Mama', text: 'Perfecto, yo me quedo armando el disfraz con Pau mientras', delay: 1800 },
   { type: 'summary', text: 'Nanny conecto que el regalo y el disfraz chocaban en la maniana. Reorganizo el sabado sin que nadie se lo pidiera.', delay: 2500 },
 
-  // ── DIA 7: DOMINGO - Resumen semanal ──
+  // ── DIA 7: DOMINGO ──
   { type: 'day', text: 'Domingo — Dia 7', delay: 1500 },
   { type: 'nanny', sender: 'Nanny', text: 'Resumen de la semana:', delay: 1500, action: true, actionContent: '✅ 12 tareas completadas<br>💊 Antibiotico Pau: terminado!<br>🎭 Disfraz de leon: listo<br>🎂 Cumple Sofia: fueron<br>🛒 Paniales: comprados<br><br>Proxima semana:<br>• Lun: Disfraz al cole<br>• Mar: Pediatra Pau 10am<br>• Jue: Piano 5pm', actionButtons: ['Ver semana', 'Ok'] },
   { type: 'mama', sender: 'Mama', text: 'Que hubiera sido de nosotros esta semana sin Nanny jaja', delay: 2500 },
   { type: 'papa', sender: 'Papa', text: 'Literal. No se nos olvido nada 🙌', delay: 1800 },
-
-  // ── Card final ──
   { type: 'weekEnd', delay: 2000 },
 ];
 
-let chatIndex = 0;
+let msgIndex = 0;
+let currentMessages = [];
 let chatContainer;
 
-function startChatDemo() {
+function startOnboarding() {
   chatContainer = document.getElementById('chat-messages');
   chatContainer.innerHTML = '';
-  chatIndex = 0;
-  showNextMessage();
+  msgIndex = 0;
+  currentMessages = onboardingMessages;
+  showNext();
 }
 
 function showChatFromTab() {
-  // Don't restart if chat already has messages
   if (document.getElementById('chat-messages').children.length === 0) {
-    startChatDemo();
+    startOnboarding();
   }
 }
 
-function showNextMessage() {
-  if (chatIndex >= chatMessages.length) {
+function startWeekDemo() {
+  msgIndex = 0;
+  currentMessages = weekMessages;
+  showNext();
+}
+
+function showNext() {
+  if (msgIndex >= currentMessages.length) {
+    // If onboarding just finished, start the week demo
+    if (currentMessages === onboardingMessages) {
+      startWeekDemo();
+    }
     return;
   }
 
-  const msg = chatMessages[chatIndex];
+  const msg = currentMessages[msgIndex];
   const typing = document.getElementById('typing-indicator');
 
-  // Day dividers
+  // ── Day dividers ──
   if (msg.type === 'day') {
     setTimeout(() => {
       const el = document.createElement('div');
@@ -1358,27 +1252,27 @@ function showNextMessage() {
       el.innerHTML = `<span class="day-label">${msg.text}</span>`;
       chatContainer.appendChild(el);
       chatContainer.scrollTop = chatContainer.scrollHeight;
-      chatIndex++;
-      showNextMessage();
+      msgIndex++;
+      showNext();
     }, msg.delay);
     return;
   }
 
-  // Day summary cards
+  // ── Summary cards ──
   if (msg.type === 'summary') {
     setTimeout(() => {
       const el = document.createElement('div');
       el.className = 'day-summary';
-      el.innerHTML = `${msg.text}`;
+      el.textContent = msg.text;
       chatContainer.appendChild(el);
       chatContainer.scrollTop = chatContainer.scrollHeight;
-      chatIndex++;
-      showNextMessage();
+      msgIndex++;
+      showNext();
     }, msg.delay);
     return;
   }
 
-  // Week end stats card
+  // ── Week end stats ──
   if (msg.type === 'weekEnd') {
     setTimeout(() => {
       const el = document.createElement('div');
@@ -1395,12 +1289,80 @@ function showNextMessage() {
       `;
       chatContainer.appendChild(el);
       chatContainer.scrollTop = chatContainer.scrollHeight;
-      chatIndex++;
+      msgIndex++;
     }, msg.delay);
     return;
   }
 
-  // Show typing indicator for non-system messages
+  // ── Quick-reply choices (auto-tap after delay) ──
+  if (msg.type === 'choices') {
+    setTimeout(() => {
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-choices';
+      msg.options.forEach((opt, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'chat-choice-btn';
+        btn.textContent = opt;
+        wrap.appendChild(btn);
+      });
+      chatContainer.appendChild(wrap);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      // Auto-tap the answer after a pause
+      setTimeout(() => {
+        const btns = wrap.querySelectorAll('.chat-choice-btn');
+        btns[msg.answer].classList.add('chosen');
+        // Fade out non-chosen
+        btns.forEach((b, i) => {
+          if (i !== msg.answer) b.style.opacity = '0.4';
+        });
+        msgIndex++;
+        setTimeout(() => showNext(), 400);
+      }, 1200);
+    }, msg.delay);
+    return;
+  }
+
+  // ── Child cards ──
+  if (msg.type === 'childCard') {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'chat-child-card';
+      el.innerHTML = `
+        <span class="child-emoji">${msg.emoji}</span>
+        <div>
+          <div class="child-name">${msg.name}</div>
+          <div class="child-age">${msg.age}</div>
+        </div>
+      `;
+      chatContainer.appendChild(el);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      msgIndex++;
+      showNext();
+    }, msg.delay);
+    return;
+  }
+
+  // ── Tags (info chips) ──
+  if (msg.type === 'tags') {
+    setTimeout(() => {
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-tags';
+      msg.items.forEach(item => {
+        const tag = document.createElement('span');
+        tag.className = 'chat-tag';
+        tag.textContent = item;
+        wrap.appendChild(tag);
+      });
+      chatContainer.appendChild(wrap);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      msgIndex++;
+      setTimeout(() => showNext(), 800);
+    }, msg.delay);
+    return;
+  }
+
+  // ── Regular messages (nanny, mama, papa, system) ──
   if (msg.type !== 'system') {
     typing.classList.add('visible');
     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -1431,8 +1393,8 @@ function showNextMessage() {
     chatContainer.appendChild(el);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    chatIndex++;
-    showNextMessage();
+    msgIndex++;
+    showNext();
   }, msg.delay);
 }
 
