@@ -398,6 +398,140 @@ Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
    → Cancela recordatorio de recogida a padres
 ```
 
+### Arquitectura de Memoria
+
+El sistema de memoria de Nanny se organiza en 4 capas jerarquicas. La regla fundamental: **la fuente de verdad siempre es el estado estructurado (Capa 3), nunca un resumen generado por IA ni el chat reciente**.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  ARQUITECTURA DE MEMORIA                     │
+│                                                              │
+│  CAPA 3 ─ ESTADO ESTRUCTURADO CANÓNICO (fuente de verdad)  │
+│  ┌────────────────────────┬────────────────────────────┐    │
+│  │  3A: IDENTIDAD ESTABLE │  3B: ESTADO OPERATIVO      │    │
+│  │                        │                            │    │
+│  │  • hijos (nombre,edad) │  • tratamientos activos    │    │
+│  │  • alergias            │  • eventos proximos        │    │
+│  │  • condiciones medicas │  • tareas pendientes       │    │
+│  │  • colegios/maestros   │  • asignaciones temporales │    │
+│  │  • medicos habituales  │  • decisiones pendientes   │    │
+│  │  • contactos emergencia│  • recordatorios activos   │    │
+│  │  • preferencias fijas  │  • rutinas vigentes        │    │
+│  │                        │                            │    │
+│  │  Duracion: meses/años  │  Duracion: dias/semanas    │    │
+│  └────────────────────────┴────────────────────────────┘    │
+│                                                              │
+│  CAPA 2 ─ MEMORIA RESUMIDA (derivada, NO fuente de verdad) │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  • Resumen diario ("Ayer Lucia tuvo fiebre...")     │    │
+│  │  • Resumen semanal (para contexto del modelo)       │    │
+│  │  • Actualizaciones notables                         │    │
+│  │                                                     │    │
+│  │  Uso: continuidad narrativa + contexto para Claude  │    │
+│  │  NO reemplaza tablas estructuradas                  │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  CAPA 1 ─ CONTEXTO CONVERSACIONAL (ventana corta)           │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  • Ultimos 10-20 mensajes RELEVANTES (no fijos)     │    │
+│  │  • Filtrados por relevancia antes de enviar a Claude │    │
+│  │  • Pre-clasificacion: irrelevante vs accionable     │    │
+│  │                                                     │    │
+│  │  NO se envian los ultimos 50 mensajes completos     │    │
+│  │  Se filtran bromas, mensajes irrelevantes           │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  CAPA 0 ─ LOG COMPLETO (auditoria y debugging)              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  • Todos los mensajes crudos (raw_messages)         │    │
+│  │  • sender, timestamp, detected_intent               │    │
+│  │  • extracted_entities, confidence_score              │    │
+│  │  • action_taken, confirmation_status                 │    │
+│  │                                                     │    │
+│  │  Uso: debugging, auditoria, mejorar prompts         │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Principios Clave
+
+1. **Capa 3 = verdad canonica.** Si hay conflicto entre lo que dice un resumen (Capa 2) y lo que esta en la tabla estructurada (Capa 3), gana la tabla.
+
+2. **Separar identidad de estado operativo.** No es lo mismo "Marco es alergico al mani" (identidad estable, dura años) que "Papa recoge los martes" (asignacion temporal, puede cambiar mañana). Capa 3A vs 3B.
+
+3. **Medicinas NO son identidad.** Las condiciones medicas estables (alergias, diagnosticos) van en Capa 3A. Los tratamientos activos (antibiotico 5 dias, jarabe hasta el viernes) van en Capa 3B como estado operativo con fecha de caducidad.
+
+4. **Ventana conversacional filtrada.** No enviar los ultimos N mensajes crudos a Claude. Pre-clasificar cada mensaje como irrelevante o potencialmente accionable. Solo enviar los relevantes. Esto reduce costo y evita mezclar temas (antibiotico + disfraz + excursion + pañales).
+
+5. **Resumenes como apoyo, no como verdad.** Los resumenes diarios/semanales (Capa 2) sirven para continuidad narrativa y contexto del modelo. La informacion operativa real vive en tablas: eventos, tareas, tratamientos, recordatorios.
+
+6. **Todo tiene vigencia.** Cada dato operativo debe incluir metadatos de temporalidad:
+   - `source` — de donde vino (chat, email, manual)
+   - `confidence` — nivel de confianza de la extraccion
+   - `valid_from` / `valid_until` — vigencia temporal
+   - `confirmed_by` — quien lo confirmo (mama/papa/ninguno)
+   - `status` — activo, completado, caducado, pendiente_confirmacion
+
+7. **Estados pendientes de confirmacion.** Muchas decisiones familiares son progresivas. Nanny detecta "pediatra martes 10am" pero falta saber quien lleva. Debe existir un estado `awaiting_confirmation` para items incompletos que requieren clarificacion.
+
+#### Flujo: Mensaje → Memoria
+
+```
+Mensaje nuevo en el chat
+        │
+        ▼
+┌─────────────────────────┐
+│  CAPA 0: Log completo   │  ← siempre se guarda todo
+│  (raw message + metadata)│
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Pre-clasificacion       │  ← rapida, sin LLM
+│  ¿Relevante o ruido?    │
+│  "jaja ok" → descarta   │
+│  "le toca medicina" → ✓ │
+└───────────┬─────────────┘
+            │ (solo relevantes)
+            ▼
+┌─────────────────────────┐
+│  CAPA 1: Contexto activo │  ← ventana corta filtrada
+│  + Capa 3 del hijo       │  ← identidad + estado operativo
+│  + Capa 2 resumen reciente│ ← contexto narrativo
+│                          │
+│  → Se envia a Claude API │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Claude extrae:          │
+│  • entidades            │
+│  • intenciones          │
+│  • acciones sugeridas   │
+│  • confidence score     │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│  Actualizacion condicional:      │
+│                                  │
+│  Confidence alta (>0.9):        │
+│  → Actualiza Capa 3B directo    │
+│  → Confirma en chat             │
+│                                  │
+│  Confidence media (0.7-0.9):    │
+│  → Guarda como pending_confirmation │
+│  → Pregunta en chat             │
+│                                  │
+│  Confidence baja (<0.7):        │
+│  → Solo registra en Capa 0      │
+│  → Pide clarificacion           │
+│                                  │
+│  Info medica (cualquier nivel): │
+│  → SIEMPRE confirma antes de actuar │
+└─────────────────────────────────┘
+```
+
 ### Stack Tecnico
 
 **Fase 1 — Prototipo (Actual)**
@@ -425,54 +559,169 @@ Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
 
 ### Modelo de Datos
 
+Organizado segun la Arquitectura de Memoria por capas.
+
 ```
+═══════════════════════════════════════════════════════════════
+  CAPA 3A — IDENTIDAD FAMILIAR ESTABLE
+  (datos que duran meses/años, rara vez cambian)
+═══════════════════════════════════════════════════════════════
+
 Family
   ├── id, name, created_at
-  │
-  ├── Parents[]
-  │     ├── id, name, role (mama/papa), phone, email
-  │     ├── calendar_provider (google/apple), calendar_id
-  │     └── notification_preferences
-  │
-  ├── Children[]
-  │     ├── id, name, age, emoji
-  │     ├── school, teacher, grade
-  │     ├── doctor, doctor_phone
-  │     ├── allergies[], medical_conditions[]
-  │     ├── activities[] (name, days, time, location)
-  │     ├── preferences (diaper_brand, formula, clothing_size, shoe_size)
-  │     ├── medications[] (name, dose, frequency, start_date, end_date, notes)
-  │     └── medical_history[] (date, description, source)
-  │
-  ├── SupportNetwork[]
-  │     ├── id, name, relation (abuela/tio/niñera/vecina)
-  │     ├── phone, contact_method (whatsapp/sms)
-  │     ├── availability_notes
-  │     └── cost_per_hour (null si es familia)
-  │
-  ├── Events[]
-  │     ├── id, title, date, time, child_id
-  │     ├── type (school, medical, activity, social, errand)
-  │     ├── assigned_to (mama/papa/both/support_contact_id)
-  │     ├── source (chat, email_school, email_doctor, manual)
-  │     ├── reminder_config
-  │     └── status (pending, done, missed, delegated)
-  │
-  ├── Tasks[]
-  │     ├── id, description, priority, child_id
-  │     ├── assigned_to, due_date
-  │     ├── subtasks[] (checklist items)
-  │     └── status (pending, in_progress, done)
-  │
-  ├── EmailIntegrations[]
-  │     ├── id, source (school, doctor, activity)
-  │     ├── email_address, label
-  │     └── last_processed_at
-  │
-  └── Messages[]
-        ├── id, sender (mama/papa/nanny/system), text, timestamp
-        ├── extracted_entities[]
-        └── actions_generated[]
+
+Parents[]
+  ├── id, family_id, name, role (mama/papa), phone, email
+  ├── calendar_provider (google/apple), calendar_id
+  └── notification_preferences
+
+Children[]
+  ├── id, family_id, name, birth_date, emoji
+  ├── school, teacher, grade
+  └── doctor, doctor_phone
+
+Allergies[]
+  ├── id, child_id, allergen, severity
+  ├── source (chat/manual), confirmed_by
+  └── detected_at
+
+MedicalConditions[]
+  ├── id, child_id, condition, diagnosed_date
+  ├── source, confirmed_by
+  └── notes
+
+Preferences[]
+  ├── id, child_id, category (diaper/formula/clothing/shoe)
+  ├── key, value (ej: brand="Huggies", size="E3")
+  ├── source, confirmed_by
+  └── last_updated
+
+SupportNetwork[]
+  ├── id, family_id, name, relation (abuela/tio/niñera/vecina)
+  ├── phone, contact_method (whatsapp/sms)
+  ├── availability_notes
+  └── cost_per_hour (null si es familia)
+
+EmergencyContacts[]
+  ├── id, family_id, name, phone, relation
+  └── priority_order
+
+EmailIntegrations[]
+  ├── id, family_id, source (school/doctor/activity)
+  ├── email_address, label
+  └── last_processed_at
+
+
+═══════════════════════════════════════════════════════════════
+  CAPA 3B — ESTADO OPERATIVO VIGENTE
+  (datos temporales con vigencia, cambian frecuentemente)
+═══════════════════════════════════════════════════════════════
+
+ActiveTreatments[]
+  ├── id, child_id, medication_name, dose, frequency
+  ├── start_date, end_date
+  ├── source (chat/email_doctor), confidence
+  ├── confirmed_by (mama/papa/none)
+  └── status (active/completed/cancelled)
+
+Events[]
+  ├── id, family_id, title, date, time, child_id
+  ├── type (school/medical/activity/social/errand)
+  ├── assigned_to (mama/papa/both/support_contact_id)
+  ├── source (chat/email_school/email_doctor/manual)
+  ├── confidence, confirmed_by
+  ├── valid_from, valid_until
+  ├── reminder_config
+  └── status (pending/done/missed/delegated)
+
+Tasks[]
+  ├── id, family_id, description, priority, child_id
+  ├── assigned_to, due_date
+  ├── subtasks[] (checklist items)
+  ├── source, confidence, confirmed_by
+  └── status (pending/in_progress/done/expired)
+
+Reminders[]
+  ├── id, family_id, child_id, title, message
+  ├── trigger_at, repeat_config
+  ├── source_event_id / source_treatment_id
+  └── status (active/fired/dismissed/expired)
+
+TemporaryAssignments[]
+  ├── id, family_id, description
+  ├── assigned_to, child_id
+  ├── valid_from, valid_until
+  ├── source, confirmed_by
+  └── status (active/expired/replaced)
+
+PendingDecisions[]
+  ├── id, family_id, description
+  ├── context (que se sabe hasta ahora)
+  ├── clarification_needed (que falta por definir)
+  ├── detected_at, resolved_at
+  └── status (awaiting_confirmation/resolved/expired)
+
+Routines[]
+  ├── id, family_id, child_id, description
+  ├── schedule (days[], time)
+  ├── assigned_to, location
+  ├── valid_from, valid_until
+  └── status (active/paused/ended)
+
+
+═══════════════════════════════════════════════════════════════
+  CAPA 2 — MEMORIA RESUMIDA (derivada)
+═══════════════════════════════════════════════════════════════
+
+DailySummaries[]
+  ├── id, family_id, date
+  ├── summary_text (generado por IA)
+  ├── key_events[], key_decisions[]
+  └── generated_at
+
+WeeklySummaries[]
+  ├── id, family_id, week_start, week_end
+  ├── summary_text
+  ├── unresolved_items[], highlights[]
+  └── generated_at
+
+NotableUpdates[]
+  ├── id, family_id, child_id
+  ├── update_text, category (medical/school/routine)
+  ├── source_message_id
+  └── detected_at
+
+
+═══════════════════════════════════════════════════════════════
+  CAPA 1 — CONTEXTO CONVERSACIONAL
+═══════════════════════════════════════════════════════════════
+
+  (No se persiste como tabla propia — se construye
+   dinamicamente seleccionando mensajes relevantes
+   de Capa 0 antes de cada llamada a Claude)
+
+
+═══════════════════════════════════════════════════════════════
+  CAPA 0 — LOG COMPLETO (auditoria y debugging)
+═══════════════════════════════════════════════════════════════
+
+Messages[]
+  ├── id, family_id
+  ├── sender (mama/papa/nanny/system), text, timestamp
+  ├── is_relevant (pre-clasificacion: true/false)
+  ├── detected_intent
+  ├── extracted_entities[]
+  ├── confidence_score
+  ├── actions_generated[]
+  └── confirmation_status (confirmed/rejected/pending/na)
+
+AuditLog[]
+  ├── id, family_id, action_type
+  ├── description, source_message_id
+  ├── target_table, target_id
+  ├── old_value, new_value
+  ├── performed_by (nanny/mama/papa)
+  └── timestamp
 ```
 
 ---
