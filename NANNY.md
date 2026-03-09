@@ -225,13 +225,233 @@ Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
 | **Perfil por Hijo** | Ficha completa: escuela, maestra, medico, alergias, actividades, tallas |
 | **Compartir a WhatsApp** | Exporta agendas y resumenes formateados con un tap |
 
-## Las 5 Pantallas
+## Las 7 Pantallas
 
 1. **Chat** — El corazon. Mama + Papa + Nanny conversando. Mensajes color-coded (rosa mama, verde papa, morado nanny). Nanny interviene solo cuando aporta.
 2. **Hoy** — Agenda del dia con horarios, responsables y pendientes priorizados.
 3. **Semana** — Plan de 7 dias con eventos, responsables y alertas destacadas.
 4. **Hijos** — Perfil completo por hijo: escuela, maestra, medico, alergias, actividades, tallas, medicinas activas, historial.
 5. **Notificaciones** — Alertas push con acciones rapidas (marcar hecho, posponer, responder).
+6. **Admin** — Panel de gestion donde los padres agregan, editan y corrigen toda la informacion familiar.
+7. **Metricas** — Dashboard interno (solo Fase 2) para medir adopcion, engagement y calidad de la IA.
+
+### Pantalla 6: Admin — Gestion Familiar
+
+El Admin es donde los padres **controlan la fuente de verdad** (Capa 3). Nanny extrae informacion del chat automaticamente, pero los padres siempre pueden corregir, agregar o eliminar datos manualmente desde aqui.
+
+```
+┌─────────────────────────────────────────┐
+│  ⚙️  Admin                    👨‍👩‍👧‍👦      │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐      │
+│  │Familia│ │Hijos│ │Red  │ │Integ│      │
+│  │      │ │     │ │Apoyo│ │     │      │
+│  └──┬───┘ └─────┘ └─────┘ └─────┘      │
+│     ▼                                   │
+│  DATOS FAMILIARES                       │
+│  ┌─────────────────────────────────┐    │
+│  │ 👩 Mama: Ana Lopez              │    │
+│  │    📱 55-1234-5678  ✏️           │    │
+│  │    📧 ana@email.com  ✏️          │    │
+│  │    📅 Google Calendar  🔗        │    │
+│  │                                 │    │
+│  │ 👨 Papa: Carlos Lopez           │    │
+│  │    📱 55-8765-4321  ✏️           │    │
+│  │    📧 carlos@email.com  ✏️       │    │
+│  │    📅 Apple Calendar  🔗         │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  [+ Agregar miembro]                    │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+#### Secciones del Admin
+
+**A. Familia**
+- Editar nombre, telefono, email de cada padre
+- Conectar/desconectar calendarios (Google/Apple)
+- Preferencias de notificacion (horarios, frecuencia, canales)
+- Zona horaria
+
+**B. Hijos**
+- Agregar/editar hijos (nombre, fecha nacimiento, emoji)
+- Datos del colegio (nombre, maestra, grado, telefono cole)
+- Datos medicos: medico habitual, telefono medico
+- Alergias y condiciones medicas (agregar, editar, eliminar)
+- Preferencias fijas (marca pañales, formula, tallas ropa/zapatos)
+- Actividades (nombre, dias, horario, ubicacion)
+
+**C. Red de Apoyo**
+- Agregar/editar contactos (abuela, tio, niñera, vecina)
+- Telefono, metodo de contacto preferido (WhatsApp/SMS)
+- Notas de disponibilidad ("solo entre semana", "despues de las 3")
+- Costo por hora (si aplica)
+- Contactos de emergencia con orden de prioridad
+
+**D. Integraciones**
+- Emails conectados (cole, doctor, actividades)
+- Estado de sincronizacion de calendarios
+- Permisos y accesos
+
+**E. Log por Hijo** — Historial de lo que Nanny ha registrado
+
+Cada hijo tiene un log visible donde los padres ven **todo lo que Nanny ha entendido y registrado**. Esto es el audit log (Capa 0) presentado de forma amigable.
+
+```
+┌─────────────────────────────────────────┐
+│  📋 Log de Pau                          │
+├─────────────────────────────────────────┤
+│                                         │
+│  Hoy, 9 mar                            │
+│  ┌─────────────────────────────────┐    │
+│  │ 10:23  Nanny registro:          │    │
+│  │ 💊 Antibiotico cada 8hrs        │    │
+│  │ Fuente: chat mama               │    │
+│  │ Confirmado: ✅ mama              │    │
+│  │ Vigencia: hasta 14 mar          │    │
+│  │           [Editar] [Eliminar]   │    │
+│  ├─────────────────────────────────┤    │
+│  │ 09:15  Nanny registro:          │    │
+│  │ 📅 Dia de disfraces lunes       │    │
+│  │ Fuente: chat papa               │    │
+│  │ Confirmado: ✅ papa              │    │
+│  │ Caduca: 10 mar                  │    │
+│  │           [Editar] [Eliminar]   │    │
+│  ├─────────────────────────────────┤    │
+│  │ 08:00  Nanny registro:          │    │
+│  │ 🏥 Alergia al mani              │    │
+│  │ Fuente: chat mama               │    │
+│  │ Confirmado: ✅ mama              │    │
+│  │ Permanente                      │    │
+│  │           [Editar] [Eliminar]   │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  [Ver semana anterior]                  │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+Cada entrada del log muestra:
+- **Que** registro Nanny (dato + categoria)
+- **Fuente** — de donde lo extrajo (chat mama, chat papa, email cole)
+- **Confirmacion** — si fue confirmado y por quien
+- **Vigencia** — permanente o con fecha de caducidad
+- **Acciones** — editar o eliminar si Nanny entendio mal
+
+Esto le da al padre **visibilidad total y control** sobre lo que Nanny sabe de su hijo.
+
+### Pantalla 7: Metricas — Dashboard Fase 2
+
+Panel interno para el equipo de producto durante la Fase 2 (10 familias piloto). **No es visible para los padres** — es para medir si el MVP funciona antes de escalar.
+
+```
+┌─────────────────────────────────────────┐
+│  📊 Metricas MVP — Fase 2              │
+│  Periodo: 1-31 mar 2026                │
+├─────────────────────────────────────────┤
+│                                         │
+│  ADOPCION                               │
+│  ┌────────┐ ┌────────┐ ┌────────┐      │
+│  │ 8/10   │ │  23    │ │ 18     │      │
+│  │familias│ │ dias   │ │msgs/dia│      │
+│  │activas │ │promedio│ │promedio│      │
+│  │30 dias │ │retencion│ │x familia│     │
+│  └────────┘ └────────┘ └────────┘      │
+│                                         │
+│  ENGAGEMENT                             │
+│  ┌─────────────────────────────────┐    │
+│  │ ¿Como abren la app?             │    │
+│  │ ██████████░░ 68% por push       │    │
+│  │ ████░░░░░░░░ 32% por iniciativa │    │
+│  │                                 │    │
+│  │ Dias consecutivos activos:      │    │
+│  │ ████████████████░░ avg 12 dias  │    │
+│  │                                 │    │
+│  │ Mensajes mama vs papa:          │    │
+│  │ ████████████░░░░ 62% mama       │    │
+│  │ ██████░░░░░░░░░░ 38% papa      │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  CALIDAD IA                             │
+│  ┌─────────────────────────────────┐    │
+│  │ Extracciones correctas: 94%     │    │
+│  │ Confirmaciones aceptadas: 89%   │    │
+│  │ Correcciones manuales: 12       │    │
+│  │ Falsos positivos: 3             │    │
+│  │ Datos eliminados por padres: 2  │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  COSTO                                  │
+│  ┌─────────────────────────────────┐    │
+│  │ Tokens totales: 45.2M           │    │
+│  │ Costo Claude API: $38.50        │    │
+│  │ Costo por familia: $3.85        │    │
+│  │ Costo por mensaje: $0.021       │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+#### Metricas que se trackean
+
+**Adopcion (¿usan Nanny o regresan a WhatsApp?)**
+
+| Metrica | Que mide | Meta Fase 2 |
+|---------|----------|-------------|
+| Familias activas 30 dias | Retencion bruta | 8 de 10 |
+| Mensajes por dia por familia | Volumen de uso | >10 msgs/dia |
+| Dias consecutivos activos | Frecuencia de habito | >20 dias |
+| Apertura por push vs iniciativa | Dependencia de notificaciones | <60% push |
+
+**Engagement (¿que tan profundo es el uso?)**
+
+| Metrica | Que mide | Meta Fase 2 |
+|---------|----------|-------------|
+| % mensajes mama vs papa | Balance de participacion | Ambos >30% |
+| Mensajes accionables vs ruido | Calidad del chat | >50% accionables |
+| Interacciones con respuestas de Nanny | Engagement con la IA | >70% responden |
+| Uso del Admin (ediciones manuales) | Confianza en el sistema | <15% correciones |
+| Tiempo en app por sesion | Sesiones con proposito | 2-5 min promedio |
+
+**Calidad de la IA (¿Nanny entiende bien?)**
+
+| Metrica | Que mide | Meta Fase 2 |
+|---------|----------|-------------|
+| Extracciones correctas | Precision de entidades | >90% |
+| Confirmaciones aceptadas | Nanny entendio bien | >85% |
+| Correcciones manuales en Admin | Errores que el padre corrige | <20/mes total |
+| Datos eliminados por padres | Nanny registro algo incorrecto | <5/mes total |
+| Tiempo de respuesta de Claude | Latencia percibida | <3 seg |
+
+**Costo (¿es sostenible?)**
+
+| Metrica | Que mide | Meta Fase 2 |
+|---------|----------|-------------|
+| Costo por familia/mes | Sostenibilidad | <$5 USD |
+| Costo por mensaje procesado | Eficiencia | <$0.03 USD |
+| Tokens input vs output | Ratio de eficiencia | <10:1 |
+| % mensajes que requieren LLM | Efectividad del filtro | <60% |
+
+#### Señales para pivotar
+
+```
+🔴 ALERTA ROJA (pivotar o cambiar enfoque):
+   • <5 familias activas despues de 2 semanas
+   • <5 mensajes/dia promedio por familia
+   • Padres reportan que prefieren WhatsApp
+
+🟡 ALERTA AMARILLA (ajustar):
+   • >80% aperturas solo por push (no hay habito)
+   • >25% correcciones manuales (IA no es confiable)
+   • Solo mama usa la app (papa no participa)
+
+🟢 SEÑAL VERDE (escalar a Fase 3):
+   • 8+ familias activas 30 dias
+   • >10 msgs/dia y ambos padres participan
+   • <15% correcciones y >85% confirmaciones aceptadas
+```
 
 ---
 
@@ -284,7 +504,7 @@ Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
 │                                                          │
 │  ┌────────────────────────────────────────────────────┐  │
 │  │              Pantallas                             │  │
-│  │  Chat │ Hoy │ Semana │ Hijos │ Notificaciones     │  │
+│  │  Chat│Hoy│Semana│Hijos│Notifs│Admin│Metricas      │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 └─────────────────┬────────────────────┬───────────────────┘
@@ -740,9 +960,10 @@ AuditLog[]
 
 **Entregable**: Demo funcional para presentar a inversionistas y early adopters.
 
-### Fase 2: MVP — Chat + Recordatorios
+### Fase 2: MVP — Chat + Recordatorios + Admin + Metricas
 **Objetivo**: Primera version usable con familias reales. Probar que los padres SI chatean en Nanny.
 
+**Core**
 - [ ] App nativa (React Native / Flutter) o PWA
 - [ ] Backend con WebSockets (chat en tiempo real)
 - [ ] Auth por numero de telefono
@@ -751,6 +972,20 @@ AuditLog[]
 - [ ] Perfiles de hijos y calendario
 - [ ] Notificaciones push reales (medicinas, recordatorios)
 - [ ] Resumen semanal automatico
+
+**Admin (Pantalla 6)**
+- [ ] Gestion de datos familiares (telefonos, emails, calendarios)
+- [ ] Gestion de hijos (datos escolares, medicos, alergias, preferencias, actividades)
+- [ ] Gestion de red de apoyo (contactos, disponibilidad, costos)
+- [ ] Log por hijo: historial visible de todo lo que Nanny registro (audit log amigable)
+- [ ] Acciones de correccion: editar/eliminar datos que Nanny entendio mal
+
+**Metricas (Pantalla 7 — solo equipo interno)**
+- [ ] Dashboard de adopcion (familias activas, msgs/dia, retencion)
+- [ ] Dashboard de engagement (push vs iniciativa, mama vs papa, accionables vs ruido)
+- [ ] Dashboard de calidad IA (extracciones correctas, confirmaciones, correcciones)
+- [ ] Dashboard de costo (tokens, costo/familia, costo/mensaje)
+- [ ] Señales de alerta roja/amarilla/verde para decidir si pivotar o escalar
 
 **Metrica clave**: 10 familias activas 30 dias. ¿Chatean en Nanny o regresan a WhatsApp?
 
