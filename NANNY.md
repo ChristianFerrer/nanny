@@ -227,17 +227,453 @@ Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
 
 ## Las 7 Pantallas
 
-1. **Chat** — El corazon. Mama + Papa + Nanny conversando. Mensajes color-coded (rosa mama, verde papa, morado nanny). Nanny interviene solo cuando aporta.
-2. **Hoy** — Agenda del dia con horarios, responsables y pendientes priorizados.
-3. **Semana** — Plan de 7 dias con eventos, responsables y alertas destacadas.
-4. **Hijos** — Perfil completo por hijo: escuela, maestra, medico, alergias, actividades, tallas, medicinas activas, historial.
-5. **Notificaciones** — Alertas push con acciones rapidas (marcar hecho, posponer, responder).
-6. **Admin** — Panel de gestion donde los padres agregan, editan y corrigen toda la informacion familiar.
-7. **Metricas** — Dashboard interno (solo Fase 2) para medir adopcion, engagement y calidad de la IA.
+1. **Chat** — El corazon. Mama + Papa + Nanny conversando.
+2. **Hoy** — Agenda del dia con horarios, responsables y pendientes.
+3. **Semana** — Plan de 7 dias con eventos y alertas.
+4. **Hijos** — Perfil completo por hijo (lectura rapida).
+5. **Notificaciones** — Alertas push con acciones rapidas.
+6. **Admin** — Panel de gestion y edicion de datos familiares.
+7. **Metricas** — Dashboard interno (solo Fase 2, no visible para padres).
 
-### Pantalla 6: Admin — Gestion Familiar
+### Navegacion General
 
-El Admin es donde los padres **controlan la fuente de verdad** (Capa 3). Nanny extrae informacion del chat automaticamente, pero los padres siempre pueden corregir, agregar o eliminar datos manualmente desde aqui.
+```
+┌─────────────────────────────────────────┐
+│              NANNY APP                   │
+│                                          │
+│         ┌──────────────┐                │
+│         │  Contenido   │                │
+│         │  de pantalla │                │
+│         │              │                │
+│         │              │                │
+│         │              │                │
+│         └──────────────┘                │
+│                                          │
+│  ┌─────┬─────┬──────┬──────┬──────┐    │
+│  │ 💬  │ 📋  │  📅  │  👶  │  ⚙️  │    │
+│  │Chat │ Hoy │Semana│Hijos │Admin │    │
+│  └─────┴─────┴──────┴──────┴──────┘    │
+│         Tab bar (siempre visible)       │
+└─────────────────────────────────────────┘
+
+Notificaciones: acceso desde icono 🔔 en header
+Metricas: solo accesible para equipo interno (no en tab bar)
+```
+
+Los padres navegan con 5 tabs en la parte inferior. Las notificaciones se acceden desde un icono en el header. Metricas no es visible para los padres.
+
+### Flujo entre Pantallas
+
+```
+                    ┌──────────┐
+                    │ ONBOARD  │ (solo primera vez)
+                    │ Chat con │
+                    │  Nanny   │
+                    └────┬─────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│                                                      │
+│   ┌────────┐    ┌────────┐    ┌────────┐            │
+│   │  CHAT  │◄──►│  HOY   │◄──►│ SEMANA │            │
+│   │  (💬)  │    │  (📋)  │    │  (📅)  │            │
+│   └───┬────┘    └───┬────┘    └───┬────┘            │
+│       │             │             │                  │
+│       │ tap hijo    │ tap evento  │ tap evento       │
+│       ▼             ▼             ▼                  │
+│   ┌─────────────────────────────────────┐           │
+│   │           HIJOS (👶)                │           │
+│   │    Perfil de lectura por hijo       │           │
+│   │                                     │           │
+│   │  "Quiero editar algo"               │           │
+│   │         │                           │           │
+│   │         ▼                           │           │
+│   │   ┌───────────┐                    │           │
+│   │   │  ADMIN ⚙️  │                    │           │
+│   │   │  Edicion   │                    │           │
+│   │   └───────────┘                    │           │
+│   └─────────────────────────────────────┘           │
+│                                                      │
+│   ┌──────────────┐                                  │
+│   │ NOTIFICACION │──► tap ──► Abre pantalla         │
+│   │ PUSH  (🔔)   │          relevante (Chat,        │
+│   │              │          Hoy, o Hijos)            │
+│   └──────────────┘                                  │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Regla clave**: Hijos (Pantalla 4) es de **lectura rapida**. Admin (Pantalla 6) es de **edicion**. El padre ve info en Hijos, y si quiere cambiar algo, va a Admin.
+
+---
+
+### Pantalla 1: Chat (💬)
+
+El corazon de la app. Aqui mama y papa conversan naturalmente y Nanny participa como tercer miembro.
+
+```
+┌─────────────────────────────────────────┐
+│  Familia Lopez            🔔  👥        │
+├─────────────────────────────────────────┤
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 👩 Mama            9:15am│      │
+│       │ Pau amanecio con tos    │      │
+│       └──────────────────────────┘      │
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 🤖 Nanny           9:16am│      │
+│       │ ¿Tiene fiebre? ¿Le      │      │
+│       │ damos algo o esperamos?  │      │
+│       └──────────────────────────┘      │
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 👩 Mama            9:17am│      │
+│       │ No tiene fiebre, solo   │      │
+│       │ tos seca                │      │
+│       └──────────────────────────┘      │
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 🤖 Nanny           9:17am│      │
+│       │ Anotado en salud de Pau │      │
+│       │ ✅ Tos seca, sin fiebre  │      │
+│       │                          │      │
+│       │ ¿Quieres que le avise a │      │
+│       │ la maestra del cole?     │      │
+│       │                          │      │
+│       │ [Si, avisa] [No, asi ok]│      │
+│       └──────────────────────────┘      │
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 👨 Papa            9:30am│      │
+│       │ Yo la llevo al cole hoy │      │
+│       └──────────────────────────┘      │
+│                                         │
+│       ┌──────────────────────────┐      │
+│       │ 🤖 Nanny           9:30am│      │
+│       │ ✅ Papa lleva a Pau hoy  │      │
+│       │ Salir antes de 7:40     │      │
+│       │ para llegar a las 8:00  │      │
+│       └──────────────────────────┘      │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  Escribe un mensaje...     📎 ▶│    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  💬    📋     📅     👶     ⚙️         │
+│  Chat  Hoy   Semana Hijos  Admin       │
+└─────────────────────────────────────────┘
+```
+
+**Elementos clave:**
+- Mensajes color-coded: rosa (mama), verde (papa), morado (nanny)
+- Nanny interviene solo cuando aporta valor (no en cada mensaje)
+- Botones de accion rapida inline (confirmaciones, opciones)
+- Nanny confirma lo que entendio con ✅ para transparencia
+- Header con nombre de familia + icono notificaciones + miembros
+
+**Nanny NO interviene cuando:**
+- Los padres hablan de temas personales no relacionados con hijos
+- El mensaje es una respuesta corta sin info nueva ("ok", "jaja", "va")
+- Ya confirmo la misma info recientemente
+
+**Nanny SI interviene cuando:**
+- Detecta info nueva sobre un hijo (salud, evento, necesidad)
+- Hay un conflicto de horarios
+- Falta una decision ("¿quien la lleva?")
+- Puede anticipar un problema ("mañana no hay cole")
+
+---
+
+### Pantalla 2: Hoy (📋)
+
+Vista rapida del dia actual. Lo que necesitas saber al despertar.
+
+```
+┌─────────────────────────────────────────┐
+│  Hoy — Lunes 10 mar              🔔    │
+├─────────────────────────────────────────┤
+│                                         │
+│  MAÑANA                                │
+│  ┌─────────────────────────────────┐    │
+│  │ 7:40  🚗 Llevar Pau al cole    │    │
+│  │       👨 Papa                   │    │
+│  │       ⚠️ Avisar maestra: tos    │    │
+│  ├─────────────────────────────────┤    │
+│  │ 8:00  🏫 Dia de disfraces      │    │
+│  │       👧 Pau — Disfraz de leon  │    │
+│  │       ✅ Listo                   │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  TARDE                                  │
+│  ┌─────────────────────────────────┐    │
+│  │ 2:30  🏫 Recoger Pau           │    │
+│  │       ❓ Sin asignar            │    │
+│  │       [Yo voy] [Pedir ayuda]   │    │
+│  ├─────────────────────────────────┤    │
+│  │ 3:00  🏊 Natacion Pau          │    │
+│  │       Club Acuatico            │    │
+│  │       ❓ ¿Misma persona recoge  │    │
+│  │       y lleva a natacion?       │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  PENDIENTES HOY                         │
+│  ┌─────────────────────────────────┐    │
+│  │ □ Comprar pañales Mati         │    │
+│  │   (Huggies E3)                  │    │
+│  │ □ Confirmar cita pediatra      │    │
+│  │   martes 10am                   │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  TRATAMIENTOS ACTIVOS                   │
+│  ┌─────────────────────────────────┐    │
+│  │ 💊 Pau — sin tratamientos       │    │
+│  │ 💊 Mati — Vitamina D 2 gotas   │    │
+│  │    Proxima: 8:00pm              │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  💬    📋     📅     👶     ⚙️         │
+│  Chat  Hoy   Semana Hijos  Admin       │
+└─────────────────────────────────────────┘
+```
+
+**Elementos clave:**
+- Bloques por franja horaria (mañana/tarde/noche)
+- Cada evento muestra: hora, tipo, hijo, responsable
+- Items sin asignar resaltados con ❓ y botones de accion
+- Sección de pendientes (tareas sin hora fija)
+- Tratamientos activos del dia con proxima toma
+- Tap en un evento → abre detalle (o Chat si necesita decision)
+- Tap en un hijo → abre Pantalla 4 (Hijos)
+
+---
+
+### Pantalla 3: Semana (📅)
+
+Plan de 7 dias con vista de pajaro. Para anticipar y coordinar.
+
+```
+┌─────────────────────────────────────────┐
+│  Semana 10–16 mar               🔔     │
+├─────────────────────────────────────────┤
+│                                         │
+│  LUN 10                                │
+│  ┌─────────────────────────────────┐    │
+│  │ 🏫 Disfraces (Pau)    👨 Papa   │    │
+│  │ 🏊 Natacion 3pm       —        │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  MAR 11                                │
+│  ┌─────────────────────────────────┐    │
+│  │ 🏥 Pediatra 10am (Pau) ❓       │    │
+│  │ 🏊 Natacion 3pm                │    │
+│  │ ⚠️ Conflicto: pediatra + cole   │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  MIE 12                                │
+│  ┌─────────────────────────────────┐    │
+│  │ Sin eventos agendados           │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  JUE 13                                │
+│  ┌─────────────────────────────────┐    │
+│  │ 🏫 Reunion padres 5pm  ❓       │    │
+│  │ 🏊 Natacion 3pm                │    │
+│  │ 🎹 Piano 5pm                   │    │
+│  │ ⚠️ Conflicto: reunion + piano   │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  VIE 14 · SAB 15 · DOM 16             │
+│  ┌─────────────────────────────────┐    │
+│  │ Sin eventos agendados           │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  RESUMEN SEMANA                         │
+│  ┌─────────────────────────────────┐    │
+│  │ 📊 8 eventos | 2 conflictos    │    │
+│  │ ❓ 2 sin asignar                │    │
+│  │ 📋 3 pendientes arrastrados     │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  💬    📋     📅     👶     ⚙️         │
+│  Chat  Hoy   Semana Hijos  Admin       │
+└─────────────────────────────────────────┘
+```
+
+**Elementos clave:**
+- Un bloque por dia con eventos compactos
+- Iconos de tipo (escuela, medico, actividad)
+- Responsable asignado o ❓ si falta
+- ⚠️ Conflictos detectados automaticamente
+- Resumen inferior con contadores clave
+- Tap en dia → expande detalle tipo "Hoy"
+- Tap en conflicto → abre Chat con sugerencia de Nanny
+- Swipe izquierda/derecha para cambiar semana
+
+---
+
+### Pantalla 4: Hijos (👶)
+
+Vista de **lectura rapida** del perfil de cada hijo. Toda la info que Nanny sabe, organizada y accesible. **No se edita aqui** — para editar, el padre va a Admin.
+
+```
+┌─────────────────────────────────────────┐
+│  Nuestros Hijos                   🔔   │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌───────────────┐ ┌───────────────┐   │
+│  │     👧         │ │     👶         │   │
+│  │    Pau         │ │    Mati       │   │
+│  │   6 años       │ │   1 año       │   │
+│  └───────┬────────┘ └───────────────┘   │
+│          │ tap                           │
+│          ▼                              │
+├─────────────────────────────────────────┤
+│  👧 Pau Lopez                    6 años │
+│                                         │
+│  🏫 COLE                                │
+│  Montessori · Miss Carmen · 1ro         │
+│                                         │
+│  ⚠️ ALERGIAS                            │
+│  🥜 Mani (severa)                       │
+│                                         │
+│  💊 TRATAMIENTOS ACTIVOS                │
+│  Ninguno actualmente                    │
+│                                         │
+│  🏃 ACTIVIDADES                          │
+│  🏊 Natacion — Mar/Jue 3pm             │
+│  🎹 Piano — Jue 5pm                    │
+│                                         │
+│  🏥 MEDICO                               │
+│  Dr. Rodriguez — 55-1111-2222           │
+│  Proxima cita: Mar 11, 10am            │
+│                                         │
+│  👟 TALLAS Y PREFERENCIAS               │
+│  Ropa: 6 · Zapato: 19                  │
+│                                         │
+│  📋 PROXIMOS EVENTOS                    │
+│  Lun 10 — Disfraces (leon) 🦁          │
+│  Mar 11 — Pediatra 10am                │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  ✏️ Editar en Admin              │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  💬    📋     📅     👶     ⚙️         │
+│  Chat  Hoy   Semana Hijos  Admin       │
+└─────────────────────────────────────────┘
+```
+
+**Elementos clave:**
+- Selector de hijo arriba (tap para cambiar entre hijos)
+- Vista de tarjeta: toda la info clave de un vistazo
+- Solo lectura — boton "Editar en Admin" al final
+- Alergias destacadas visualmente con ⚠️
+- Tratamientos activos con vigencia
+- Proximos eventos relevantes para este hijo
+- Tap en "Editar en Admin" → abre Admin > Perfil de ese hijo
+
+**Diferencia con Admin**: Hijos muestra la info de forma limpia y compacta para **consultar**. Admin tiene formularios con campos editables, pestañas, y el historial completo.
+
+---
+
+### Pantalla 5: Notificaciones (🔔)
+
+Centro de alertas. Cada notificacion tiene acciones rapidas para resolver sin abrir otra pantalla.
+
+```
+┌─────────────────────────────────────────┐
+│  Notificaciones                         │
+├─────────────────────────────────────────┤
+│                                         │
+│  AHORA                                  │
+│  ┌─────────────────────────────────┐    │
+│  │ 💊 Vitamina D de Mati           │    │
+│  │    Son las 8pm — le toca 2 gotas│    │
+│  │                                 │    │
+│  │    [✅ Ya se la di] [⏰ En 30min]│    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  HOY                                    │
+│  ┌─────────────────────────────────┐    │
+│  │ ❓ ¿Quien recoge a Pau a las    │    │
+│  │    2:30? Sin asignar            │    │
+│  │                                 │    │
+│  │    [🙋 Yo voy] [👥 Pedir ayuda] │    │
+│  ├─────────────────────────────────┤    │
+│  │ ⚠️ Conflicto detectado           │    │
+│  │    Jue: reunion cole 5pm        │    │
+│  │    vs piano Pau 5pm             │    │
+│  │                                 │    │
+│  │    [💬 Resolver en chat]        │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  ESTA SEMANA                            │
+│  ┌─────────────────────────────────┐    │
+│  │ 📅 Recordatorio: cita pediatra  │    │
+│  │    Pau — martes 10am            │    │
+│  │    ❓ Sin asignar — ¿quien va?  │    │
+│  │                                 │    │
+│  │    [🙋 Yo] [👤 Papa] [💬 Chat]  │    │
+│  ├─────────────────────────────────┤    │
+│  │ 🛒 Pañales de Mati por acabarse │    │
+│  │    Huggies Etapa 3              │    │
+│  │                                 │    │
+│  │    [✅ Ya compre] [⏰ Recordar   │    │
+│  │                     mañana]     │    │
+│  ├─────────────────────────────────┤    │
+│  │ 📧 Email del cole procesado     │    │
+│  │    Junta padres jueves 5pm      │    │
+│  │    Agregado al calendario ✅     │    │
+│  │                                 │    │
+│  │    [👀 Ver detalle]             │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  RESUELTAS                              │
+│  ┌─────────────────────────────────┐    │
+│  │ ✅ Disfraz de leon — listo       │    │
+│  │ ✅ Antibiotico Pau — completado  │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  💬    📋     📅     👶     ⚙️         │
+│  Chat  Hoy   Semana Hijos  Admin       │
+└─────────────────────────────────────────┘
+```
+
+**Elementos clave:**
+- Agrupadas por urgencia: Ahora > Hoy > Esta semana > Resueltas
+- Cada notificacion tiene **botones de accion rapida** (resolver sin cambiar de pantalla)
+- Tipos de notificacion:
+  - 💊 Medicinas/tratamientos (accion: confirmar toma)
+  - ❓ Decisiones pendientes (accion: asignarse o delegar)
+  - ⚠️ Conflictos (accion: ir al chat a resolver)
+  - 📅 Recordatorios (accion: confirmar o posponer)
+  - 🛒 Compras/necesidades (accion: marcar hecho)
+  - 📧 Emails procesados (accion: ver detalle)
+- Notificaciones resueltas se colapsan abajo
+- Badge con contador en el icono 🔔 del header
+
+**Flujo de push notification (app cerrada):**
+```
+Push llega al telefono
+        │
+        ▼
+"💊 Vitamina D de Mati — 2 gotas"
+        │
+        ├── Tap en accion rapida ──► Marca hecho sin abrir app
+        │
+        └── Tap en notificacion ──► Abre Nanny en la
+                                    pantalla relevante
+                                    (Chat si necesita
+                                    decision, Hoy si es
+                                    un evento)
+```
+
+---
+
+### Pantalla 6: Admin (⚙️) — Gestion Familiar
+
+Panel de gestion donde los padres **editan** toda la informacion familiar. Es el control directo sobre la Capa 3 (fuente de verdad). Nanny extrae informacion del chat automaticamente, pero los padres siempre pueden corregir, agregar o eliminar datos manualmente desde aqui.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -421,7 +857,7 @@ Esto le da al padre **visibilidad total y control** sobre lo que Nanny sabe de s
 - Estado de sincronizacion de calendarios
 - Permisos y accesos
 
-### Pantalla 7: Metricas — Dashboard Fase 2
+### Pantalla 7: Metricas (📊) — Dashboard Fase 2
 
 Panel interno para el equipo de producto durante la Fase 2 (10 familias piloto). **No es visible para los padres** — es para medir si el MVP funciona antes de escalar.
 
