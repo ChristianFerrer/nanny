@@ -1,155 +1,189 @@
 # Nanny
 
-## Tú cuidas a tus hijos. Nanny cuida los detalles.
+## Tu cuidas a tus hijos. Nanny cuida los detalles.
 
-**Nanny** es un asistente inteligente de familia que vive dentro del grupo de WhatsApp de los papás. Escucha, recuerda y actúa sobre todos los detalles que los padres mencionan en su conversación natural — medicinas, eventos escolares, tallas, alergias, horarios, cumpleaños — para que ningún detalle se pierda entre el caos de la crianza.
+**Nanny** es una app con su propio chat familiar donde mama, papa y un asistente inteligente llamado Nanny conviven en un mismo espacio. Los padres hablan entre ellos de forma natural — sobre pañales, medicinas, disfraces, citas — y Nanny, que esta ahi escuchando, recuerda todo, organiza todo y avisa a tiempo.
 
-No es una app más que hay que abrir, llenar y mantener. Es un miembro silencioso del chat familiar que **entiende contexto, conecta puntos y avisa a tiempo**.
+No es un bot de WhatsApp. No es un calendario que hay que llenar. Es **una app independiente con un chat de grupo familiar** donde la inteligencia artificial es un miembro mas del grupo que trabaja en silencio para que nada se olvide.
 
 ---
 
-## ¿Qué es Nanny?
+## ¿Que es Nanny?
 
 ### El Problema
 
-Los padres de niños pequeños manejan cientos de micro-detalles diarios:
+Los padres de niños pequeños viven ahogados en micro-detalles:
 
-- "¿Qué marca de pañales usa Mati?" → Nadie recuerda
-- "El lunes hay día de disfraces" → Se olvida hasta el domingo en la noche
-- "La cita del pediatra es a las 4" → Conflicto con natación que nadie vio
-- "Le toca antibiótico cada 8 horas" → ¿Quién le dio la última dosis?
+- "¿Que marca de pañales usa Mati?" → Nadie recuerda en el momento
+- "El lunes hay dia de disfraces" → Se olvida hasta el domingo en la noche
+- "La cita del pediatra es a las 4" → Conflicto con natacion que nadie vio
+- "Le toca antibiotico cada 8 horas" → ¿Quien le dio la ultima dosis?
 
-Estos detalles viven dispersos en conversaciones de WhatsApp, notas mentales y buena voluntad. No existe un sistema que los capture y organice **sin esfuerzo adicional**.
+Estos detalles viven dispersos entre conversaciones, notas mentales y buena voluntad. Las apps de familia existentes (Cozi, FamilyWall, OurHome) no resuelven esto porque:
 
-Las apps de familia existentes (Cozi, FamilyWall, OurHome) fallan porque:
-1. **Requieren entrada manual** — otro lugar más que mantener actualizado
-2. **Nadie las abre** — la familia ya vive en WhatsApp
+1. **Requieren entrada manual** — otro lugar mas que mantener actualizado
+2. **Nadie las abre** — agregan friccion en vez de quitarla
 3. **No entienden contexto** — son calendarios glorificados, no asistentes inteligentes
 
-### La Solución
+### La Solucion
 
-Nanny vive **donde la familia ya habla**: en el grupo de WhatsApp. No requiere que los padres cambien su comportamiento. Simplemente:
+Nanny es **su propia app** con un chat de grupo familiar. Mama y Papa conversan ahi naturalmente, y Nanny — el tercer miembro del grupo — hace el trabajo pesado:
 
-1. **Escucha** las conversaciones naturales entre mamá y papá
-2. **Extrae** automáticamente detalles relevantes (fechas, medicinas, eventos, preferencias)
+1. **Escucha** las conversaciones entre mama y papa
+2. **Extrae** automaticamente los detalles relevantes (fechas, medicinas, eventos, preferencias)
 3. **Organiza** todo en perfiles por hijo y un calendario familiar unificado
-4. **Avisa** proactivamente cuando algo necesita atención
+4. **Avisa** proactivamente cuando algo necesita atencion
+5. **Comparte** agendas y resumenes a WhatsApp con un tap (salida, no entrada)
 
-**Ejemplo real del demo:**
-> **Mamá**: "Necesito pañales para Mati"
-> **Papá**: "¿Cuáles le compramos?"
-> **Nanny**: "Mati usa Huggies Etapa 3. ¿Quieres que lo agregue a la lista de compras?"
+### Ejemplo Real (del demo)
 
-Nanny no solo responde — **anticipa**. Si el lunes hay día de disfraces y hoy es jueves, Nanny avisa el jueves, no el domingo a las 11pm.
+> **Mama**: "Mati ya casi no tiene pañales, puedes pasar a comprar?"
+> **Papa**: "Si paso. Cuales eran?"
+> **Nanny**: "Huggies Etapa 3" + agrega recordatorio a Papa en 20 min
+
+Nanny no solo responde — **anticipa**. Si el lunes hay dia de disfraces y hoy es jueves, Nanny avisa el jueves (no el domingo a las 11pm). Si el sabado hay cumpleaños y tambien hay que preparar el disfraz, Nanny detecta el conflicto y propone reorganizar.
 
 ---
 
-## ¿Qué ofrece Nanny?
+## ¿Que ofrece Nanny?
 
 ### Funcionalidades Core
 
-| Función | Descripción |
+| Funcion | Descripcion |
 |---------|-------------|
+| **Chat Familiar Propio** | Grupo privado dentro de la app: Mama + Papa + Nanny conversando naturalmente |
 | **Memoria Familiar** | Recuerda cada detalle mencionado: alergias, tallas, marcas, preferencias, maestros |
-| **Calendario Inteligente** | Extrae fechas de conversaciones y las organiza automáticamente |
-| **Recordatorios Proactivos** | Avisa con anticipación, no en el último momento |
-| **Coordinación de Padres** | Detecta conflictos de horarios entre mamá y papá y propone soluciones |
-| **Seguimiento de Medicinas** | Rastrea dosis, horarios y responsables |
-| **Resumen Semanal** | Envía un reporte con tareas completadas, pendientes y plan de la semana |
-| **Perfil por Hijo** | Ficha completa: escuela, maestra, alergias, actividades, tallas, fórmula |
+| **Calendario Inteligente** | Extrae fechas de las conversaciones y las organiza automaticamente |
+| **Recordatorios Proactivos** | Avisa con anticipacion, no en el ultimo momento |
+| **Coordinacion de Padres** | Detecta conflictos de horarios y propone soluciones |
+| **Seguimiento de Medicinas** | Rastrea dosis, horarios y quien es responsable |
+| **Resumen Semanal** | Reporte con tareas completadas, pendientes y plan de la proxima semana |
+| **Perfil por Hijo** | Ficha completa: escuela, maestra, alergias, actividades, tallas, formula |
+| **Compartir a WhatsApp** | Exporta agendas y resumenes formateados para enviar por WhatsApp |
 
-### Interfaces
+### Las 5 Pantallas
 
-1. **Chat** — Conversación natural dentro del grupo de WhatsApp familiar
-2. **Dashboard "Hoy"** — Vista rápida de la agenda del día y pendientes
-3. **Vista Semanal** — Plan de 7 días con responsables asignados (mamá/papá/ambos)
-4. **Perfil de Hijos** — Tarjeta completa con toda la información de cada niño
-5. **Notificaciones Push** — Alertas para medicina, eventos urgentes y recordatorios
+1. **Chat** — El corazon de la app. Conversacion natural entre Mama, Papa y Nanny. Mensajes color-coded (rosa mama, verde papa, morado nanny). Nanny interviene solo cuando aporta.
+2. **Dashboard "Hoy"** — Agenda del dia con horarios y responsables + lista de pendientes priorizados.
+3. **Vista Semanal** — Plan de 7 dias con eventos, responsables (mama/papa/ambos) y alertas destacadas.
+4. **Perfil de Hijos** — Tarjeta completa por hijo: escuela, maestra, medico, alergias, actividades, tallas, medicinas activas.
+5. **Notificaciones** — Alertas push para medicinas, eventos urgentes y recordatorios con acciones rapidas (marcar como hecho, posponer, editar).
+
+### La Primera Semana (Narrativa del Demo)
+
+El prototipo simula 7 dias de vida familiar para demostrar el valor:
+
+| Dia | Que pasa | Que hace Nanny |
+|-----|----------|----------------|
+| **Lunes (Dia 1)** | Mama pide pañales, Papa no recuerda la marca | Nanny dice "Huggies Etapa 3" y pone recordatorio |
+| **Miercoles (Dia 3)** | Nadie se acuerda del disfraz del lunes | Nanny avisa 4 dias antes, se planea para el sabado |
+| **Viernes (Dia 5)** | Cumpleaños de Sofia + disfraz chocan el sabado AM | Nanny reorganiza: Papa compra regalo camino al cumple, Mama prepara disfraz |
+| **Domingo (Dia 7)** | Fin de semana | Resumen: 12 tareas, 0 olvidos, 6 recordatorios. Plan de proxima semana |
+
+**Resultado**: una semana donde no se olvido nada. Sin formularios, sin esfuerzo extra.
 
 ---
 
-## ¿Cómo funciona técnicamente?
+## ¿Como funciona tecnicamente?
 
-### Arquitectura de Integración con WhatsApp
-
-La integración con WhatsApp usa el patrón de **reenvío iniciado por el usuario** (el mismo que usan Gether y Ohai). Nanny **no accede directamente** a los grupos de WhatsApp porque:
-
-- La API oficial de WhatsApp **no puede unirse a grupos existentes** del usuario
-- La API de Grupos solo permite crear grupos nuevos de máximo 8 personas
-- Desde enero 2026, Meta **prohibió asistentes AI de propósito general** en WhatsApp
-- Las APIs no oficiales (Whapi.Cloud, Unipile) violan los Terms of Service y arriesgan baneos
-
-#### El Flujo Técnico
+### Arquitectura Conceptual
 
 ```
-Grupo de WhatsApp de la Familia
-        │
-        │  (reenvío manual vía Share Sheet / Export Chat)
-        ▼
-Canal de Ingesta (Email dedicado / SMS / Upload en App)
-        │
-        ▼
-Pipeline de Procesamiento (NLP + LLM)
-        │
-        ├── Extracción de entidades (fechas, nombres, productos, medicinas)
-        ├── Clasificación de intención (evento, tarea, información, pregunta)
-        ├── Resolución de referencias ("le toca" → ¿a cuál hijo?)
-        └── Detección de conflictos (horarios cruzados)
-        │
-        ▼
-Base de Datos Familiar
-        │
-        ├── Perfiles de hijos (alergias, tallas, escuela, actividades)
-        ├── Calendario familiar (eventos con responsables)
-        ├── Lista de tareas (pendientes con prioridad)
-        └── Historial de medicinas (dosis, horarios, responsable)
-        │
-        ▼
-Motor de Notificaciones
-        │
-        ├── Recordatorios proactivos (con anticipación configurable)
-        ├── Alertas de medicina (cada X horas)
-        ├── Resumen semanal (domingo noche)
-        └── Conflictos detectados (en tiempo real)
-        │
-        ▼
-Salida Multi-Canal
-        ├── Push notifications (app nativa)
-        ├── Mensaje formateado para compartir a WhatsApp
-        └── Dashboard in-app
+┌─────────────────────────────────────────────┐
+│              APP NANNY (Propia)              │
+│                                             │
+│  ┌─────────────────────────────────────┐    │
+│  │     Chat Familiar (Mama+Papa+Nanny) │    │
+│  │                                     │    │
+│  │  Mama: "Mati necesita pañales"      │    │
+│  │  Papa: "Cuales eran?"               │    │
+│  │  Nanny: "Huggies E3 🛒"            │    │
+│  └──────────────┬──────────────────────┘    │
+│                 │                            │
+│                 ▼                            │
+│  ┌─────────────────────────────────────┐    │
+│  │   Motor AI (Procesamiento en Tiempo │    │
+│  │              Real)                  │    │
+│  │                                     │    │
+│  │  • Extraccion de entidades          │    │
+│  │    (fechas, productos, medicinas)   │    │
+│  │  • Clasificacion de intencion       │    │
+│  │  • Resolucion de contexto           │    │
+│  │    ("le toca" → ¿a cual hijo?)      │    │
+│  │  • Deteccion de conflictos          │    │
+│  └──────────────┬──────────────────────┘    │
+│                 │                            │
+│                 ▼                            │
+│  ┌─────────────────────────────────────┐    │
+│  │      Base de Datos Familiar         │    │
+│  │                                     │    │
+│  │  Perfiles hijos │ Calendario        │    │
+│  │  Tareas         │ Medicinas         │    │
+│  │  Preferencias   │ Historial         │    │
+│  └──────────────┬──────────────────────┘    │
+│                 │                            │
+│                 ▼                            │
+│  ┌─────────────────────────────────────┐    │
+│  │     Motor de Notificaciones         │    │
+│  │                                     │    │
+│  │  • Recordatorios proactivos         │    │
+│  │  • Alertas de medicina              │    │
+│  │  • Resumen semanal                  │    │
+│  │  • Conflictos detectados            │    │
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  ┌─────────────────────────────────────┐    │
+│  │           Interfaces                │    │
+│  │                                     │    │
+│  │  Chat │ Hoy │ Semana │ Hijos        │    │
+│  └─────────────────────────────────────┘    │
+│                                             │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼ (Salida opcional)
+        ┌─────────────────────┐
+        │  WhatsApp (Share)   │
+        │  Agenda formateada  │
+        │  para compartir     │
+        └─────────────────────┘
 ```
 
-### Stack Técnico Actual (Fase 1 — Prototipo)
+**Punto clave**: WhatsApp es solo un canal de **salida** (compartir agendas/resumenes). Toda la conversacion, procesamiento y logica vive **dentro de la app Nanny**.
 
-| Capa | Tecnología |
+### Stack Tecnico Actual (Fase 1 — Prototipo)
+
+| Capa | Tecnologia |
 |------|-----------|
-| Frontend | HTML5 + CSS3 + Vanilla JS (SPA, sin frameworks) |
-| Diseño | Mobile-first, iPhone frame (375×812px) |
-| Idioma | Español (es) |
-| Backend | No existe aún (demo con datos hardcodeados) |
-| Base de datos | No existe aún |
-| Despliegue | Archivo HTML estático |
+| Frontend | HTML5 + CSS3 + Vanilla JS — un solo archivo (`index.html`, ~1500 lineas) |
+| Diseño | Mobile-first, iPhone frame (375x812px) |
+| Idioma | Español |
+| Backend | No existe (demo con datos hardcodeados y flujo scriptado) |
+| Base de datos | No existe (datos simulados en arrays JS) |
+| Despliegue | Archivo HTML estatico |
 
-### Stack Técnico Propuesto (Fase 2+)
+**El prototipo es un demo interactivo**, no una app funcional. Simula la experiencia completa con mensajes pre-scriptados y auto-avance para demostrar el valor de Nanny sin necesitar backend.
 
-| Capa | Tecnología |
+### Stack Tecnico Propuesto (Fase 2+)
+
+| Capa | Tecnologia |
 |------|-----------|
-| Frontend | React Native o Flutter (app nativa iOS/Android) |
-| Backend | Node.js / Python (API REST + WebSockets) |
-| AI/NLP | Claude API (extracción de entidades, clasificación, generación de respuestas) |
+| App | React Native o Flutter (iOS + Android nativo) |
+| Backend | Node.js o Python (API REST + WebSockets para chat en tiempo real) |
+| AI | Claude API — analisis de mensajes, extraccion de entidades, generacion de respuestas |
 | Base de datos | PostgreSQL (datos estructurados) + Vector DB (memoria conversacional) |
-| Ingesta | Email parsing (SendGrid Inbound Parse) + Share Extension nativa |
-| Notificaciones | Firebase Cloud Messaging (FCM) / APNs |
-| Calendario | iCal sync + Google Calendar API |
+| Notificaciones | Firebase Cloud Messaging (FCM) / Apple Push Notifications (APNs) |
+| Calendario | Sync con Google Calendar / Apple Calendar via API |
+| Share | Share Extension nativa para exportar a WhatsApp |
+| Auth | Phone number + OTP (sin passwords) |
 
-### Modelo de Datos Conceptual
+### Modelo de Datos
 
 ```
 Family
   ├── id, name, created_at
   │
   ├── Parents[]
-  │     ├── id, name, role (mama/papa), phone, email
+  │     ├── id, name, role (mama/papa), phone
   │     └── notification_preferences
   │
   ├── Children[]
@@ -157,8 +191,8 @@ Family
   │     ├── school, teacher, grade
   │     ├── allergies[], medical_conditions[]
   │     ├── activities[] (name, days, time)
-  │     ├── preferences (diaper_brand, formula, clothing_size)
-  │     └── medications[] (name, dose, frequency, start, end)
+  │     ├── preferences (diaper_brand, formula, clothing_size, shoe_size)
+  │     └── medications[] (name, dose, frequency, start_date, end_date)
   │
   ├── Events[]
   │     ├── id, title, date, time, child_id
@@ -172,83 +206,110 @@ Family
   │     ├── assigned_to, due_date
   │     └── status (pending, in_progress, done)
   │
-  └── MessageLog[]
-        ├── id, raw_text, source (whatsapp_forward, email, manual)
-        ├── extracted_entities[]
-        ├── processed_at
-        └── actions_generated[]
+  └── Messages[]
+        ├── id, sender (mama/papa/nanny), text, timestamp
+        ├── extracted_entities[] (lo que Nanny entendio)
+        └── actions_generated[] (lo que Nanny hizo con eso)
+```
+
+### Flujo de un Mensaje en el Chat
+
+```
+1. Mama escribe: "Le toca antibiotico a Pau a las 2"
+                    │
+                    ▼
+2. Backend recibe el mensaje via WebSocket
+                    │
+                    ▼
+3. Claude API analiza:
+   - Entidad: medicamento (antibiotico)
+   - Sujeto: Pau
+   - Hora: 14:00
+   - Accion implicita: crear recordatorio
+                    │
+                    ▼
+4. Nanny responde en el chat:
+   "Listo, te aviso a las 1:55pm. Quedan 3 dias de tratamiento."
+                    │
+                    ▼
+5. Se crea:
+   - Evento en calendario (14:00, antibiotico Pau)
+   - Notificacion push programada (13:55)
+   - Actualizacion en perfil de Pau (medicamento activo)
 ```
 
 ---
 
-## ¿Cuándo? — Roadmap por Fases
+## ¿Cuando? — Roadmap
 
 ### Fase 1: Demo Interactivo ✅ (Completada)
 **Objetivo**: Validar el concepto y la narrativa de producto.
 
-- [x] Prototipo HTML con onboarding conversacional
-- [x] Simulación de primera semana (7 días de interacción familiar)
+- [x] Onboarding conversacional (Nanny pregunta, usuario responde con taps)
+- [x] Simulacion de primera semana (7 dias de interaccion Mama-Papa-Nanny)
 - [x] Dashboard "Hoy" con agenda y pendientes
 - [x] Vista semanal con responsables
-- [x] Notificaciones simuladas (medicina, WhatsApp share)
-- [x] Perfil de hijo con información completa
+- [x] Notificaciones simuladas (medicina, compartir a WhatsApp)
+- [x] Perfil de hijo con informacion completa
+- [x] UI mobile-first con look & feel de app nativa
 
 **Entregable**: Demo funcional para presentar a inversionistas y early adopters.
 
 ### Fase 2: MVP Funcional
-**Objetivo**: Primera versión usable con familias reales.
+**Objetivo**: Primera version usable con familias reales.
 
-- [ ] Backend con API REST
-- [ ] Autenticación y gestión de familias
-- [ ] Ingesta de mensajes por email forwarding
-- [ ] Procesamiento NLP con Claude API (extracción de entidades)
+- [ ] Backend con API REST y WebSockets (chat en tiempo real)
+- [ ] Autenticacion por numero de telefono
+- [ ] Chat funcional entre padres con Nanny como participante AI
+- [ ] Procesamiento de mensajes con Claude API
 - [ ] Base de datos con perfiles de hijos y calendario
 - [ ] Notificaciones push reales
-- [ ] App nativa básica (o PWA)
+- [ ] App nativa basica (React Native / Flutter) o PWA
 
-**Métrica de éxito**: 10 familias usando Nanny activamente durante 30 días.
+**Metrica de exito**: 10 familias usando Nanny activamente durante 30 dias.
 
 ### Fase 3: Inteligencia Proactiva
 **Objetivo**: Nanny que anticipa, no solo responde.
 
-- [ ] Detección automática de conflictos de horarios
-- [ ] Recordatorios con anticipación inteligente (basada en tipo de evento)
-- [ ] Sugerencias de coordinación entre padres
-- [ ] Resumen semanal automático con insights
-- [ ] Integración con Google Calendar / Apple Calendar
+- [ ] Deteccion automatica de conflictos de horarios
+- [ ] Recordatorios con anticipacion inteligente (segun tipo de evento)
+- [ ] Sugerencias de coordinacion entre padres
+- [ ] Resumen semanal automatico con insights
+- [ ] Sincronizacion con Google Calendar / Apple Calendar
 - [ ] Memoria conversacional (recordar contexto de semanas anteriores)
 
-**Métrica de éxito**: Reducción de "se me olvidó" en 80% (medido por encuesta).
+**Metrica de exito**: Reduccion de "se me olvido" en 80%.
 
-### Fase 4: Escala y Monetización
+### Fase 4: Escala y Monetizacion
 **Objetivo**: Producto sostenible con modelo de negocio validado.
 
 - [ ] Onboarding self-service
 - [ ] Plan freemium (1 hijo gratis, premium para familias grandes)
-- [ ] Partnerships con escuelas (comunicados escolares → calendario automático)
-- [ ] Marketplace de servicios (pediatras, actividades, tiendas de bebé)
-- [ ] Multi-idioma (español, inglés, portugués)
+- [ ] Partnerships con escuelas (comunicados escolares → calendario automatico)
+- [ ] Ingesta opcional de WhatsApp (forwarding de mensajes al chat de Nanny)
+- [ ] Multi-idioma (español, ingles, portugues)
 
 ---
 
-## Diferenciadores Clave
+## Diferenciadores
 
 | | Apps Tradicionales | Nanny |
 |---|---|---|
-| **Entrada de datos** | Manual (formularios) | Automática (de la conversación) |
-| **Dónde vive** | App separada | En el chat de WhatsApp |
-| **Tipo de inteligencia** | Calendario pasivo | Asistente proactivo |
-| **Esfuerzo del usuario** | Alto (hay que mantenerlo) | Mínimo (habla como siempre) |
-| **Coordinación** | Cada padre ve lo suyo | Vista unificada familia |
+| **Entrada de datos** | Manual (formularios) | Natural (conversacion en chat) |
+| **Donde vive** | App que nadie abre | Chat propio que es el hub familiar |
+| **Inteligencia** | Calendario pasivo | Asistente que anticipa y conecta puntos |
+| **Esfuerzo** | Alto (hay que mantenerlo) | Minimo (hablas como siempre, Nanny extrae) |
+| **Coordinacion** | Cada padre ve lo suyo | Vista unificada familia con responsables |
+| **WhatsApp** | No se integra | Exporta agendas formateadas para compartir |
 
 ---
 
 ## Resumen Ejecutivo
 
-**Nanny** es un asistente familiar inteligente que se alimenta de las conversaciones naturales de WhatsApp entre padres para organizar automáticamente la vida de sus hijos. No es una app que hay que llenar — es una inteligencia que escucha, recuerda y avisa.
+**Nanny** es una app con un chat familiar propio donde mama, papa y un asistente AI conversan. Los padres hablan entre ellos naturalmente y Nanny — el tercer miembro del chat — recuerda, organiza y avisa proactivamente sobre todo lo relacionado con sus hijos.
 
-**Mercado**: Padres de niños 0-10 años que usan WhatsApp como canal principal de coordinación familiar (prácticamente toda Latinoamérica y Europa).
+**Diferencia clave**: No es un bot dentro de WhatsApp (imposible tecnicamente y prohibido por Meta). Es su propia app con su propio chat, dashboard, calendario y perfiles. WhatsApp es solo un canal de salida para compartir agendas.
 
-**Modelo técnico**: Reenvío de mensajes de WhatsApp → procesamiento con IA → calendario y recordatorios inteligentes → notificaciones proactivas.
+**Mercado**: Padres de niños 0-10 años que necesitan coordinar la logistica diaria de crianza.
 
-**Estado actual**: Prototipo demo funcional (Fase 1 completada). Siguiente paso: MVP con backend real y 10 familias piloto.
+**Estado actual**: Demo interactivo funcional (Fase 1). Siguiente paso: MVP con backend real y 10 familias piloto.
