@@ -2,9 +2,9 @@
 
 ## Tu cuidas a tus hijos. Nanny cuida los detalles.
 
-**Nanny** es una app con su propio chat familiar donde mama, papa y un asistente inteligente llamado Nanny conviven en un mismo espacio. Los padres hablan entre ellos de forma natural — sobre pañales, medicinas, disfraces, citas — y Nanny, que esta ahi escuchando, recuerda todo, organiza todo y avisa a tiempo.
+**Nanny** es una app con su propio chat familiar donde mama, papa y un asistente inteligente conviven en un mismo grupo. Los padres hablan entre ellos de forma natural — sobre medicinas, disfraces, citas, pañales — y Nanny, el tercer miembro del chat, escucha, recuerda, organiza y **actua**.
 
-No es un bot de WhatsApp. No es un calendario que hay que llenar. Es **una app independiente con un chat de grupo familiar** donde la inteligencia artificial es un miembro mas del grupo que trabaja en silencio para que nada se olvide.
+No es un bot de WhatsApp. No es un calendario que hay que llenar. Es un chat familiar con inteligencia integrada donde **la conversacion es la entrada de datos** y Nanny hace el trabajo pesado: recordar, avisar, coordinar, contactar.
 
 ---
 
@@ -12,169 +12,416 @@ No es un bot de WhatsApp. No es un calendario que hay que llenar. Es **una app i
 
 ### El Problema
 
-Los padres de niños pequeños viven ahogados en micro-detalles:
+Los padres de niños pequeños manejan cientos de micro-detalles diarios que viven dispersos entre conversaciones, notas mentales y buena voluntad:
 
 - "¿Que marca de pañales usa Mati?" → Nadie recuerda en el momento
 - "El lunes hay dia de disfraces" → Se olvida hasta el domingo en la noche
 - "La cita del pediatra es a las 4" → Conflicto con natacion que nadie vio
 - "Le toca antibiotico cada 8 horas" → ¿Quien le dio la ultima dosis?
+- "Mañana ni tu ni yo podemos recoger a Pau" → ¿A quien le pedimos?
+- "El cole mando un email sobre la reunion de padres" → Nadie lo leyo
 
-Estos detalles viven dispersos entre conversaciones, notas mentales y buena voluntad. Las apps de familia existentes (Cozi, FamilyWall, OurHome) no resuelven esto porque:
+Las apps de familia existentes (Cozi, FamilyWall, OurHome) no resuelven esto porque:
 
 1. **Requieren entrada manual** — otro lugar mas que mantener actualizado
 2. **Nadie las abre** — agregan friccion en vez de quitarla
-3. **No entienden contexto** — son calendarios glorificados, no asistentes inteligentes
+3. **No entienden contexto** — son calendarios glorificados
+4. **No actuan** — registran datos pero no hacen nada con ellos
 
 ### La Solucion
 
-Nanny es **su propia app** con un chat de grupo familiar. Mama y Papa conversan ahi naturalmente, y Nanny — el tercer miembro del grupo — hace el trabajo pesado:
+Nanny es **su propia app** con un chat familiar. Mama y Papa conversan ahi naturalmente sobre sus hijos, y Nanny — el tercer miembro del grupo — hace todo lo demas:
 
 1. **Escucha** las conversaciones entre mama y papa
-2. **Extrae** automaticamente los detalles relevantes (fechas, medicinas, eventos, preferencias)
+2. **Recuerda** cada detalle mencionado (marcas, alergias, tallas, horarios)
 3. **Organiza** todo en perfiles por hijo y un calendario familiar unificado
-4. **Avisa** proactivamente cuando algo necesita atencion
-5. **Comparte** agendas y resumenes a WhatsApp con un tap (salida, no entrada)
-
-### Ejemplo Real (del demo)
-
-> **Mama**: "Mati ya casi no tiene pañales, puedes pasar a comprar?"
-> **Papa**: "Si paso. Cuales eran?"
-> **Nanny**: "Huggies Etapa 3" + agrega recordatorio a Papa en 20 min
-
-Nanny no solo responde — **anticipa**. Si el lunes hay dia de disfraces y hoy es jueves, Nanny avisa el jueves (no el domingo a las 11pm). Si el sabado hay cumpleaños y tambien hay que preparar el disfraz, Nanny detecta el conflicto y propone reorganizar.
+4. **Avisa** proactivamente con notificaciones push antes de que sea tarde
+5. **Coordina** detectando conflictos de horarios y proponiendo soluciones
+6. **Actua** contactando a la red de apoyo (abuela, tia, niñera) cuando los padres necesitan ayuda
+7. **Integra** emails del colegio, doctor y actividades para centralizar toda la informacion
 
 ---
 
-## ¿Que ofrece Nanny?
+## ¿Como funciona? — La Primera Semana
 
-### Funcionalidades Core
+La magia de Nanny se demuestra en los primeros 7 dias. Desde el dia 1 genera valor, y cada dia refuerza el habito.
+
+### DIA 1 (Instalacion)
+
+Mama instala Nanny, crea el grupo familiar, invita a Papa. Durante el onboarding conversacional, Nanny pregunta lo basico: cuantos hijos, edades, algo urgente esta semana.
+
+Mama menciona que Pau esta con antibiotico cada 8 horas.
+
+```
+🔔 5:55pm  "💊 Antibiotico Pau en 5 min"
+🔔 10:00pm "💊 Antibiotico Pau en 5 min"
+```
+
+**Mama piensa: "que bueno que me aviso."** Valor inmediato, dia 1.
+
+### DIA 2
+
+```
+🔔 6:00am "💊 Antibiotico Pau"
+🔔 2:00pm "💊 Antibiotico Pau"
+
+🤖 Nanny en el chat:
+   "¿Como sigue Pau del antibiotico? ¿Algun sintoma?"
+
+👩 Mama: "Mejor, ya no tiene fiebre"
+
+🤖 Nanny: "Anotado en su historial medico ✅
+   Quedan 3 dias de tratamiento"
+```
+
+**Primera interaccion en el chat sin forzarla.** Nanny pregunto algo relevante, mama respondio naturalmente, y esa respuesta quedo registrada en el historial medico de Pau.
+
+### DIA 3
+
+Papa abre Nanny y ve que Mama escribio sobre Pau. Escribe:
+
+```
+👨 Papa: "Hay que comprar el disfraz de Pau"
+
+🤖 Nanny: "Disfraz de animal para el lunes.
+   ¿Que animal? ¿Lo compran o lo arman?"
+
+👨 Papa: "Lo armamos, de leon"
+
+🤖 Nanny: "🛒 Lista disfraz leon:
+   - Ropa color cafe/naranja
+   - Orejas (cartulina/fieltro)
+   - Pintura facial
+   ¿Tienen esto en casa o hay que comprar?"
+```
+
+**Nanny demostro que no es un chat — es un asistente.** No solo registro "disfraz de leon", genero una lista accionable.
+
+### DIA 5 (Viernes)
+
+```
+🔔 "Ultimo dia de antibiotico de Pau 🎉
+   Ultima toma a las 2pm.
+   ¿Tiene control con el pediatra?"
+
+👩 Mama: "Si, la semana que viene"
+
+🤖 Nanny: "¿Que dia y hora?"
+
+👩 Mama: "Martes 10am"
+
+🤖 Nanny: "📅 Martes 10am — Control pediatra Pau
+   ¿Quien la lleva?"
+```
+
+**La conversacion fluye naturalmente.** Nanny no fuerza formularios — hace preguntas logicas en el momento justo y arma el calendario con las respuestas.
+
+### DIA 7 (Domingo 8pm)
+
+```
+🔔 Resumen semanal:
+
+"Semana de Pau y Mati:
+ ✅ Antibiotico completado
+ ✅ Disfraz de leon (listo)
+
+ Proxima semana:
+ 📅 Lunes — Disfraz de leon (cole)
+ 📅 Martes 10am — Control pediatra (sin asignar)
+ 🧷 ¿Necesitan pañales de Mati?
+
+ [Responder en Nanny]"
+```
+
+**Resultado de la semana**: 0 olvidos, medicinas al dia, disfraz resuelto, cita agendada, proxima semana planificada. Todo desde conversaciones naturales.
+
+---
+
+## Vision Completa — Mas alla del Chat
+
+Nanny empieza como chat + recordatorios, pero la vision es ser el **sistema operativo de la familia**.
+
+### Integracion con Email (Colegio, Doctor, Actividades)
+
+Los padres reciben decenas de emails que contienen informacion critica enterrada en parrafos largos. Nanny los procesa automaticamente.
+
+```
+📧 Nanny detecta email del cole:
+
+🤖 Nanny en el chat:
+   "El cole convoco reunion de padres jueves 5pm."
+
+   Nanny revisa el calendario de ambos padres:
+   → Papa: libre
+   → Mama: junta de trabajo 4-6pm
+
+🤖 Nanny:
+   "Mama tiene junta hasta las 6.
+    Papa esta libre.
+
+    ¿Va Papa solo o Mama mueve su junta?
+    [👨 Va Papa] [👩 Muevo mi junta] [👨👩 Vamos los dos]"
+```
+
+Esto aplica para:
+- **Colegio**: reuniones, dias sin clase, eventos, circulares, listas de materiales
+- **Pediatra/Doctor**: recordatorios de citas, resultados, vacunas pendientes
+- **Actividades**: cambios de horario de natacion, piano, futbol
+- **Cumpleaños**: invitaciones que llegan por email → Nanny extrae fecha, hora, lugar
+
+### Red de Contactos de Apoyo
+
+Cuando los padres no pueden cubrir algo, Nanny coordina con la red de apoyo familiar.
+
+```
+👩 Mama: "Mañana ni tu ni yo podemos recoger a Pau"
+
+🤖 Nanny: "Contactos disponibles:
+   👵 Abuela Carmen — ¿Le pregunto?
+   👩‍🦰 Tia Laura — ¿Le pregunto?
+   🧑 Niñera Maria — Cobra $200 extra
+
+   [👵 Abuela] [👩‍🦰 Tia] [🧑 Niñera]"
+
+👩 Mama: [👵 Abuela]
+
+🤖 Nanny envia WhatsApp/SMS a Abuela Carmen:
+   "Hola Carmen, soy Nanny el asistente de la familia.
+    ¿Podrias recoger a Pau mañana del cole a las 2:30pm?
+    Direccion: Colegio Montessori, Av. Reforma 123"
+
+👵 Abuela responde: "Si claro, ahi estare"
+
+🤖 Nanny en el chat:
+   "Abuela Carmen confirmo ✅
+    Recoge a Pau mañana 2:30pm.
+    Le comparti la direccion del cole."
+```
+
+Nanny no solo registra — **resuelve**.
+
+### Sincronizacion de Calendarios
+
+Nanny se conecta con Google Calendar / Apple Calendar de ambos padres para:
+- Detectar conflictos antes de que ocurran
+- Saber quien esta libre para cada tarea
+- Proponer asignaciones inteligentes ("Papa esta libre a las 3, ¿el lleva a natacion?")
+
+---
+
+## Funcionalidades Core
 
 | Funcion | Descripcion |
 |---------|-------------|
-| **Chat Familiar Propio** | Grupo privado dentro de la app: Mama + Papa + Nanny conversando naturalmente |
-| **Memoria Familiar** | Recuerda cada detalle mencionado: alergias, tallas, marcas, preferencias, maestros |
-| **Calendario Inteligente** | Extrae fechas de las conversaciones y las organiza automaticamente |
-| **Recordatorios Proactivos** | Avisa con anticipacion, no en el ultimo momento |
-| **Coordinacion de Padres** | Detecta conflictos de horarios y propone soluciones |
-| **Seguimiento de Medicinas** | Rastrea dosis, horarios y quien es responsable |
-| **Resumen Semanal** | Reporte con tareas completadas, pendientes y plan de la proxima semana |
-| **Perfil por Hijo** | Ficha completa: escuela, maestra, alergias, actividades, tallas, formula |
-| **Compartir a WhatsApp** | Exporta agendas y resumenes formateados para enviar por WhatsApp |
+| **Chat Familiar** | Grupo privado Mama + Papa + Nanny. La conversacion ES la entrada de datos |
+| **Memoria Familiar** | Recuerda cada detalle: alergias, tallas, marcas, preferencias, maestros |
+| **Notificaciones Proactivas** | Avisa con anticipacion, no en el ultimo momento. Medicinas al minuto |
+| **Calendario Inteligente** | Se arma solo desde las conversaciones y emails. Detecta conflictos |
+| **Coordinacion de Padres** | Sabe quien esta libre, propone quien hace que |
+| **Seguimiento Medico** | Medicinas, dosis, sintomas, historial, citas de control |
+| **Integracion Email** | Procesa emails del cole, doctor, actividades automaticamente |
+| **Red de Apoyo** | Contacta abuelos, tios, niñera cuando los padres necesitan ayuda |
+| **Resumen Semanal** | Balance de la semana + plan de la siguiente |
+| **Perfil por Hijo** | Ficha completa: escuela, maestra, medico, alergias, actividades, tallas |
+| **Compartir a WhatsApp** | Exporta agendas y resumenes formateados con un tap |
 
-### Las 5 Pantallas
+## Las 5 Pantallas
 
-1. **Chat** — El corazon de la app. Conversacion natural entre Mama, Papa y Nanny. Mensajes color-coded (rosa mama, verde papa, morado nanny). Nanny interviene solo cuando aporta.
-2. **Dashboard "Hoy"** — Agenda del dia con horarios y responsables + lista de pendientes priorizados.
-3. **Vista Semanal** — Plan de 7 dias con eventos, responsables (mama/papa/ambos) y alertas destacadas.
-4. **Perfil de Hijos** — Tarjeta completa por hijo: escuela, maestra, medico, alergias, actividades, tallas, medicinas activas.
-5. **Notificaciones** — Alertas push para medicinas, eventos urgentes y recordatorios con acciones rapidas (marcar como hecho, posponer, editar).
-
-### La Primera Semana (Narrativa del Demo)
-
-El prototipo simula 7 dias de vida familiar para demostrar el valor:
-
-| Dia | Que pasa | Que hace Nanny |
-|-----|----------|----------------|
-| **Lunes (Dia 1)** | Mama pide pañales, Papa no recuerda la marca | Nanny dice "Huggies Etapa 3" y pone recordatorio |
-| **Miercoles (Dia 3)** | Nadie se acuerda del disfraz del lunes | Nanny avisa 4 dias antes, se planea para el sabado |
-| **Viernes (Dia 5)** | Cumpleaños de Sofia + disfraz chocan el sabado AM | Nanny reorganiza: Papa compra regalo camino al cumple, Mama prepara disfraz |
-| **Domingo (Dia 7)** | Fin de semana | Resumen: 12 tareas, 0 olvidos, 6 recordatorios. Plan de proxima semana |
-
-**Resultado**: una semana donde no se olvido nada. Sin formularios, sin esfuerzo extra.
+1. **Chat** — El corazon. Mama + Papa + Nanny conversando. Mensajes color-coded (rosa mama, verde papa, morado nanny). Nanny interviene solo cuando aporta.
+2. **Hoy** — Agenda del dia con horarios, responsables y pendientes priorizados.
+3. **Semana** — Plan de 7 dias con eventos, responsables y alertas destacadas.
+4. **Hijos** — Perfil completo por hijo: escuela, maestra, medico, alergias, actividades, tallas, medicinas activas, historial.
+5. **Notificaciones** — Alertas push con acciones rapidas (marcar hecho, posponer, responder).
 
 ---
 
-## ¿Como funciona tecnicamente?
+## Arquitectura Tecnica
 
-### Arquitectura Conceptual
+### Diagrama General
 
 ```
-┌─────────────────────────────────────────────┐
-│              APP NANNY (Propia)              │
-│                                             │
-│  ┌─────────────────────────────────────┐    │
-│  │     Chat Familiar (Mama+Papa+Nanny) │    │
-│  │                                     │    │
-│  │  Mama: "Mati necesita pañales"      │    │
-│  │  Papa: "Cuales eran?"               │    │
-│  │  Nanny: "Huggies E3 🛒"            │    │
-│  └──────────────┬──────────────────────┘    │
-│                 │                            │
-│                 ▼                            │
-│  ┌─────────────────────────────────────┐    │
-│  │   Motor AI (Procesamiento en Tiempo │    │
-│  │              Real)                  │    │
-│  │                                     │    │
-│  │  • Extraccion de entidades          │    │
-│  │    (fechas, productos, medicinas)   │    │
-│  │  • Clasificacion de intencion       │    │
-│  │  • Resolucion de contexto           │    │
-│  │    ("le toca" → ¿a cual hijo?)      │    │
-│  │  • Deteccion de conflictos          │    │
-│  └──────────────┬──────────────────────┘    │
-│                 │                            │
-│                 ▼                            │
-│  ┌─────────────────────────────────────┐    │
-│  │      Base de Datos Familiar         │    │
-│  │                                     │    │
-│  │  Perfiles hijos │ Calendario        │    │
-│  │  Tareas         │ Medicinas         │    │
-│  │  Preferencias   │ Historial         │    │
-│  └──────────────┬──────────────────────┘    │
-│                 │                            │
-│                 ▼                            │
-│  ┌─────────────────────────────────────┐    │
-│  │     Motor de Notificaciones         │    │
-│  │                                     │    │
-│  │  • Recordatorios proactivos         │    │
-│  │  • Alertas de medicina              │    │
-│  │  • Resumen semanal                  │    │
-│  │  • Conflictos detectados            │    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-│  ┌─────────────────────────────────────┐    │
-│  │           Interfaces                │    │
-│  │                                     │    │
-│  │  Chat │ Hoy │ Semana │ Hijos        │    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-└──────────────────┬──────────────────────────┘
-                   │
-                   ▼ (Salida opcional)
-        ┌─────────────────────┐
-        │  WhatsApp (Share)   │
-        │  Agenda formateada  │
-        │  para compartir     │
-        └─────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                     APP NANNY                            │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │          Chat Familiar (Mama + Papa + Nanny)       │  │
+│  │                                                    │  │
+│  │  👩 Mama: "Mañana no puedo recoger a Pau"          │  │
+│  │  👨 Papa: "Yo tampoco, tengo junta"                │  │
+│  │  🤖 Nanny: "¿Le pregunto a Abuela Carmen?"        │  │
+│  └───────────────────┬────────────────────────────────┘  │
+│                      │                                   │
+│                      ▼                                   │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │              Motor AI (Claude API)                 │  │
+│  │                                                    │  │
+│  │  • Comprension de mensajes en lenguaje natural     │  │
+│  │  • Extraccion de entidades (fechas, medicinas...)  │  │
+│  │  • Resolucion de contexto ("le toca" → ¿a quien?) │  │
+│  │  • Deteccion de conflictos de horarios             │  │
+│  │  • Generacion de respuestas y sugerencias          │  │
+│  │  • Procesamiento de emails entrantes               │  │
+│  └───────────────────┬────────────────────────────────┘  │
+│                      │                                   │
+│                      ▼                                   │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │            Base de Datos Familiar                  │  │
+│  │                                                    │  │
+│  │  Perfiles hijos │ Calendario   │ Medicinas         │  │
+│  │  Red de apoyo   │ Tareas       │ Historial medico  │  │
+│  │  Preferencias   │ Integraciones │ Mensajes         │  │
+│  └───────────────────┬────────────────────────────────┘  │
+│                      │                                   │
+│                      ▼                                   │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │         Motor de Notificaciones y Acciones         │  │
+│  │                                                    │  │
+│  │  • Push notifications (medicinas, recordatorios)   │  │
+│  │  • Resumen semanal automatico                      │  │
+│  │  • Contactar red de apoyo (WhatsApp/SMS)           │  │
+│  │  • Alertas de conflictos detectados                │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │              Pantallas                             │  │
+│  │  Chat │ Hoy │ Semana │ Hijos │ Notificaciones     │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+└─────────────────┬────────────────────┬───────────────────┘
+                  │                    │
+    ┌─────────────▼──────┐   ┌────────▼─────────────┐
+    │  Entradas Externas │   │  Salidas Externas     │
+    │                    │   │                       │
+    │  📧 Email cole     │   │  📤 WhatsApp share    │
+    │  📧 Email doctor   │   │  📱 SMS a red apoyo   │
+    │  📧 Email activs.  │   │  📅 Sync calendarios  │
+    │  📅 Google Cal     │   │                       │
+    │  📅 Apple Cal      │   │                       │
+    └────────────────────┘   └───────────────────────┘
 ```
 
-**Punto clave**: WhatsApp es solo un canal de **salida** (compartir agendas/resumenes). Toda la conversacion, procesamiento y logica vive **dentro de la app Nanny**.
+### Flujo de un Mensaje
 
-### Stack Tecnico Actual (Fase 1 — Prototipo)
+```
+1. Papa escribe: "Hay que comprar el disfraz de Pau"
+                    │
+                    ▼
+2. Backend recibe via WebSocket
+                    │
+                    ▼
+3. Claude API analiza:
+   → Entidad: compra (disfraz)
+   → Sujeto: Pau
+   → Contexto: evento escolar lunes (ya registrado)
+   → Accion: pedir detalles, generar lista
+                    │
+                    ▼
+4. Nanny responde en el chat:
+   "Disfraz de animal para el lunes.
+    ¿Que animal? ¿Lo compran o lo arman?"
+                    │
+                    ▼
+5. Papa responde: "Lo armamos, de leon"
+                    │
+                    ▼
+6. Nanny genera lista accionable:
+   "🛒 Lista disfraz leon:
+    - Ropa color cafe/naranja
+    - Orejas (cartulina/fieltro)
+    - Pintura facial
+    ¿Tienen esto en casa o hay que comprar?"
+                    │
+                    ▼
+7. Se actualiza:
+   → Tarea: "Disfraz leon Pau" (status: en progreso)
+   → Evento lunes: "Disfraz de leon al cole"
+   → Recordatorio sabado: "Preparar disfraz"
+```
+
+### Flujo de Email Externo
+
+```
+1. Email del cole llega a la bandeja conectada:
+   "Estimados padres, los convocamos a reunion
+    el jueves 13 de marzo a las 5pm..."
+                    │
+                    ▼
+2. Nanny procesa con Claude API:
+   → Tipo: reunion escolar
+   → Fecha: jueves 13 marzo, 5pm
+   → Requiere: asistencia de al menos un padre
+                    │
+                    ▼
+3. Nanny revisa calendarios conectados:
+   → Papa jueves 5pm: libre ✅
+   → Mama jueves 5pm: junta de trabajo 4-6pm ❌
+                    │
+                    ▼
+4. Nanny publica en el chat con opciones:
+   "El cole convoco reunion jueves 5pm.
+    Mama tiene junta hasta las 6. Papa esta libre.
+    [👨 Va Papa] [👩 Muevo junta] [👨👩 Vamos los dos]"
+```
+
+### Flujo de Red de Apoyo
+
+```
+1. Mama escribe: "Mañana no puedo recoger a Pau"
+   Papa escribe: "Yo tampoco"
+                    │
+                    ▼
+2. Nanny identifica: necesidad de cobertura
+   Consulta red de apoyo registrada
+                    │
+                    ▼
+3. Nanny ofrece opciones en el chat:
+   "👵 Abuela Carmen
+    👩‍🦰 Tia Laura
+    🧑 Niñera Maria ($200 extra)"
+                    │
+                    ▼
+4. Mama elige: Abuela Carmen
+                    │
+                    ▼
+5. Nanny envia WhatsApp/SMS automatico:
+   "Hola Carmen, ¿podrias recoger a Pau
+    mañana a las 2:30pm del cole?"
+                    │
+                    ▼
+6. Abuela responde: "Si"
+                    │
+                    ▼
+7. Nanny confirma en el chat:
+   "Abuela Carmen confirmo ✅
+    Recoge a Pau mañana 2:30pm"
+   → Actualiza calendario
+   → Cancela recordatorio de recogida a padres
+```
+
+### Stack Tecnico
+
+**Fase 1 — Prototipo (Actual)**
 
 | Capa | Tecnologia |
 |------|-----------|
-| Frontend | HTML5 + CSS3 + Vanilla JS — un solo archivo (`index.html`, ~1500 lineas) |
+| Frontend | HTML5 + CSS3 + Vanilla JS (archivo unico) |
 | Diseño | Mobile-first, iPhone frame (375x812px) |
-| Idioma | Español |
-| Backend | No existe (demo con datos hardcodeados y flujo scriptado) |
-| Base de datos | No existe (datos simulados en arrays JS) |
-| Despliegue | Archivo HTML estatico |
+| Backend | No existe (demo con datos hardcodeados) |
+| Despliegue | HTML estatico |
 
-**El prototipo es un demo interactivo**, no una app funcional. Simula la experiencia completa con mensajes pre-scriptados y auto-avance para demostrar el valor de Nanny sin necesitar backend.
-
-### Stack Tecnico Propuesto (Fase 2+)
+**Fase 2+ — Produccion**
 
 | Capa | Tecnologia |
 |------|-----------|
-| App | React Native o Flutter (iOS + Android nativo) |
-| Backend | Node.js o Python (API REST + WebSockets para chat en tiempo real) |
-| AI | Claude API — analisis de mensajes, extraccion de entidades, generacion de respuestas |
+| App | React Native o Flutter (iOS + Android) |
+| Backend | Node.js o Python (API REST + WebSockets para chat real-time) |
+| AI | Claude API (comprension, extraccion, generacion, procesamiento de emails) |
 | Base de datos | PostgreSQL (datos estructurados) + Vector DB (memoria conversacional) |
-| Notificaciones | Firebase Cloud Messaging (FCM) / Apple Push Notifications (APNs) |
-| Calendario | Sync con Google Calendar / Apple Calendar via API |
-| Share | Share Extension nativa para exportar a WhatsApp |
-| Auth | Phone number + OTP (sin passwords) |
+| Notificaciones | Firebase Cloud Messaging / Apple Push Notifications |
+| Email parsing | SendGrid Inbound Parse o similar (procesar emails del cole/doctor) |
+| Calendarios | Google Calendar API + Apple Calendar (EventKit) |
+| Mensajeria externa | WhatsApp Business API / Twilio SMS (red de apoyo) |
+| Auth | Numero de telefono + OTP |
 
 ### Modelo de Datos
 
@@ -183,64 +430,54 @@ Family
   ├── id, name, created_at
   │
   ├── Parents[]
-  │     ├── id, name, role (mama/papa), phone
+  │     ├── id, name, role (mama/papa), phone, email
+  │     ├── calendar_provider (google/apple), calendar_id
   │     └── notification_preferences
   │
   ├── Children[]
   │     ├── id, name, age, emoji
   │     ├── school, teacher, grade
+  │     ├── doctor, doctor_phone
   │     ├── allergies[], medical_conditions[]
-  │     ├── activities[] (name, days, time)
+  │     ├── activities[] (name, days, time, location)
   │     ├── preferences (diaper_brand, formula, clothing_size, shoe_size)
-  │     └── medications[] (name, dose, frequency, start_date, end_date)
+  │     ├── medications[] (name, dose, frequency, start_date, end_date, notes)
+  │     └── medical_history[] (date, description, source)
+  │
+  ├── SupportNetwork[]
+  │     ├── id, name, relation (abuela/tio/niñera/vecina)
+  │     ├── phone, contact_method (whatsapp/sms)
+  │     ├── availability_notes
+  │     └── cost_per_hour (null si es familia)
   │
   ├── Events[]
   │     ├── id, title, date, time, child_id
   │     ├── type (school, medical, activity, social, errand)
-  │     ├── assigned_to (mama/papa/both)
-  │     ├── reminder_days_before
-  │     └── status (pending, done, missed)
+  │     ├── assigned_to (mama/papa/both/support_contact_id)
+  │     ├── source (chat, email_school, email_doctor, manual)
+  │     ├── reminder_config
+  │     └── status (pending, done, missed, delegated)
   │
   ├── Tasks[]
   │     ├── id, description, priority, child_id
   │     ├── assigned_to, due_date
+  │     ├── subtasks[] (checklist items)
   │     └── status (pending, in_progress, done)
   │
+  ├── EmailIntegrations[]
+  │     ├── id, source (school, doctor, activity)
+  │     ├── email_address, label
+  │     └── last_processed_at
+  │
   └── Messages[]
-        ├── id, sender (mama/papa/nanny), text, timestamp
-        ├── extracted_entities[] (lo que Nanny entendio)
-        └── actions_generated[] (lo que Nanny hizo con eso)
-```
-
-### Flujo de un Mensaje en el Chat
-
-```
-1. Mama escribe: "Le toca antibiotico a Pau a las 2"
-                    │
-                    ▼
-2. Backend recibe el mensaje via WebSocket
-                    │
-                    ▼
-3. Claude API analiza:
-   - Entidad: medicamento (antibiotico)
-   - Sujeto: Pau
-   - Hora: 14:00
-   - Accion implicita: crear recordatorio
-                    │
-                    ▼
-4. Nanny responde en el chat:
-   "Listo, te aviso a las 1:55pm. Quedan 3 dias de tratamiento."
-                    │
-                    ▼
-5. Se crea:
-   - Evento en calendario (14:00, antibiotico Pau)
-   - Notificacion push programada (13:55)
-   - Actualizacion en perfil de Pau (medicamento activo)
+        ├── id, sender (mama/papa/nanny/system), text, timestamp
+        ├── extracted_entities[]
+        └── actions_generated[]
 ```
 
 ---
 
-## ¿Cuando? — Roadmap
+## Roadmap — ¿Cuando?
 
 ### Fase 1: Demo Interactivo ✅ (Completada)
 **Objetivo**: Validar el concepto y la narrativa de producto.
@@ -251,65 +488,91 @@ Family
 - [x] Vista semanal con responsables
 - [x] Notificaciones simuladas (medicina, compartir a WhatsApp)
 - [x] Perfil de hijo con informacion completa
-- [x] UI mobile-first con look & feel de app nativa
 
 **Entregable**: Demo funcional para presentar a inversionistas y early adopters.
 
-### Fase 2: MVP Funcional
-**Objetivo**: Primera version usable con familias reales.
+### Fase 2: MVP — Chat + Recordatorios
+**Objetivo**: Primera version usable con familias reales. Probar que los padres SI chatean en Nanny.
 
-- [ ] Backend con API REST y WebSockets (chat en tiempo real)
-- [ ] Autenticacion por numero de telefono
-- [ ] Chat funcional entre padres con Nanny como participante AI
+- [ ] App nativa (React Native / Flutter) o PWA
+- [ ] Backend con WebSockets (chat en tiempo real)
+- [ ] Auth por numero de telefono
+- [ ] Chat funcional: Mama + Papa + Nanny (AI)
 - [ ] Procesamiento de mensajes con Claude API
-- [ ] Base de datos con perfiles de hijos y calendario
-- [ ] Notificaciones push reales
-- [ ] App nativa basica (React Native / Flutter) o PWA
+- [ ] Perfiles de hijos y calendario
+- [ ] Notificaciones push reales (medicinas, recordatorios)
+- [ ] Resumen semanal automatico
 
-**Metrica de exito**: 10 familias usando Nanny activamente durante 30 dias.
+**Metrica clave**: 10 familias activas 30 dias. ¿Chatean en Nanny o regresan a WhatsApp?
 
-### Fase 3: Inteligencia Proactiva
-**Objetivo**: Nanny que anticipa, no solo responde.
+### Fase 3: Integraciones + Coordinacion
+**Objetivo**: Nanny se convierte en el hub central de informacion familiar.
 
+- [ ] Integracion email (cole, doctor, actividades)
+- [ ] Sync con Google Calendar / Apple Calendar
 - [ ] Deteccion automatica de conflictos de horarios
-- [ ] Recordatorios con anticipacion inteligente (segun tipo de evento)
-- [ ] Sugerencias de coordinacion entre padres
-- [ ] Resumen semanal automatico con insights
-- [ ] Sincronizacion con Google Calendar / Apple Calendar
-- [ ] Memoria conversacional (recordar contexto de semanas anteriores)
+- [ ] Asignacion inteligente de tareas (segun disponibilidad)
+- [ ] Historial medico por hijo
+- [ ] Memoria conversacional (contexto de semanas anteriores)
 
-**Metrica de exito**: Reduccion de "se me olvido" en 80%.
+**Metrica clave**: Reduccion de "se me olvido" en 80%.
 
-### Fase 4: Escala y Monetizacion
-**Objetivo**: Producto sostenible con modelo de negocio validado.
+### Fase 4: Red de Apoyo + Acciones
+**Objetivo**: Nanny no solo avisa — resuelve.
+
+- [ ] Registro de red de apoyo (abuelos, tios, niñera)
+- [ ] Contacto automatico via WhatsApp/SMS
+- [ ] Confirmacion y seguimiento de delegaciones
+- [ ] Listas de compras inteligentes (con links o sugerencias)
+- [ ] Compartir perfiles de hijos con cuidadores temporales
+
+**Metrica clave**: Numero de "problemas resueltos" sin intervencion directa de los padres.
+
+### Fase 5: Escala y Monetizacion
+**Objetivo**: Producto sostenible.
 
 - [ ] Onboarding self-service
-- [ ] Plan freemium (1 hijo gratis, premium para familias grandes)
-- [ ] Partnerships con escuelas (comunicados escolares → calendario automatico)
-- [ ] Ingesta opcional de WhatsApp (forwarding de mensajes al chat de Nanny)
+- [ ] Freemium (1 hijo gratis, premium para familias grandes + integraciones)
+- [ ] Partnerships con colegios (comunicados directo a Nanny)
 - [ ] Multi-idioma (español, ingles, portugues)
+- [ ] Analytics para padres (tiempo dedicado, distribucion de tareas mama/papa)
 
 ---
 
 ## Diferenciadores
 
-| | Apps Tradicionales | Nanny |
-|---|---|---|
-| **Entrada de datos** | Manual (formularios) | Natural (conversacion en chat) |
-| **Donde vive** | App que nadie abre | Chat propio que es el hub familiar |
-| **Inteligencia** | Calendario pasivo | Asistente que anticipa y conecta puntos |
-| **Esfuerzo** | Alto (hay que mantenerlo) | Minimo (hablas como siempre, Nanny extrae) |
-| **Coordinacion** | Cada padre ve lo suyo | Vista unificada familia con responsables |
-| **WhatsApp** | No se integra | Exporta agendas formateadas para compartir |
+| | Apps de Familia | Calendarios | WhatsApp | **Nanny** |
+|---|---|---|---|---|
+| **Entrada de datos** | Manual | Manual | Natural pero se pierde | Natural y se captura |
+| **Inteligencia** | Ninguna | Ninguna | Ninguna | AI que entiende y actua |
+| **Coordinacion** | Basica | Solo horarios | Informal | Detecta conflictos, propone |
+| **Red de apoyo** | No | No | Manual | Contacta y confirma |
+| **Info del cole** | No | No | Se pierde en el chat | Auto-procesado de emails |
+| **Medicinas** | No | Recordatorio basico | Se olvida | Seguimiento completo |
+| **Esfuerzo** | Alto | Alto | Cero pero caotico | Cero y organizado |
+
+---
+
+## Riesgos y Mitigaciones
+
+| Riesgo | Nivel | Mitigacion |
+|--------|-------|------------|
+| **Padres no migran de WhatsApp** | Alto | Valor inmediato dia 1 (recordatorio medicina). No pedir que dejen WhatsApp — Nanny es solo para temas de hijos |
+| **IA comete errores con info de niños** | Alto | Confirmar siempre antes de actuar. Nunca asumir — preguntar. En medicinas, doble confirmacion |
+| **Sensibilidad al precio (LatAm)** | Medio | Freemium generoso. Premium justificado por integraciones y red de apoyo |
+| **Privacidad de datos de menores** | Alto | Encriptacion end-to-end. Cumplimiento COPPA/GDPR. Datos nunca compartidos con terceros |
+| **Dependencia de Claude API** | Medio | Arquitectura que permite cambiar de modelo. Fallbacks para funciones criticas |
 
 ---
 
 ## Resumen Ejecutivo
 
-**Nanny** es una app con un chat familiar propio donde mama, papa y un asistente AI conversan. Los padres hablan entre ellos naturalmente y Nanny — el tercer miembro del chat — recuerda, organiza y avisa proactivamente sobre todo lo relacionado con sus hijos.
+**Nanny** es una app con chat familiar propio donde mama, papa y un asistente AI conversan sobre sus hijos. Los padres hablan naturalmente y Nanny escucha, recuerda, organiza, avisa y actua.
 
-**Diferencia clave**: No es un bot dentro de WhatsApp (imposible tecnicamente y prohibido por Meta). Es su propia app con su propio chat, dashboard, calendario y perfiles. WhatsApp es solo un canal de salida para compartir agendas.
+**No es un bot de WhatsApp** (imposible y prohibido por Meta). Es su propia app donde la conversacion es la interfaz y la AI es un miembro activo del grupo familiar.
 
-**Mercado**: Padres de niños 0-10 años que necesitan coordinar la logistica diaria de crianza.
+**Vision**: Evolucionar de chat + recordatorios a **sistema operativo familiar** — integrando emails del cole, calendarios de los padres, y una red de apoyo que Nanny puede contactar y coordinar autonomamente.
 
-**Estado actual**: Demo interactivo funcional (Fase 1). Siguiente paso: MVP con backend real y 10 familias piloto.
+**Diferencia clave**: Las apps de familia registran datos. Nanny **resuelve problemas**. No dice "tienes una reunion" — dice "tienes una reunion, mama no puede, papa si, ¿va papa?". No dice "necesitas quien recoja a Pau" — contacta a la abuela, confirma, y te avisa.
+
+**Estado actual**: Demo interactivo (Fase 1 completada). Siguiente paso: MVP con 10 familias piloto para validar que los padres SI chatean en Nanny.
