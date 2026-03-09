@@ -433,6 +433,83 @@
     text-align: center;
   }
 
+  .day-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 12px;
+    animation: slideUp 0.4s ease;
+  }
+  .day-divider::before, .day-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--gray-300);
+  }
+  .day-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    white-space: nowrap;
+  }
+
+  .day-summary {
+    align-self: center;
+    background: linear-gradient(135deg, var(--primary), #6C63FF);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 90%;
+    font-size: 13px;
+    line-height: 1.6;
+    animation: slideUp 0.4s ease;
+    margin: 4px 0;
+  }
+  .day-summary strong {
+    display: block;
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  .week-end-card {
+    align-self: center;
+    background: white;
+    border: 2px solid var(--primary);
+    border-radius: 20px;
+    padding: 20px 24px;
+    text-align: center;
+    max-width: 90%;
+    animation: slideUp 0.5s ease;
+    margin: 8px 0;
+  }
+  .week-end-card h3 {
+    font-size: 16px;
+    color: var(--gray-800);
+    margin-bottom: 8px;
+  }
+  .week-end-card .stat-row {
+    display: flex;
+    justify-content: space-around;
+    margin: 12px 0;
+    gap: 8px;
+  }
+  .week-end-card .stat {
+    text-align: center;
+  }
+  .week-end-card .stat-num {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--primary);
+  }
+  .week-end-card .stat-label {
+    font-size: 10px;
+    color: var(--gray-500);
+    text-transform: uppercase;
+  }
+
   .nanny-action-card {
     background: var(--white);
     border: 1px solid var(--primary-light);
@@ -1208,25 +1285,44 @@ function goTo(screenId) {
 
 // Chat demo
 const chatMessages = [
+  // ── DIA 1: LUNES - Se conocen, Nanny aprende ──
+  { type: 'day', text: 'Lunes — Dia 1', delay: 800 },
   { type: 'system', text: 'Nanny creo el grupo "Familia Ferrer"', delay: 500 },
   { type: 'mama', sender: 'Mama', text: 'Amor ya llegaste a la casa?', delay: 1500 },
-  { type: 'papa', sender: 'Papa', text: 'Saliendo de la oficina, llego en 30', delay: 2000 },
-  { type: 'mama', sender: 'Mama', text: 'Ok. Mati ya casi no tiene paniales, puedes pasar a comprar?', delay: 2500 },
-  { type: 'papa', sender: 'Papa', text: 'Si, paso. Cuales eran? No me acuerdo la etapa', delay: 2000 },
-  { type: 'nanny', sender: 'Nanny', text: 'Huggies Etapa 3', delay: 1200, action: true, actionContent: '🛒 Paniales Huggies E3<br>👨 Papa compra hoy<br>🔔 Le recuerdo en 20 min', actionButtons: ['Perfecto', 'Editar'] },
-  { type: 'papa', sender: 'Papa', text: 'Eso! Gracias. Ya paso', delay: 2000 },
-  { type: 'mama', sender: 'Mama', text: 'Ah oye, la profe de Pau mando mensaje. El viernes no hay clases', delay: 3000 },
-  { type: 'papa', sender: 'Papa', text: 'Uff yo tengo junta ese dia, imposible moverla', delay: 2000 },
-  { type: 'mama', sender: 'Mama', text: 'Yo puedo pedir home office ese dia', delay: 1500 },
-  { type: 'papa', sender: 'Papa', text: 'Dale, perfecto', delay: 1500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Anote: viernes Mama home office con los chicos', delay: 1500, action: true, actionContent: '📅 Viernes: Sin cole<br>👩 Mama home office<br><br>Semana:<br>• Lun: Disfraz animal (cole)<br>• Mar-Jue: Cole + antibiotico Pau<br>• Vie: Sin cole, Mama en casa<br>• Sab: Preparar disfraz', actionButtons: ['Ver semana', 'Ok'] },
-  { type: 'mama', sender: 'Mama', text: 'Ay si el disfraz! Casi se me olvida 😅', delay: 2500 },
-  { type: 'papa', sender: 'Papa', text: 'Jaja yo ni sabia. De que se tiene que disfrazar?', delay: 2000 },
-  { type: 'mama', sender: 'Mama', text: 'De un animal, lo que ella quiera', delay: 1500 },
+  { type: 'papa', sender: 'Papa', text: 'Saliendo, llego en 30', delay: 1800 },
+  { type: 'mama', sender: 'Mama', text: 'Mati ya casi no tiene paniales, puedes pasar a comprar?', delay: 2200 },
+  { type: 'papa', sender: 'Papa', text: 'Si paso. Cuales eran?', delay: 1800 },
+  { type: 'nanny', sender: 'Nanny', text: 'Huggies Etapa 3', delay: 1000, action: true, actionContent: '🛒 Paniales Huggies E3<br>🔔 Le recuerdo a Papa en 20 min', actionButtons: ['Ok', 'Editar'] },
+  { type: 'papa', sender: 'Papa', text: 'Eso! Gracias, ya paso', delay: 1800 },
+  { type: 'summary', text: 'Nanny aprendio la marca de paniales, organizo la compra y le recordo a Papa antes de llegar a casa.', delay: 2500 },
+
+  // ── DIA 3: MIERCOLES - Nanny empieza a anticipar ──
+  { type: 'day', text: 'Miercoles — Dia 3', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'El disfraz de animal de Pau es el lunes. Aun no eligen cual hacer.', delay: 1500 },
+  { type: 'mama', sender: 'Mama', text: 'Ay es verdad! Se me habia olvidado por completo', delay: 2000 },
+  { type: 'papa', sender: 'Papa', text: 'De que se tiene que disfrazar?', delay: 1800 },
+  { type: 'mama', sender: 'Mama', text: 'De un animal, lo que ella quiera. Hay que preguntarle', delay: 1800 },
   { type: 'papa', sender: 'Papa', text: 'El sabado lo armamos con ella', delay: 1500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Pau tiene antibiotico a las 6:00pm. Quien se lo da hoy?', delay: 2500 },
-  { type: 'mama', sender: 'Mama', text: 'Yo estoy con ella, yo se lo doy', delay: 1500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Te aviso a las 5:55 💊', delay: 1000 },
+  { type: 'nanny', sender: 'Nanny', text: 'Anoto: sabado preparar disfraz con Pau', delay: 1000 },
+  { type: 'summary', text: 'Nanny aviso del disfraz 4 dias antes. Sin ese recordatorio, se enteraban el domingo en la noche.', delay: 2500 },
+
+  // ── DIA 5: VIERNES - Nanny conecta puntos ──
+  { type: 'day', text: 'Viernes — Dia 5', delay: 1500 },
+  { type: 'mama', sender: 'Mama', text: 'Oye el cumple de Sofia es maniana! Hay que comprarle algo', delay: 2000 },
+  { type: 'papa', sender: 'Papa', text: 'Cierto. Yo puedo pasar a comprar algo en la maniana', delay: 1800 },
+  { type: 'nanny', sender: 'Nanny', text: 'El cumple es a las 4pm y en la maniana tambien van a preparar el disfraz con Pau. Quieren que Papa compre el regalo camino al cumple?', delay: 2000 },
+  { type: 'papa', sender: 'Papa', text: 'Buena idea, asi no me estreso en la maniana', delay: 1500 },
+  { type: 'mama', sender: 'Mama', text: 'Perfecto, yo me quedo armando el disfraz con Pau mientras', delay: 1800 },
+  { type: 'summary', text: 'Nanny conecto que el regalo y el disfraz chocaban en la maniana. Reorganizo el sabado sin que nadie se lo pidiera.', delay: 2500 },
+
+  // ── DIA 7: DOMINGO - Resumen semanal ──
+  { type: 'day', text: 'Domingo — Dia 7', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Resumen de la semana:', delay: 1500, action: true, actionContent: '✅ 12 tareas completadas<br>💊 Antibiotico Pau: terminado!<br>🎭 Disfraz de leon: listo<br>🎂 Cumple Sofia: fueron<br>🛒 Paniales: comprados<br><br>Proxima semana:<br>• Lun: Disfraz al cole<br>• Mar: Pediatra Pau 10am<br>• Jue: Piano 5pm', actionButtons: ['Ver semana', 'Ok'] },
+  { type: 'mama', sender: 'Mama', text: 'Que hubiera sido de nosotros esta semana sin Nanny jaja', delay: 2500 },
+  { type: 'papa', sender: 'Papa', text: 'Literal. No se nos olvido nada 🙌', delay: 1800 },
+
+  // ── Card final ──
+  { type: 'weekEnd', delay: 2000 },
 ];
 
 let chatIndex = 0;
@@ -1248,15 +1344,61 @@ function showChatFromTab() {
 
 function showNextMessage() {
   if (chatIndex >= chatMessages.length) {
-    // Show notification after chat demo
-    setTimeout(() => {
-      showNotification('medicine-reminder');
-    }, 2000);
     return;
   }
 
   const msg = chatMessages[chatIndex];
   const typing = document.getElementById('typing-indicator');
+
+  // Day dividers
+  if (msg.type === 'day') {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'day-divider';
+      el.innerHTML = `<span class="day-label">${msg.text}</span>`;
+      chatContainer.appendChild(el);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      chatIndex++;
+      showNextMessage();
+    }, msg.delay);
+    return;
+  }
+
+  // Day summary cards
+  if (msg.type === 'summary') {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'day-summary';
+      el.innerHTML = `${msg.text}`;
+      chatContainer.appendChild(el);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      chatIndex++;
+      showNextMessage();
+    }, msg.delay);
+    return;
+  }
+
+  // Week end stats card
+  if (msg.type === 'weekEnd') {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'week-end-card';
+      el.innerHTML = `
+        <h3>Primera semana con Nanny</h3>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-num">12</div><div class="stat-label">Tareas</div></div>
+          <div class="stat"><div class="stat-num">0</div><div class="stat-label">Olvidos</div></div>
+          <div class="stat"><div class="stat-num">6</div><div class="stat-label">Recordatorios</div></div>
+        </div>
+        <p style="font-size:13px;color:var(--gray-600);margin-top:8px;">Sin instalar nada. Solo un chat de WhatsApp.</p>
+        <button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="goTo('screen-dashboard')">Ver dashboard</button>
+      `;
+      chatContainer.appendChild(el);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      chatIndex++;
+    }, msg.delay);
+    return;
+  }
 
   // Show typing indicator for non-system messages
   if (msg.type !== 'system') {
