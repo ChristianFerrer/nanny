@@ -563,6 +563,76 @@ Family
 | **Privacidad de datos de menores** | Alto | Encriptacion end-to-end. Cumplimiento COPPA/GDPR. Datos nunca compartidos con terceros |
 | **Dependencia de Claude API** | Medio | Arquitectura que permite cambiar de modelo. Fallbacks para funciones criticas |
 
+### Estrategias Detalladas de Mitigacion
+
+#### Riesgo #1: Padres no migran de WhatsApp
+
+**Principio**: No competir con WhatsApp — ser complementario. Los padres seguiran usando WhatsApp para todo lo demas. Nanny solo necesita capturar las conversaciones sobre los hijos.
+
+**Que construir:**
+
+- **Push notifications que jalan al chat.** El recordatorio del antibiotico llega como push. Al tocarlo, abre el chat de Nanny. Mama responde ahi ("ya se lo di") porque es donde esta el contexto. No va a abrir WhatsApp para decirle a Papa "ya le di el antibiotico" si Nanny ya lo registro.
+
+- **Nanny inicia conversaciones.** Nanny no espera — pregunta. "¿Como sigue Pau?", "¿Decidieron el disfraz?", "El cole mando email sobre reunion de padres". Cada pregunta de Nanny es una razon para abrir la app.
+
+- **Resumen semanal como hook.** El domingo a las 8pm llega el resumen. Si los padres ven que dice "3 cosas sin resolver para la proxima semana", abren Nanny para resolverlas ahi mismo.
+
+- **La info solo vive en Nanny.** Si mama escribe en WhatsApp "martes pediatra 10am", eso se pierde en el scroll. Si lo escribe en Nanny, queda en el calendario, en el perfil de Pau, con recordatorio y con la pregunta "¿quien la lleva?". El valor de escribir en Nanny vs WhatsApp tiene que ser obvio desde el dia 1.
+
+- **Metricas clave para pivotar rapido.** En el MVP, trackear: ¿cuantos mensajes al dia por familia? ¿Abren por push o por iniciativa propia? ¿Cuantos dias seguidos abren la app? Si despues de 2 semanas los padres no chatean, considerar modelo alternativo: ingesta de WhatsApp por forwarding como complemento (no como reemplazo del chat propio).
+
+#### Riesgo #2: IA comete errores con info de niños
+
+**Principio**: Confirmar siempre, asumir nunca. Fallar de forma segura. Un error en una app de productividad molesta; un error con la medicina de tu hijo asusta.
+
+**Que construir:**
+
+- **Doble confirmacion para acciones criticas.** Nanny nunca ejecuta algo medico sin confirmar. Si detecta "antibiotico cada 8 horas", responde: "Entendi: antibiotico cada 8 horas para Pau. ¿Correcto?" Solo despues programa los recordatorios.
+
+- **Niveles de confianza en la IA.** Cada extraccion de Claude tiene un confidence score interno:
+  - Alto (>0.9): Nanny actua y confirma ("Anote: pediatra martes 10am")
+  - Medio (0.7-0.9): Pregunta ("¿Entendi bien que el pediatra es el martes a las 10?")
+  - Bajo (<0.7): Pide clarificacion ("No me quedo claro, ¿puedes darme mas detalles?")
+
+- **Separar "entender" de "actuar".** Nanny puede entender mal un mensaje y eso es tolerable si no actua sobre la mala interpretacion. El flujo siempre es: entender → confirmar → actuar. Nunca entender → actuar.
+
+- **Datos medicos como ciudadanos de primera clase.** En el modelo de datos, las medicinas tienen validaciones estrictas: frecuencia debe ser un numero valido, fecha de fin obligatoria, dosis no puede quedar vacia. Si Nanny no puede extraer todos los campos, pregunta uno por uno en vez de adivinar.
+
+- **Fallback humano siempre visible.** Si Nanny no entiende algo, dice "No estoy segura de haber entendido, ¿puedes decirmelo de otra forma?" en vez de inventar. Es mejor parecer limitada que equivocarse con la salud de un niño.
+
+- **Beta cerrado con familias reales.** Antes del MVP publico, correr 4 semanas con 5 familias. Pedirles que reporten cada vez que Nanny entendio mal. Usar esos errores para refinar prompts y validaciones.
+
+- **Audit log visible para padres.** En el perfil de cada hijo, los padres pueden ver que entendio Nanny y cuando. "Nanny anoto: alergia al mani (3 de marzo, desde conversacion del chat)". Si algo esta mal, pueden corregirlo.
+
+#### Riesgo #3: Sensibilidad al precio en LatAm
+
+**Principio**: Freemium generoso que engancha, premium que resuelve dolores reales.
+
+**Que construir:**
+
+- **Free tier que funciona de verdad.** Chat + recordatorios + 1 hijo + perfil basico. Suficiente para que una familia con un hijo tenga una experiencia completa. El free no puede sentirse castrado — tiene que ser util de verdad para generar word of mouth.
+
+- **Premium justificado por dolor, no por features artificiales.** No cobrar por "mas hijos" como barrera. Cobrar por lo que resuelve dolores mas grandes:
+  - Integracion con email del cole (nunca mas leer circulares)
+  - Red de apoyo automatizada (contactar abuela/niñera con un tap)
+  - Sync de calendarios (deteccion de conflictos)
+  - Historial medico completo con exportacion para el pediatra
+  - Multiples familias (divorciados con custodia compartida)
+
+- **Precio anclado a lo que ya gastan.** Una hora de niñera cuesta $200-400 MXN. Si Nanny evita una emergencia de coordinacion al mes, el precio de $99-149 MXN/mes se justifica solo. Enmarcarlo como "menos que una hora de niñera al mes".
+
+- **B2B como segundo revenue stream.** Los colegios pagan por comunicacion con padres. Si Nanny ofrece a los colegios un canal directo (email del cole → Nanny de los padres automaticamente), el colegio puede pagar por padre/mes. Los padres reciben la integracion gratis, el colegio paga por llegar efectivamente a los padres.
+
+- **No monetizar hasta Fase 3.** Las primeras 2 fases son 100% gratis. Primero validar que el producto funciona y retiene. Monetizar antes de tener retencion es matar el producto.
+
+### Prioridades de Mitigacion por Fase
+
+| Preocupacion | Que construir primero | Cuando |
+|---|---|---|
+| **Adopcion del chat** | Push notifications que jalan al chat + Nanny que inicia conversaciones | Fase 2 (MVP) |
+| **Calidad de la IA** | Doble confirmacion + niveles de confianza + audit log | Fase 2 (MVP) |
+| **Monetizacion** | Nada — todo gratis hasta validar retencion | Fase 3-4 |
+
 ---
 
 ## Resumen Ejecutivo
