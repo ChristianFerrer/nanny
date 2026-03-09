@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nanny — Demo Fase 1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #6C5CE7;
+    --primary-light: #A29BFE;
+    --primary-dark: #5A4BD1;
+    --bg: #F8F9FA;
+    --white: #FFFFFF;
+    --gray-100: #F1F3F5;
+    --gray-200: #E9ECEF;
+    --gray-300: #DEE2E6;
+    --gray-400: #CED4DA;
+    --gray-500: #ADB5BD;
+    --gray-600: #868E96;
+    --gray-700: #495057;
+    --gray-800: #343A40;
+    --gray-900: #212529;
+    --success: #51CF66;
+    --warning: #FCC419;
+    --danger: #FF6B6B;
+    --info: #339AF0;
+    --nanny-bg: #F0EDFF;
+    --mama-bg: #FFF0F6;
+    --papa-bg: #E8F5E9;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .phone-frame {
+    width: 375px;
+    height: 812px;
+    background: var(--bg);
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 0 8px #333, 0 0 0 10px #666, var(--shadow-lg);
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .screen.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.8); }
+    70% { transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes typing {
+    0%, 60% { opacity: 1; }
+    30% { opacity: 0.4; }
+  }
+
+  /* Welcome Screen */
+  .welcome-screen {
+    background: linear-gradient(135deg, var(--primary) 0%, #8B7CF7 50%, var(--primary-light) 100%);
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    text-align: center;
+    color: white;
+  }
+
+  .welcome-logo {
+    width: 120px;
+    height: 120px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 60px;
+    margin: 0 auto 30px;
+    backdrop-filter: blur(10px);
+  }
+
+  .welcome-screen h1 {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .welcome-screen p {
+    font-size: 16px;
+    opacity: 0.9;
+    line-height: 1.5;
+    margin-bottom: 40px;
+  }
+
+  .btn {
+    padding: 16px 32px;
+    border: none;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn-white {
+    background: white;
+    color: var(--primary);
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .btn-primary:hover { background: var(--primary-dark); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+  }
+
+  .btn-block {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn-sm {
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .btn-action {
+    background: var(--nanny-bg);
+    color: var(--primary);
+    border: 1px solid var(--primary-light);
+  }
+
+  /* Onboarding */
+  .onboarding-screen {
+    background: var(--white);
+  }
+
+  .onboarding-header {
+    padding: 60px 24px 20px;
+    text-align: center;
+  }
+
+  .onboarding-header .step-indicator {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gray-300);
+    transition: all 0.3s;
+  }
+
+  .step-dot.active {
+    background: var(--primary);
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  .step-dot.done { background: var(--success); }
+
+  .onboarding-header h2 {
+    font-size: 24px;
+    color: var(--gray-900);
+    margin-bottom: 8px;
+  }
+
+  .onboarding-header p {
+    font-size: 14px;
+    color: var(--gray-600);
+  }
+
+  .onboarding-content {
+    flex: 1;
+    padding: 20px 24px;
+    overflow-y: auto;
+  }
+
+  .onboarding-footer {
+    padding: 16px 24px 40px;
+  }
+
+  .input-group {
+    margin-bottom: 16px;
+  }
+
+  .input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 6px;
+  }
+
+  .input-group input, .input-group select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--gray-200);
+    border-radius: 12px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--white);
+  }
+
+  .input-group input:focus, .input-group select:focus {
+    border-color: var(--primary);
+  }
+
+  .child-card {
+    background: var(--gray-100);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideUp 0.3s ease;
+  }
+
+  .child-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .child-info h4 { font-size: 16px; color: var(--gray-900); }
+  .child-info p { font-size: 13px; color: var(--gray-600); }
+
+  .nanny-bubble-onboarding {
+    background: var(--nanny-bg);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border-left: 4px solid var(--primary);
+  }
+
+  .nanny-bubble-onboarding .nanny-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+
+  .nanny-bubble-onboarding p {
+    font-size: 14px;
+    color: var(--gray-800);
+    line-height: 1.5;
+  }
+
+  .quick-option {
+    display: inline-block;
+    padding: 10px 16px;
+    background: var(--white);
+    border: 2px solid var(--gray-200);
+    border-radius: 12px;
+    margin: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .quick-option:hover, .quick-option.selected {
+    border-color: var(--primary);
+    background: var(--nanny-bg);
+  }
+
+  .med-card {
+    background: #FFF8E1;
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 12px;
+    border: 1px solid #FFE082;
+    animation: popIn 0.3s ease;
+  }
+
+  .med-card .med-icon { font-size: 20px; margin-right: 8px; }
+  .med-card .med-title { font-weight: 600; font-size: 14px; color: var(--gray-800); }
+  .med-card .med-detail { font-size: 13px; color: var(--gray-600); margin-top: 4px; }
+
+  /* Chat Screen */
+  .chat-screen { background: var(--bg); }
+
+  .chat-header {
+    background: var(--primary);
+    padding: 50px 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: white;
+  }
+
+  .chat-header-avatar {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .chat-header-info h3 { font-size: 17px; font-weight: 600; }
+  .chat-header-info p { font-size: 12px; opacity: 0.8; }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .message {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    animation: slideUp 0.3s ease;
+    position: relative;
+  }
+
+  .message-time {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin-top: 4px;
+  }
+
+  .message.nanny {
+    background: var(--nanny-bg);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+
+  .message.nanny .sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 4px;
+  }
+
+  .message.mama {
+    background: var(--mama-bg);
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+  }
+
+  .message.mama .sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: #E64980;
+    margin-bottom: 4px;
+  }
+
+  .message.papa {
+    background: var(--papa-bg);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+
+  .message.papa .sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: #2E7D32;
+    margin-bottom: 4px;
+  }
+
+  .message.system {
+    background: var(--gray-200);
+    align-self: center;
+    font-size: 12px;
+    color: var(--gray-600);
+    padding: 8px 16px;
+    border-radius: 12px;
+    max-width: 90%;
+    text-align: center;
+  }
+
+  .nanny-action-card {
+    background: var(--white);
+    border: 1px solid var(--primary-light);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 8px;
+  }
+
+  .nanny-action-card .action-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--gray-800);
+    margin-bottom: 8px;
+  }
+
+  .nanny-action-card .action-item {
+    font-size: 13px;
+    color: var(--gray-700);
+    padding: 3px 0;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .action-btn:active { transform: scale(0.95); }
+
+  .action-btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .action-btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  .typing-indicator {
+    display: none;
+    align-self: flex-start;
+    padding: 12px 20px;
+    background: var(--nanny-bg);
+    border-radius: 18px;
+    border-bottom-left-radius: 4px;
+  }
+
+  .typing-indicator.visible { display: flex; gap: 4px; }
+
+  .typing-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--primary-light);
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  .chat-input-area {
+    padding: 12px 16px 36px;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .chat-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--gray-200);
+    border-radius: 24px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .chat-input:focus { border-color: var(--primary); }
+
+  .send-btn {
+    width: 44px;
+    height: 44px;
+    background: var(--primary);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .send-btn:active { transform: scale(0.9); }
+
+  /* Notification Popup */
+  .notification-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 60px;
+  }
+
+  .notification-overlay.visible {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .notification-card {
+    background: var(--white);
+    border-radius: 20px;
+    margin: 0 16px;
+    padding: 20px;
+    box-shadow: var(--shadow-lg);
+    width: calc(100% - 32px);
+    animation: popIn 0.4s ease;
+  }
+
+  .notification-card .notif-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .notification-card .notif-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--nanny-bg);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .notification-card .notif-app {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+  }
+
+  .notification-card .notif-time {
+    font-size: 12px;
+    color: var(--gray-500);
+    margin-left: auto;
+  }
+
+  .notification-card .notif-body {
+    font-size: 14px;
+    color: var(--gray-800);
+    line-height: 1.5;
+  }
+
+  .notification-card .notif-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  /* Dashboard Screen */
+  .dashboard-screen { background: var(--bg); }
+
+  .dashboard-header {
+    background: var(--primary);
+    padding: 50px 20px 24px;
+    color: white;
+  }
+
+  .dashboard-header h2 { font-size: 14px; opacity: 0.8; font-weight: 400; }
+  .dashboard-header h1 { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+  .dashboard-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    margin-top: -16px;
+  }
+
+  .dash-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .dash-card h3 {
+    font-size: 14px;
+    color: var(--gray-600);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  .event-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .event-row:last-child { border-bottom: none; }
+
+  .event-time {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    min-width: 50px;
+  }
+
+  .event-desc { font-size: 14px; color: var(--gray-800); }
+  .event-who { font-size: 12px; color: var(--gray-500); }
+
+  .pending-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    font-size: 14px;
+    color: var(--gray-800);
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .pending-item:last-child { border-bottom: none; }
+
+  .pending-icon { font-size: 18px; }
+
+  .share-whatsapp-btn {
+    width: 100%;
+    padding: 14px;
+    background: #25D366;
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    padding: 8px 0 28px;
+  }
+
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--gray-500);
+    font-size: 11px;
+    transition: color 0.2s;
+  }
+
+  .tab-item.active { color: var(--primary); }
+  .tab-item .tab-icon { font-size: 22px; }
+
+  /* Week summary screen */
+  .summary-screen { background: var(--bg); }
+
+  .summary-header {
+    background: var(--primary);
+    padding: 50px 20px 24px;
+    color: white;
+    text-align: center;
+  }
+
+  .summary-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  .day-card {
+    background: var(--white);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .day-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 36px;
+  }
+
+  .day-events {
+    flex: 1;
+    font-size: 14px;
+    color: var(--gray-800);
+    line-height: 1.6;
+  }
+
+  .day-card.highlight {
+    border-left: 4px solid var(--warning);
+    background: #FFFDE7;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-papa { background: var(--papa-bg); color: #2E7D32; }
+  .badge-mama { background: var(--mama-bg); color: #E64980; }
+  .badge-alert { background: #FFF3E0; color: #E65100; }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+
+  <!-- SCREEN 1: Welcome -->
+  <div class="screen welcome-screen active" id="screen-welcome">
+    <div class="welcome-logo">👶</div>
+    <h1>Nanny</h1>
+    <p>El asistente inteligente que organiza la vida de tus hijos.<br>Tú cuidas a tus hijos. Nanny cuida los detalles.</p>
+    <button class="btn btn-white btn-block" onclick="goTo('screen-onboard-1')">Comenzar</button>
+  </div>
+
+  <!-- SCREEN 2: Onboarding Step 1 - Add Kids -->
+  <div class="screen onboarding-screen" id="screen-onboard-1">
+    <div class="onboarding-header">
+      <div class="step-indicator">
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+      <h2>Tus hijos</h2>
+      <p>Cuantos hijos tienes?</p>
+    </div>
+    <div class="onboarding-content">
+      <div class="nanny-bubble-onboarding">
+        <div class="nanny-label">Nanny</div>
+        <p>Hola! Soy Nanny. Voy a ayudarte a organizar todo lo de tus hijos. Empecemos por conocerlos.</p>
+      </div>
+      <div id="kids-list">
+        <div class="child-card">
+          <div class="child-avatar" style="background:#FFE0E6;">👧</div>
+          <div class="child-info">
+            <h4>Pau</h4>
+            <p>6 anios - 1o Primaria</p>
+          </div>
+        </div>
+        <div class="child-card">
+          <div class="child-avatar" style="background:#E0F2F1;">👶</div>
+          <div class="child-info">
+            <h4>Mati</h4>
+            <p>1 anio</p>
+          </div>
+        </div>
+      </div>
+      <div class="nanny-bubble-onboarding" style="margin-top:16px;">
+        <div class="nanny-label">Nanny</div>
+        <p>Pau de 6 y Mati de 1. Ya los tengo. Vamos a lo importante...</p>
+      </div>
+    </div>
+    <div class="onboarding-footer">
+      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-2')">Continuar</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Onboarding Step 2 - Urgent Stuff -->
+  <div class="screen onboarding-screen" id="screen-onboard-2">
+    <div class="onboarding-header">
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+      <h2>Esta semana</h2>
+      <p>Algo urgente que no se te pueda olvidar?</p>
+    </div>
+    <div class="onboarding-content">
+      <div class="nanny-bubble-onboarding">
+        <div class="nanny-label">Nanny</div>
+        <p>Si tuvieras que recordar UNA cosa esta semana de tus hijos, cual seria?</p>
+      </div>
+      <div style="margin:16px 0;">
+        <div class="quick-option selected" onclick="this.classList.toggle('selected')">💊 Medicacion</div>
+        <div class="quick-option" onclick="this.classList.toggle('selected')">📅 Cita medica</div>
+        <div class="quick-option selected" onclick="this.classList.toggle('selected')">🎒 Algo del cole</div>
+        <div class="quick-option" onclick="this.classList.toggle('selected')">🛒 Compra urgente</div>
+      </div>
+      <div class="med-card">
+        <div><span class="med-icon">💊</span><span class="med-title">Medicacion de Pau</span></div>
+        <div class="med-detail">Antibiotico cada 8 horas hasta el viernes</div>
+        <div class="med-detail">Ultima toma: hoy 10:00am</div>
+        <div class="med-detail" style="color:var(--primary);font-weight:600;margin-top:6px;">
+          Proxima toma: 6:00pm - Te aviso 5 min antes
+        </div>
+      </div>
+      <div class="med-card" style="background:#F3E5F5;border-color:#CE93D8;">
+        <div><span class="med-icon">🎒</span><span class="med-title">Cole de Pau</span></div>
+        <div class="med-detail">Disfraz de animal para el lunes</div>
+        <div class="med-detail" style="color:var(--primary);font-weight:600;margin-top:6px;">
+          Te recuerdo el sabado para prepararlo
+        </div>
+      </div>
+    </div>
+    <div class="onboarding-footer">
+      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-3')">Continuar</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: Onboarding Step 3 - Essentials -->
+  <div class="screen onboarding-screen" id="screen-onboard-3">
+    <div class="onboarding-header">
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+      </div>
+      <h2>Lo basico</h2>
+      <p>Datos que Nanny debe saber</p>
+    </div>
+    <div class="onboarding-content">
+      <div class="nanny-bubble-onboarding">
+        <div class="nanny-label">Nanny</div>
+        <p>Un par de cosas mas y estamos listos:</p>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="child-card" style="flex-direction:column;align-items:stretch;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="font-size:24px;">👧</span>
+            <strong>Pau</strong>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="quick-option selected" style="font-size:13px;">🏫 Colegio Montessori</div>
+            <div class="quick-option selected" style="font-size:13px;">🏥 Dr. Garcia</div>
+            <div class="quick-option selected" style="font-size:13px;">⚠️ Alergia: mani</div>
+            <div class="quick-option selected" style="font-size:13px;">🏊 Natacion Mar/Jue</div>
+            <div class="quick-option selected" style="font-size:13px;">🎹 Piano Jue 5pm</div>
+          </div>
+        </div>
+        <div class="child-card" style="flex-direction:column;align-items:stretch;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="font-size:24px;">👶</span>
+            <strong>Mati</strong>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="quick-option selected" style="font-size:13px;">🧷 Paniales Huggies E3</div>
+            <div class="quick-option selected" style="font-size:13px;">🍼 NAN 2 sin lactosa</div>
+            <div class="quick-option selected" style="font-size:13px;">😴 Siesta 2pm</div>
+            <div class="quick-option selected" style="font-size:13px;">🏥 Dra. Lopez</div>
+          </div>
+        </div>
+      </div>
+      <div class="nanny-bubble-onboarding" style="margin-top:16px;">
+        <div class="nanny-label">Nanny</div>
+        <p>Perfecto! Ya conozco a Pau y Mati. Ahora invitemos al otro papa/mama para que los dos tengan todo sincronizado.</p>
+      </div>
+    </div>
+    <div class="onboarding-footer">
+      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-4')">Invitar a Papa</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 5: Onboarding Step 4 - Invite -->
+  <div class="screen onboarding-screen" id="screen-onboard-4">
+    <div class="onboarding-header">
+      <div class="step-indicator">
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot done"></div>
+        <div class="step-dot active"></div>
+      </div>
+      <h2>Invitar a Papa</h2>
+      <p>Para que ambos esten sincronizados</p>
+    </div>
+    <div class="onboarding-content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+      <div style="font-size:80px;margin-bottom:24px;">📱</div>
+      <div class="nanny-bubble-onboarding" style="text-align:left;">
+        <div class="nanny-label">Nanny</div>
+        <p>Le envio un mensaje a Papa por WhatsApp con la invitacion. Va a ver esto:</p>
+      </div>
+      <div style="background:var(--papa-bg);border-radius:12px;padding:14px;margin:12px 0;text-align:left;width:100%;">
+        <p style="font-size:13px;color:var(--gray-800);line-height:1.6;">
+          <strong>Mama te invito a Nanny</strong> - el asistente de Pau y Mati<br><br>
+          👧 Pau: 💊 Antibiotico c/8hrs | 🎒 Disfraz lunes<br>
+          👶 Mati: 🧷 Paniales Huggies E3<br><br>
+          <span style="color:var(--primary);font-weight:600;">Abrir Nanny &rarr;</span>
+        </p>
+      </div>
+      <p style="font-size:13px;color:var(--gray-600);margin-top:8px;">Papa ve la info de sus hijos y quiere entrar.</p>
+    </div>
+    <div class="onboarding-footer">
+      <button class="btn btn-primary btn-block" onclick="goTo('screen-onboard-done')" style="background:#25D366;">Enviar invitacion por WhatsApp</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="goTo('screen-onboard-done')">Despues</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 6: Onboarding Done -->
+  <div class="screen onboarding-screen" id="screen-onboard-done">
+    <div class="onboarding-content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
+      <div style="font-size:80px;margin-bottom:24px;">🎉</div>
+      <h2 style="font-size:24px;color:var(--gray-900);margin-bottom:12px;">Nanny esta lista!</h2>
+      <p style="font-size:15px;color:var(--gray-600);line-height:1.6;margin-bottom:32px;">
+        Ya conozco a Pau y Mati.<br>
+        Te aviso a las 5:55pm para el antibiotico.<br>
+        El sabado te recuerdo el disfraz.<br><br>
+        <strong>Cuando quieras decirme algo de tus hijos, escribelo en el chat.</strong>
+      </p>
+      <div style="background:var(--nanny-bg);border-radius:16px;padding:16px;width:100%;text-align:left;">
+        <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;">Proximas notificaciones:</div>
+        <div style="font-size:14px;color:var(--gray-800);line-height:2;">
+          🔔 Hoy 5:55pm — Antibiotico Pau<br>
+          🔔 Hoy 10:00pm — Antibiotico Pau (si aplica)<br>
+          🔔 Sabado 10am — Preparar disfraz de animal<br>
+          🔔 Domingo 8pm — Resumen semanal
+        </div>
+      </div>
+    </div>
+    <div class="onboarding-footer">
+      <button class="btn btn-primary btn-block" onclick="goTo('screen-chat');startChatDemo();">Ir al chat</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 7: Chat -->
+  <div class="screen chat-screen" id="screen-chat">
+    <div class="chat-header">
+      <div class="chat-header-avatar">👶</div>
+      <div class="chat-header-info">
+        <h3>Familia Ferrer</h3>
+        <p>Mama, Papa, Nanny</p>
+      </div>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <!-- Messages will be injected here -->
+    </div>
+    <div class="typing-indicator" id="typing-indicator">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="chat-input" placeholder="Escribe algo de los chicos..." disabled>
+      <button class="send-btn" onclick="sendUserMessage()" disabled>&#9654;</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 8: Notification -->
+  <div class="notification-overlay" id="notification-overlay">
+    <div class="notification-card" id="notification-card">
+      <!-- Filled dynamically -->
+    </div>
+  </div>
+
+  <!-- SCREEN 9: Dashboard (Today) -->
+  <div class="screen dashboard-screen" id="screen-dashboard">
+    <div class="dashboard-header">
+      <h2>Lunes 9 de Marzo</h2>
+      <h1>Hoy para Pau y Mati</h1>
+    </div>
+    <div class="dashboard-content">
+      <div class="dash-card">
+        <h3>AGENDA DEL DIA</h3>
+        <div class="event-row">
+          <div class="event-time">8:00</div>
+          <div>
+            <div class="event-desc">Entrada cole Pau</div>
+            <div class="event-who">Mama lleva</div>
+          </div>
+        </div>
+        <div class="event-row">
+          <div class="event-time">14:00</div>
+          <div>
+            <div class="event-desc">💊 Antibiotico Pau</div>
+            <div class="event-who">Quien este con ella</div>
+          </div>
+        </div>
+        <div class="event-row">
+          <div class="event-time">14:30</div>
+          <div>
+            <div class="event-desc">Recoger Pau del cole</div>
+            <div class="event-who">Papa recoge</div>
+          </div>
+        </div>
+        <div class="event-row">
+          <div class="event-time">15:00</div>
+          <div>
+            <div class="event-desc">Natacion Pau</div>
+            <div class="event-who">Papa lleva</div>
+          </div>
+        </div>
+        <div class="event-row">
+          <div class="event-time">22:00</div>
+          <div>
+            <div class="event-desc">💊 Antibiotico Pau</div>
+            <div class="event-who">Antes de dormir</div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-card">
+        <h3>PENDIENTES</h3>
+        <div class="pending-item">
+          <span class="pending-icon">🎭</span>
+          <div>
+            <div>Disfraz de leon para Pau</div>
+            <div style="font-size:12px;color:var(--gray-500);">Para el lunes - Recordatorio sabado</div>
+          </div>
+        </div>
+        <div class="pending-item">
+          <span class="pending-icon">🧷</span>
+          <div>
+            <div>Paniales Mati (Huggies E3)</div>
+            <div style="font-size:12px;color:var(--gray-500);">Quedan pocos - Mama confirmo</div>
+          </div>
+        </div>
+        <div class="pending-item">
+          <span class="pending-icon">💊</span>
+          <div>
+            <div>Antibiotico Pau</div>
+            <div style="font-size:12px;color:var(--gray-500);">Hasta el viernes - 3 dias restantes</div>
+          </div>
+        </div>
+      </div>
+      <button class="share-whatsapp-btn" onclick="showNotification('whatsapp-share')">
+        📤 Compartir agenda en WhatsApp
+      </button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-item active" onclick="goTo('screen-dashboard')">
+        <span class="tab-icon">📋</span>Hoy
+      </button>
+      <button class="tab-item" onclick="goTo('screen-chat');showChatFromTab();">
+        <span class="tab-icon">💬</span>Chat
+      </button>
+      <button class="tab-item" onclick="goTo('screen-week')">
+        <span class="tab-icon">📅</span>Semana
+      </button>
+      <button class="tab-item" onclick="showNotification('profile')">
+        <span class="tab-icon">👧</span>Hijos
+      </button>
+    </div>
+  </div>
+
+  <!-- SCREEN 10: Week Summary -->
+  <div class="screen summary-screen" id="screen-week">
+    <div class="summary-header">
+      <h2 style="font-size:14px;opacity:0.8;">Semana</h2>
+      <h1 style="font-size:20px;">9 — 15 de Marzo</h1>
+    </div>
+    <div class="summary-content">
+      <div class="day-card">
+        <div class="day-name">LUN</div>
+        <div class="day-events">
+          Cole normal<br>
+          Natacion 3pm <span class="badge badge-papa">Papa</span><br>
+          💊 Antibiotico c/8hrs
+        </div>
+      </div>
+      <div class="day-card">
+        <div class="day-name">MAR</div>
+        <div class="day-events">
+          Cole normal<br>
+          Pediatra Pau 10am <span class="badge badge-mama">Mama</span><br>
+          💊 Antibiotico c/8hrs
+        </div>
+      </div>
+      <div class="day-card">
+        <div class="day-name">MIE</div>
+        <div class="day-events">
+          Cole normal<br>
+          Natacion 3pm <span class="badge badge-papa">Papa</span><br>
+          💊 Antibiotico c/8hrs
+        </div>
+      </div>
+      <div class="day-card">
+        <div class="day-name">JUE</div>
+        <div class="day-events">
+          Cole normal<br>
+          Piano 5pm<br>
+          💊 Antibiotico c/8hrs
+        </div>
+      </div>
+      <div class="day-card highlight">
+        <div class="day-name">VIE</div>
+        <div class="day-events">
+          <span class="badge badge-alert">SIN COLE</span> Dia del maestro<br>
+          Mama home office con Pau<br>
+          💊 Ultimo dia antibiotico
+        </div>
+      </div>
+      <div class="day-card">
+        <div class="day-name">SAB</div>
+        <div class="day-events">
+          🎭 Preparar disfraz de leon<br>
+          Cumple Sofia 4pm 🎂
+        </div>
+      </div>
+      <div class="day-card">
+        <div class="day-name">DOM</div>
+        <div class="day-events">
+          Reunion padres cole 5pm<br>
+          📊 Resumen semanal 8pm
+        </div>
+      </div>
+      <button class="share-whatsapp-btn" onclick="showNotification('whatsapp-share')">
+        📤 Compartir resumen en WhatsApp
+      </button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-item" onclick="goTo('screen-dashboard')">
+        <span class="tab-icon">📋</span>Hoy
+      </button>
+      <button class="tab-item" onclick="goTo('screen-chat');showChatFromTab();">
+        <span class="tab-icon">💬</span>Chat
+      </button>
+      <button class="tab-item active" onclick="goTo('screen-week')">
+        <span class="tab-icon">📅</span>Semana
+      </button>
+      <button class="tab-item" onclick="showNotification('profile')">
+        <span class="tab-icon">👧</span>Hijos
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function goTo(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
+// Chat demo
+const chatMessages = [
+  { type: 'system', text: 'Nanny creo el grupo "Familia Ferrer"', delay: 500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Hola familia! Ya estoy lista. Conozco a Pau (6) y Mati (1). Estoy pendiente del antibiotico de Pau y del disfraz para el lunes. Escriban aqui todo lo que tenga que ver con los chicos!', delay: 1000 },
+  { type: 'mama', sender: 'Mama', text: 'Hola! Oye, se me olvidaba. Mati ya casi no tiene paniales', delay: 3000 },
+  { type: 'papa', sender: 'Papa', text: 'Yo compro de regreso del trabajo. Cuales eran?', delay: 2500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Paniales de Mati: Huggies Etapa 3. Los compra Papa hoy de regreso del trabajo?', delay: 2000, action: true, actionContent: '✅ Agendado:<br>🛒 Paniales Huggies E3<br>👨 Papa compra hoy<br>🔔 Le recuerdo a las 6pm', actionButtons: ['Perfecto', 'Editar'] },
+  { type: 'papa', sender: 'Papa', text: 'Si, perfecto', delay: 2000 },
+  { type: 'nanny', sender: 'Nanny', text: 'Listo! Te recuerdo a las 6pm, Papa ✅', delay: 1500 },
+  { type: 'mama', sender: 'Mama', text: 'Ah y la profe de Pau mando mensaje, el viernes no hay clases por dia del maestro', delay: 3000 },
+  { type: 'papa', sender: 'Papa', text: 'Uff yo tengo junta ese dia imposible de mover', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Yo puedo pedir home office', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Entendido! Actualice la agenda:', delay: 2000, action: true, actionContent: '📅 Viernes: NO HAY COLE<br>👩 Mama home office con Pau<br><br>La semana se ve asi:<br>• Lun: Disfraz animal (cole)<br>• Mar-Jue: Cole normal + antibiotico<br>• Vie: Sin cole (Mama en casa)<br>• Sab: Preparar disfraz', actionButtons: ['Ver semana', 'Ok'] },
+  { type: 'mama', sender: 'Mama', text: 'Que bueno tener todo organizado 😅', delay: 2500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Para eso estoy! 😊 Por cierto, en 20 minutos le toca el antibiotico a Pau (6:00pm). Quien esta con ella?', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Yo estoy con ella, yo se lo doy', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Perfecto. Te aviso a las 5:55pm 💊', delay: 1000 },
+];
+
+let chatIndex = 0;
+let chatContainer;
+
+function startChatDemo() {
+  chatContainer = document.getElementById('chat-messages');
+  chatContainer.innerHTML = '';
+  chatIndex = 0;
+  showNextMessage();
+}
+
+function showChatFromTab() {
+  // Don't restart if chat already has messages
+  if (document.getElementById('chat-messages').children.length === 0) {
+    startChatDemo();
+  }
+}
+
+function showNextMessage() {
+  if (chatIndex >= chatMessages.length) {
+    // Show notification after chat demo
+    setTimeout(() => {
+      showNotification('medicine-reminder');
+    }, 2000);
+    return;
+  }
+
+  const msg = chatMessages[chatIndex];
+  const typing = document.getElementById('typing-indicator');
+
+  // Show typing indicator for non-system messages
+  if (msg.type !== 'system') {
+    typing.classList.add('visible');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  setTimeout(() => {
+    typing.classList.remove('visible');
+
+    const el = document.createElement('div');
+    el.className = 'message ' + msg.type;
+
+    let html = '';
+    if (msg.sender) html += `<div class="sender">${msg.sender}</div>`;
+    html += msg.text;
+
+    if (msg.action) {
+      html += `<div class="nanny-action-card">
+        <div class="action-item">${msg.actionContent}</div>
+        <div class="action-buttons">
+          ${msg.actionButtons.map((b, i) =>
+            `<button class="action-btn ${i === 0 ? 'action-btn-primary' : 'action-btn-secondary'}" onclick="handleAction('${b}')">${b}</button>`
+          ).join('')}
+        </div>
+      </div>`;
+    }
+
+    el.innerHTML = html;
+    chatContainer.appendChild(el);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    chatIndex++;
+    showNextMessage();
+  }, msg.delay);
+}
+
+function handleAction(action) {
+  if (action === 'Ver semana') {
+    goTo('screen-week');
+  }
+}
+
+function showNotification(type) {
+  const overlay = document.getElementById('notification-overlay');
+  const card = document.getElementById('notification-card');
+
+  if (type === 'medicine-reminder') {
+    card.innerHTML = `
+      <div class="notif-header">
+        <div class="notif-icon">💊</div>
+        <div class="notif-app">Nanny</div>
+        <div class="notif-time">5:55 PM</div>
+      </div>
+      <div class="notif-body">
+        <strong>Antibiotico de Pau en 5 minutos</strong><br><br>
+        Proxima toma: 10:00pm<br>
+        Quedan 3 dias de tratamiento (hasta el viernes)<br><br>
+        Mama esta con ella.
+      </div>
+      <div class="notif-actions">
+        <button class="action-btn action-btn-primary" onclick="hideNotification();goTo('screen-dashboard');">Dado ✅</button>
+        <button class="action-btn action-btn-secondary" onclick="hideNotification();">Recordar en 10min</button>
+      </div>`;
+  } else if (type === 'whatsapp-share') {
+    card.innerHTML = `
+      <div class="notif-header">
+        <div class="notif-icon">📤</div>
+        <div class="notif-app">Compartir en WhatsApp</div>
+        <div class="notif-time"></div>
+      </div>
+      <div class="notif-body" style="background:var(--gray-100);padding:12px;border-radius:10px;font-size:13px;line-height:1.8;">
+        📋 <strong>Semana Pau y Mati (9-15 Mar)</strong><br><br>
+        Lun: Cole + Natacion 3pm (Papa)<br>
+        Mar: Pediatra 10am (Mama)<br>
+        Mie: Cole + Natacion 3pm (Papa)<br>
+        Jue: Cole + Piano 5pm<br>
+        Vie: ⚠️ NO HAY COLE (Mama home office)<br>
+        Sab: Preparar disfraz leon 🦁<br>
+        Dom: Reunion padres 5pm<br><br>
+        Pendiente: 🧷 Paniales Mati | 💊 Antibiotico Pau<br><br>
+        <em>Generado por Nanny</em> 👶
+      </div>
+      <div class="notif-actions">
+        <button class="action-btn action-btn-primary" style="background:#25D366;" onclick="hideNotification();">Enviar por WhatsApp</button>
+        <button class="action-btn action-btn-secondary" onclick="hideNotification();">Cancelar</button>
+      </div>`;
+  } else if (type === 'profile') {
+    card.innerHTML = `
+      <div class="notif-header">
+        <div class="notif-icon">👧</div>
+        <div class="notif-app">Perfil de Pau</div>
+        <div class="notif-time"></div>
+      </div>
+      <div class="notif-body" style="line-height:2;">
+        <strong>Pau Ferrer</strong> — 6 anios<br>
+        🏫 Colegio Montessori - 1o Primaria<br>
+        👩‍🏫 Miss Carmen<br><br>
+        🏥 <strong>Medico</strong><br>
+        Pediatra: Dr. Garcia | Tel: 555-1234<br>
+        ⚠️ Alergia: Mani<br>
+        💊 Antibiotico (hasta Viernes)<br><br>
+        📋 <strong>Actividades</strong><br>
+        🏊 Natacion: Mar y Jue 3pm<br>
+        🎹 Piano: Jue 5pm<br><br>
+        👕 Talla: 8 | 👟 Zapato: 21
+      </div>
+      <div class="notif-actions">
+        <button class="action-btn action-btn-primary" onclick="hideNotification();">Cerrar</button>
+        <button class="action-btn action-btn-secondary" onclick="hideNotification();">Editar</button>
+      </div>`;
+  }
+
+  overlay.classList.add('visible');
+}
+
+function hideNotification() {
+  document.getElementById('notification-overlay').classList.remove('visible');
+}
+
+// Close notification on overlay click
+document.getElementById('notification-overlay').addEventListener('click', function(e) {
+  if (e.target === this) hideNotification();
+});
+</script>
+
+</body>
+</html>
