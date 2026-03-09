@@ -379,15 +379,21 @@
 
   .message.nanny {
     background: var(--nanny-bg);
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
+    align-self: center;
+    border-radius: 14px;
+    max-width: 90%;
+    font-size: 13px;
+    border: 1px solid var(--primary-light);
+    padding: 10px 14px;
   }
 
   .message.nanny .sender {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--primary);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .message.mama {
@@ -1203,20 +1209,24 @@ function goTo(screenId) {
 // Chat demo
 const chatMessages = [
   { type: 'system', text: 'Nanny creo el grupo "Familia Ferrer"', delay: 500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Hola familia! Ya estoy lista. Conozco a Pau (6) y Mati (1). Estoy pendiente del antibiotico de Pau y del disfraz para el lunes. Escriban aqui todo lo que tenga que ver con los chicos!', delay: 1000 },
-  { type: 'mama', sender: 'Mama', text: 'Hola! Oye, se me olvidaba. Mati ya casi no tiene paniales', delay: 3000 },
-  { type: 'papa', sender: 'Papa', text: 'Yo compro de regreso del trabajo. Cuales eran?', delay: 2500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Paniales de Mati: Huggies Etapa 3. Los compra Papa hoy de regreso del trabajo?', delay: 2000, action: true, actionContent: '✅ Agendado:<br>🛒 Paniales Huggies E3<br>👨 Papa compra hoy<br>🔔 Le recuerdo a las 6pm', actionButtons: ['Perfecto', 'Editar'] },
-  { type: 'papa', sender: 'Papa', text: 'Si, perfecto', delay: 2000 },
-  { type: 'nanny', sender: 'Nanny', text: 'Listo! Te recuerdo a las 6pm, Papa ✅', delay: 1500 },
-  { type: 'mama', sender: 'Mama', text: 'Ah y la profe de Pau mando mensaje, el viernes no hay clases por dia del maestro', delay: 3000 },
-  { type: 'papa', sender: 'Papa', text: 'Uff yo tengo junta ese dia imposible de mover', delay: 2000 },
-  { type: 'mama', sender: 'Mama', text: 'Yo puedo pedir home office', delay: 1500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Entendido! Actualice la agenda:', delay: 2000, action: true, actionContent: '📅 Viernes: NO HAY COLE<br>👩 Mama home office con Pau<br><br>La semana se ve asi:<br>• Lun: Disfraz animal (cole)<br>• Mar-Jue: Cole normal + antibiotico<br>• Vie: Sin cole (Mama en casa)<br>• Sab: Preparar disfraz', actionButtons: ['Ver semana', 'Ok'] },
-  { type: 'mama', sender: 'Mama', text: 'Que bueno tener todo organizado 😅', delay: 2500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Para eso estoy! 😊 Por cierto, en 20 minutos le toca el antibiotico a Pau (6:00pm). Quien esta con ella?', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Amor ya llegaste a la casa?', delay: 1500 },
+  { type: 'papa', sender: 'Papa', text: 'Saliendo de la oficina, llego en 30', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Ok. Mati ya casi no tiene paniales, puedes pasar a comprar?', delay: 2500 },
+  { type: 'papa', sender: 'Papa', text: 'Si, paso. Cuales eran? No me acuerdo la etapa', delay: 2000 },
+  { type: 'nanny', sender: 'Nanny', text: 'Huggies Etapa 3', delay: 1200, action: true, actionContent: '🛒 Paniales Huggies E3<br>👨 Papa compra hoy<br>🔔 Le recuerdo en 20 min', actionButtons: ['Perfecto', 'Editar'] },
+  { type: 'papa', sender: 'Papa', text: 'Eso! Gracias. Ya paso', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Ah oye, la profe de Pau mando mensaje. El viernes no hay clases', delay: 3000 },
+  { type: 'papa', sender: 'Papa', text: 'Uff yo tengo junta ese dia, imposible moverla', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'Yo puedo pedir home office ese dia', delay: 1500 },
+  { type: 'papa', sender: 'Papa', text: 'Dale, perfecto', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Anote: viernes Mama home office con los chicos', delay: 1500, action: true, actionContent: '📅 Viernes: Sin cole<br>👩 Mama home office<br><br>Semana:<br>• Lun: Disfraz animal (cole)<br>• Mar-Jue: Cole + antibiotico Pau<br>• Vie: Sin cole, Mama en casa<br>• Sab: Preparar disfraz', actionButtons: ['Ver semana', 'Ok'] },
+  { type: 'mama', sender: 'Mama', text: 'Ay si el disfraz! Casi se me olvida 😅', delay: 2500 },
+  { type: 'papa', sender: 'Papa', text: 'Jaja yo ni sabia. De que se tiene que disfrazar?', delay: 2000 },
+  { type: 'mama', sender: 'Mama', text: 'De un animal, lo que ella quiera', delay: 1500 },
+  { type: 'papa', sender: 'Papa', text: 'El sabado lo armamos con ella', delay: 1500 },
+  { type: 'nanny', sender: 'Nanny', text: 'Pau tiene antibiotico a las 6:00pm. Quien se lo da hoy?', delay: 2500 },
   { type: 'mama', sender: 'Mama', text: 'Yo estoy con ella, yo se lo doy', delay: 1500 },
-  { type: 'nanny', sender: 'Nanny', text: 'Perfecto. Te aviso a las 5:55pm 💊', delay: 1000 },
+  { type: 'nanny', sender: 'Nanny', text: 'Te aviso a las 5:55 💊', delay: 1000 },
 ];
 
 let chatIndex = 0;
