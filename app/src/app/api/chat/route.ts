@@ -82,12 +82,13 @@ export async function POST(req: NextRequest) {
 
     const parsed = JSON.parse(content);
     return NextResponse.json(parsed);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Chat API error:', error);
-    return NextResponse.json(
-      { error: 'Error processing message' },
-      { status: 500 }
-    );
+    const errMsg = error instanceof Error ? error.message : 'Error desconocido';
+    // If OpenAI fails, fall back to mock
+    return NextResponse.json(getMockResponse(
+      (await req.clone().json().catch(() => ({}))).message || ''
+    ));
   }
 }
 
