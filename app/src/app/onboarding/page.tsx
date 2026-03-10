@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Baby, ArrowRight, ArrowLeft, Heart, Plus, X } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
 
 type Step = 'welcome' | 'parents' | 'children' | 'done';
 
@@ -37,6 +38,13 @@ export default function OnboardingPage() {
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSupabase().auth.getUser().then(({ data: { user } }) => {
+      if (user) setAuthUserId(user.id);
+    });
+  }, []);
 
   const addChild = () => {
     const nextEmoji = CHILD_EMOJIS[children.length % CHILD_EMOJIS.length];
@@ -71,6 +79,7 @@ export default function OnboardingPage() {
             ...c,
             allergies: c.allergies ? c.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
           })),
+          authUserId,
         }),
       });
       if (!res.ok) {

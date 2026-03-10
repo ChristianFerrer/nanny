@@ -14,6 +14,11 @@ const tabs = [
 export default function BottomNav() {
   const pathname = usePathname();
 
+  // Hide nav on auth and onboarding pages
+  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/') {
+    return null;
+  }
+
   return (
     <nav className="bottom-nav">
       <div className="flex justify-around items-center">

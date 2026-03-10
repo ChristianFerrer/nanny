@@ -155,8 +155,8 @@ CREATE INDEX idx_pending_confirmations_status ON pending_confirmations(status);
 
 -- ============================================================
 -- ROW LEVEL SECURITY
--- MVP: acceso abierto con anon key (sin auth por ahora)
--- TODO: agregar auth con OTP y policies por familia
+-- Authenticated users can only access their own family's data.
+-- Family membership is determined via: parents.auth_user_id = auth.uid()
 -- ============================================================
 
 ALTER TABLE families ENABLE ROW LEVEL SECURITY;
@@ -169,16 +169,111 @@ ALTER TABLE pending_confirmations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE intervention_feedback ENABLE ROW LEVEL SECURITY;
 
--- MVP: permitir acceso con anon key (se restringe cuando se agregue auth)
-CREATE POLICY "Allow all for MVP" ON families FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON parents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON children FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON events FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON tasks FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON messages FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON pending_confirmations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON routines FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all for MVP" ON intervention_feedback FOR ALL USING (true) WITH CHECK (true);
+-- Helper: get the family_id(s) for the current auth user
+-- A user can belong to one family via their parent record.
+
+-- FAMILIES: user can see/modify their own family
+CREATE POLICY "Users can view own family" ON families
+  FOR ALL USING (
+    id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (true);
+
+-- Allow inserting new families (during onboarding, before parent record exists)
+CREATE POLICY "Allow insert families" ON families
+  FOR INSERT WITH CHECK (true);
+
+-- PARENTS: user can see/modify parents in their family
+CREATE POLICY "Users can manage own family parents" ON parents
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents p WHERE p.auth_user_id = auth.uid())
+  )
+  WITH CHECK (true);
+
+-- Allow inserting parents (during onboarding)
+CREATE POLICY "Allow insert parents" ON parents
+  FOR INSERT WITH CHECK (true);
+
+-- CHILDREN: user can see/modify children in their family
+CREATE POLICY "Users can manage own family children" ON children
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (true);
+
+-- Allow inserting children (during onboarding)
+CREATE POLICY "Allow insert children" ON children
+  FOR INSERT WITH CHECK (true);
+
+-- EVENTS: scoped to family
+CREATE POLICY "Users can manage own family events" ON events
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  );
+
+-- TASKS: scoped to family
+CREATE POLICY "Users can manage own family tasks" ON tasks
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  );
+
+-- MESSAGES: scoped to family
+CREATE POLICY "Users can manage own family messages" ON messages
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  );
+
+-- PENDING_CONFIRMATIONS: scoped to family
+CREATE POLICY "Users can manage own family confirmations" ON pending_confirmations
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  );
+
+-- ROUTINES: scoped to family via child
+CREATE POLICY "Users can manage own family routines" ON routines
+  FOR ALL USING (
+    child_id IN (
+      SELECT c.id FROM children c
+      JOIN parents p ON p.family_id = c.family_id
+      WHERE p.auth_user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    child_id IN (
+      SELECT c.id FROM children c
+      JOIN parents p ON p.family_id = c.family_id
+      WHERE p.auth_user_id = auth.uid()
+    )
+  );
+
+-- INTERVENTION_FEEDBACK: scoped to family via message
+CREATE POLICY "Users can manage own family feedback" ON intervention_feedback
+  FOR ALL USING (
+    message_id IN (
+      SELECT m.id FROM messages m
+      JOIN parents p ON p.family_id = m.family_id
+      WHERE p.auth_user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    message_id IN (
+      SELECT m.id FROM messages m
+      JOIN parents p ON p.family_id = m.family_id
+      WHERE p.auth_user_id = auth.uid()
+    )
+  );
 
 -- ============================================================
 -- NOTA: No hay seed data. El onboarding de la app crea la familia.

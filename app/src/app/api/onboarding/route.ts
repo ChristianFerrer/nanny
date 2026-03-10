@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { familyName, parents, children } = await req.json();
+    const { familyName, parents, children, authUserId } = await req.json();
 
     if (!parents?.length || !children?.length) {
       return NextResponse.json({ error: 'Se necesita al menos un padre y un hijo' }, { status: 400 });
@@ -29,12 +29,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Error al crear familia: ' + (famErr?.message || 'unknown') }, { status: 500 });
     }
 
-    // Create parents
-    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string }) => ({
+    // Create parents — link the first parent to the authenticated user
+    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string }, index: number) => ({
       family_id: family.id,
       name: p.name,
       role: p.role,
       avatar_emoji: p.avatar_emoji || (p.role === 'mama' ? '👩' : '👨'),
+      auth_user_id: index === 0 && authUserId ? authUserId : null,
     }));
 
     const { data: createdParents, error: parErr } = await supabase
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     // Create welcome message from Nanny
     const childNames = createdChildren?.map((c: { emoji: string; name: string }) => `${c.emoji} ${c.name}`).join(' y ') || 'tus hijos';
-    const { error: msgErr } = await supabase.from('messages').insert({
+    await supabase.from('messages').insert({
       family_id: family.id,
       sender_id: null,
       sender_type: 'nanny',

@@ -2,15 +2,33 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { hasFamily } from '@/lib/store';
+import { getSupabase } from '@/lib/supabase';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    hasFamily().then(exists => {
-      router.replace(exists ? '/chat' : '/onboarding');
-    });
+    async function checkAuth() {
+      const supabase = getSupabase();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+
+      // Check if user has a family linked
+      const { data: parent } = await supabase
+        .from('parents')
+        .select('family_id')
+        .eq('auth_user_id', user.id)
+        .limit(1)
+        .single();
+
+      router.replace(parent ? '/chat' : '/onboarding');
+    }
+
+    checkAuth();
   }, [router]);
 
   return (

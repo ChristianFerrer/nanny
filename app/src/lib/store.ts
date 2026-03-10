@@ -29,12 +29,58 @@ async function trySupabase(): Promise<boolean> {
   }
 }
 
-// Check if any family exists in Supabase
+// Get family_id from the authenticated user's parent record
+async function getFamilyId(): Promise<string> {
+  if (_currentFamilyId) return _currentFamilyId;
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+
+    // First try to get family via authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: parent } = await supabase
+        .from('parents')
+        .select('family_id')
+        .eq('auth_user_id', user.id)
+        .limit(1)
+        .single();
+      if (parent) {
+        _currentFamilyId = parent.family_id;
+        return parent.family_id;
+      }
+    }
+
+    // Fallback: first family in DB (for backwards compat)
+    const { data } = await supabase.from('families').select('id').limit(1).single();
+    if (data) {
+      _currentFamilyId = data.id;
+      return data.id;
+    }
+  }
+  return DEMO_FAMILY_ID;
+}
+
+// Check if the current authenticated user has a family
 export async function hasFamily(): Promise<boolean> {
   if (!(await trySupabase())) return false;
   const { supabase } = await import('./supabase');
-  const { data } = await supabase.from('families').select('id').limit(1);
-  return !!(data && data.length > 0);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: parent } = await supabase
+      .from('parents')
+      .select('family_id')
+      .eq('auth_user_id', user.id)
+      .limit(1)
+      .single();
+    return !!parent;
+  }
+  return false;
+}
+
+// Reset cached family when user logs out or switches
+export function resetFamilyCache() {
+  _currentFamilyId = null;
+  _supabaseWorking = null;
 }
 
 // In-memory store for demo mode
@@ -52,23 +98,11 @@ export function subscribe(fn: () => void) {
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
-async function getFamilyId(): Promise<string> {
-  if (_currentFamilyId) return _currentFamilyId;
-  if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
-    const { data } = await supabase.from('families').select('id').limit(1).single();
-    if (data) {
-      _currentFamilyId = data.id;
-      return data.id;
-    }
-  }
-  return DEMO_FAMILY_ID;
-}
-
 export async function getFamily(): Promise<Family> {
   if (await trySupabase()) {
+    const familyId = await getFamilyId();
     const { supabase } = await import('./supabase');
-    const { data } = await supabase.from('families').select('*').limit(1).single();
+    const { data } = await supabase.from('families').select('*').eq('id', familyId).single();
     if (data) return data as Family;
   }
   return demoFamily;
@@ -96,8 +130,9 @@ export async function getChildren(): Promise<Child[]> {
 
 export async function getChild(id: string): Promise<Child | null> {
   if (await trySupabase()) {
+    const familyId = await getFamilyId();
     const { supabase } = await import('./supabase');
-    const { data } = await supabase.from('children').select('*').eq('id', id).single();
+    const { data } = await supabase.from('children').select('*').eq('id', id).eq('family_id', familyId).single();
     if (data) return data as Child;
   }
   return demoChildren.find(c => c.id === id) || null;
