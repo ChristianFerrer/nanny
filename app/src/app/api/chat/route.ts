@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       .replace('{recent_messages}', recentMessages || '');
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
@@ -90,12 +90,9 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(content);
     return NextResponse.json(parsed);
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Error desconocido';
-    console.error('Chat API error:', errMsg);
-    // Include error info in response for debugging
-    const mock = getMockResponse(message);
-    mock.reply = `⚠️ [OpenAI error: ${errMsg}] — ${mock.reply}`;
-    return NextResponse.json(mock);
+    console.error('Chat API error:', error instanceof Error ? error.message : error);
+    // If OpenAI fails, fall back to mock
+    return NextResponse.json(getMockResponse(message));
   }
 }
 
