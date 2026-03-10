@@ -409,12 +409,17 @@ El corazon de la app. Siempre abre aqui. Mama y papa conversan naturalmente y Na
 - Los padres hablan de temas personales no relacionados con hijos
 - El mensaje es una respuesta corta sin info nueva ("ok", "jaja", "va")
 - Ya confirmo la misma info recientemente
+- Mensajes emocionales sin contexto accionable ("que cansado estoy", "Pau estuvo feliz hoy")
 
 **Nanny SI interviene cuando:**
 - Detecta info nueva sobre un hijo (salud, evento, necesidad)
 - Hay un conflicto de horarios
 - Falta una decision ("¿quien la lleva?")
 - Puede anticipar un problema ("mañana no hay cole")
+
+**Nanny registra sin intervenir cuando:**
+- Mensajes emocionales con posible impacto en hijo ("Pau estuvo llorando toda la noche")
+- Info contextual que no requiere accion inmediata pero enriquece el perfil
 
 ---
 
@@ -1390,6 +1395,64 @@ El sistema de memoria de Nanny se organiza en 4 capas jerarquicas. La regla fund
 
 7. **Estados pendientes de confirmacion.** Muchas decisiones familiares son progresivas. Nanny detecta "pediatra martes 10am" pero falta saber quien lleva. Debe existir un estado `awaiting_confirmation` para items incompletos que requieren clarificacion.
 
+#### Reglas de Conversacion de Nanny
+
+##### Taxonomia de Intents
+
+Cada mensaje del chat pasa por clasificacion. Los intents posibles son:
+
+| Intent | Descripcion | Ejemplo | Nanny interviene |
+|--------|-------------|---------|------------------|
+| `EVENT` | Evento nuevo o modificado | "Pau tiene futbol el jueves" | Si |
+| `TASK` | Tarea pendiente | "Hay que comprar el disfraz" | Si |
+| `MEDICAL_UPDATE` | Info medica nueva o cambio | "Le cambie la dosis" | Si (SIEMPRE confirma) |
+| `QUESTION_TO_NANNY` | Pregunta directa a Nanny | "Nanny, ¿que tiene Pau mañana?" | Si |
+| `SCHEDULE_CONFLICT` | Conflicto de horarios o decision pendiente | "¿Quien lo lleva?" | Si |
+| `INFO_UPDATE` | Info contextual sobre un hijo | "La abuela lo recoge hoy" | Si |
+| `EMOTIONAL_WITH_IMPACT` | Emocional con posible impacto en hijo | "Pau estuvo llorando toda la noche" | Registra sin intervenir |
+| `IGNORE` | Ruido, social, emocional sin contexto | "jaja ok", "que cansado estoy" | No |
+
+Regla principal: **Nanny solo interviene si detecta informacion accionable.** Si `intent = IGNORE` o `intent = EMOTIONAL_WITH_IMPACT`, Nanny no responde en el chat.
+
+##### Campos Minimos por Tipo de Intent
+
+Antes de crear un registro, Nanny valida que tenga los campos requeridos. Si falta alguno, **pregunta en vez de adivinar**.
+
+| Intent | Campos requeridos | Campos opcionales |
+|--------|-------------------|-------------------|
+| `EVENT` | child, event_type, date, time | location, responsible |
+| `TASK` | child, task_description | deadline, responsible |
+| `MEDICAL_UPDATE` | child, medication, dose, frequency, end_date | notes, prescribing_doctor |
+| `SCHEDULE_CONFLICT` | child, event, conflicting_event | — |
+| `INFO_UPDATE` | child, info_type, detail | valid_until |
+
+Ejemplo: mama dice "Pediatra Pau martes". Nanny detecta `EVENT`, tiene child=Pau, event_type=doctor, date=martes, pero falta `time`. Nanny pregunta: *"¿A que hora es el pediatra de Pau el martes?"*
+
+##### Estados de Eventos
+
+Los eventos tienen dos estados intermedios antes de ser definitivos:
+
+| Estado | Significado | Ejemplo |
+|--------|-------------|---------|
+| `pending_event` | Faltan campos requeridos | "Pediatra Pau martes" (falta hora) |
+| `pending_confirmation` | Campos completos, esperando validacion del padre | "Entendi: pediatra Pau martes 10am. ¿Correcto?" |
+| `confirmed` | Padre confirmo, evento activo | Padre respondio "si" o toco boton [Confirmar] |
+
+Un `pending_event` se convierte en `pending_confirmation` cuando se completan los campos. Un `pending_confirmation` se convierte en `confirmed` cuando el padre valida.
+
+##### Botones de Confirmacion
+
+Usar botones inline siempre que sea posible para reducir friccion:
+
+```
+Futbol Pau jueves 17:00
+¿Quien lo lleva?
+
+[Papa]  [Mama]
+```
+
+Las respuestas de Nanny deben funcionar tanto con botones (app propia) como sin ellos (texto plano), para compatibilidad futura con canales como WhatsApp.
+
 #### Flujo: Mensaje → Memoria
 
 ```
@@ -1402,51 +1465,88 @@ Mensaje nuevo en el chat
 └───────────┬─────────────┘
             │
             ▼
-┌─────────────────────────┐
-│  Pre-clasificacion       │  ← rapida, sin LLM
-│  ¿Relevante o ruido?    │
-│  "jaja ok" → descarta   │
-│  "le toca medicina" → ✓ │
-└───────────┬─────────────┘
+┌───────────────────────────────┐
+│  FILTRO 1: Pre-clasificacion  │  ← rapida, sin LLM
+│  ¿Relevante o ruido?         │
+│  "jaja ok" → descarta        │
+│  "le toca medicina" → ✓      │
+│  "que cansado estoy" → descarta │
+└───────────┬───────────────────┘
             │ (solo relevantes)
             ▼
-┌─────────────────────────┐
-│  CAPA 1: Contexto activo │  ← ventana corta filtrada
-│  + Capa 3 del hijo       │  ← identidad + estado operativo
-│  + Capa 2 resumen reciente│ ← contexto narrativo
-│                          │
-│  → Se envia a Claude API │
-└───────────┬─────────────┘
+┌───────────────────────────────┐
+│  FILTRO 2: Contexto para LLM  │
+│  Mensajes relevantes filtrados │  ← NO los ultimos N crudos
+│  + Capa 3 del hijo            │  ← identidad + estado operativo
+│  + Capa 2 resumen reciente    │  ← contexto narrativo
+│  + Estado de pending_events   │  ← eventos incompletos activos
+│                               │
+│  → Se envia a Claude API      │
+└───────────┬───────────────────┘
             │
             ▼
-┌─────────────────────────┐
-│  Claude extrae:          │
-│  • entidades            │
-│  • intenciones          │
-│  • acciones sugeridas   │
-│  • confidence score     │
-└───────────┬─────────────┘
+┌───────────────────────────────┐
+│  Claude devuelve JSON:         │
+│  {                             │
+│    "intent": "EVENT",          │
+│    "child": "Pau",             │
+│    "event_type": "doctor",     │
+│    "date": "Tuesday",          │
+│    "time": "10:00",            │
+│    "confidence": 0.92,         │
+│    "missing_fields": []        │
+│  }                             │
+└───────────┬───────────────────┘
             │
             ▼
-┌─────────────────────────────────┐
-│  Actualizacion condicional:      │
-│                                  │
-│  Confidence alta (>0.9):        │
-│  → Actualiza Capa 3B directo    │
-│  → Confirma en chat             │
-│                                  │
-│  Confidence media (0.7-0.9):    │
-│  → Guarda como pending_confirmation │
-│  → Pregunta en chat             │
-│                                  │
-│  Confidence baja (<0.7):        │
-│  → Solo registra en Capa 0      │
-│  → Pide clarificacion           │
-│                                  │
-│  Info medica (cualquier nivel): │
-│  → SIEMPRE confirma antes de actuar │
-└─────────────────────────────────┘
+┌───────────────────────────────────┐
+│  FILTRO 3: Decidir accion          │
+│                                    │
+│  Intent = IGNORE:                  │
+│  → Solo registra en Capa 0         │
+│  → Nanny NO responde               │
+│                                    │
+│  Intent = EMOTIONAL_WITH_IMPACT:   │
+│  → Registra en Capa 0 + Capa 3    │
+│  → Nanny NO responde               │
+│                                    │
+│  missing_fields no vacio:          │
+│  → Guarda como pending_event       │
+│  → Pregunta campo faltante         │
+│                                    │
+│  Intent = MEDICAL_UPDATE:          │
+│  → SIEMPRE confirma antes de actuar│
+│  → Guarda como pending_confirmation│
+│                                    │
+│  Confidence alta (>0.9):          │
+│  → Actualiza Capa 3B directo      │
+│  → Confirma en chat con ✅         │
+│                                    │
+│  Confidence media (0.7-0.9):      │
+│  → Guarda como pending_confirmation│
+│  → Pregunta en chat               │
+│                                    │
+│  Confidence baja (<0.7):          │
+│  → Solo registra en Capa 0        │
+│  → Pide clarificacion             │
+└───────────────────────────────────┘
 ```
+
+##### Resolucion de Referencias Contextuales
+
+Nanny resuelve pronombres y referencias usando la ventana de mensajes relevantes:
+
+```
+Mama: "Pau tiene futbol el jueves"
+Papa: "yo lo llevo"
+
+Nanny interpreta:
+  → responsable = papa
+  → evento = futbol jueves
+  → child = Pau
+```
+
+El contexto conversacional (Capa 1 + pending_events activos) permite resolver "lo", "eso", "ahi", "el" sin preguntar.
 
 ### Stack Tecnico
 
@@ -1771,12 +1871,15 @@ AuditLog[]
 
 **Que construir:**
 
-- **Doble confirmacion para acciones criticas.** Nanny nunca ejecuta algo medico sin confirmar. Si detecta "antibiotico cada 8 horas", responde: "Entendi: antibiotico cada 8 horas para Pau. ¿Correcto?" Solo despues programa los recordatorios.
+- **Doble confirmacion para acciones criticas.** Nanny nunca ejecuta algo medico sin confirmar (`intent = MEDICAL_UPDATE` → SIEMPRE `pending_confirmation`). Si detecta "antibiotico cada 8 horas", responde: "Entendi: antibiotico cada 8 horas para Pau. ¿Correcto?" Solo despues programa los recordatorios.
 
-- **Niveles de confianza en la IA.** Cada extraccion de Claude tiene un confidence score interno:
-  - Alto (>0.9): Nanny actua y confirma ("Anote: pediatra martes 10am")
+- **Validacion de campos minimos.** Antes de crear cualquier registro, Nanny verifica que tiene los campos requeridos segun el tipo de intent (ver Reglas de Conversacion). Si faltan campos, guarda como `pending_event` y pregunta uno por uno. No adivina.
+
+- **Niveles de confianza en la IA (3 niveles, no binario).** Cada extraccion de Claude tiene un confidence score interno. La granularidad importa — no es lo mismo confirmar que clarificar:
+  - Alto (>0.9): Nanny actua y confirma ("Anote: pediatra martes 10am ✅")
   - Medio (0.7-0.9): Pregunta ("¿Entendi bien que el pediatra es el martes a las 10?")
   - Bajo (<0.7): Pide clarificacion ("No me quedo claro, ¿puedes darme mas detalles?")
+  - **Excepcion medica**: si `intent = MEDICAL_UPDATE`, SIEMPRE confirma sin importar el confidence
 
 - **Separar "entender" de "actuar".** Nanny puede entender mal un mensaje y eso es tolerable si no actua sobre la mala interpretacion. El flujo siempre es: entender → confirmar → actuar. Nunca entender → actuar.
 
