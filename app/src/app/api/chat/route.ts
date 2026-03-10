@@ -49,8 +49,15 @@ REGLAS:
 6. Sé concisa: 1-3 oraciones máximo en el reply`;
 
 export async function POST(req: NextRequest) {
+  let message = '';
+  let familyContext = '';
+  let recentMessages = '';
+
   try {
-    const { message, familyContext, recentMessages } = await req.json();
+    const body = await req.json();
+    message = body.message || '';
+    familyContext = body.familyContext || '';
+    recentMessages = body.recentMessages || '';
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -84,11 +91,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (error: unknown) {
     console.error('Chat API error:', error);
-    const errMsg = error instanceof Error ? error.message : 'Error desconocido';
     // If OpenAI fails, fall back to mock
-    return NextResponse.json(getMockResponse(
-      (await req.clone().json().catch(() => ({}))).message || ''
-    ));
+    return NextResponse.json(getMockResponse(message));
   }
 }
 
