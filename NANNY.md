@@ -1122,6 +1122,17 @@ Panel interno para el equipo de producto durante la Fase 2 (10 familias piloto).
 | Dias consecutivos activos | Frecuencia de habito | >20 dias |
 | Apertura por push vs iniciativa | Dependencia de notificaciones | <60% push |
 
+**Efectividad del core (¿Nanny detecta automaticamente o los padres hacen el trabajo?)**
+
+| Metrica | Que mide | Meta Fase 2 |
+|---------|----------|-------------|
+| Eventos detectados auto / total eventos | Deteccion automatica de eventos | >80% automaticos |
+| Tareas detectadas auto / total tareas | Deteccion automatica de tareas | >80% automaticas |
+| Intervenciones utiles / total intervenciones | Calidad de las intervenciones de Nanny (medido con 👍👎) | >80% utiles |
+| Recordatorios con accion / total recordatorios | Efectividad de notificaciones proactivas | >60% generan accion |
+
+Si la mayoria de eventos y tareas se crean manualmente, el core del producto falla. Si las intervenciones de Nanny no son utiles, se convierte en ruido.
+
 **Engagement (¿que tan profundo es el uso?)**
 
 | Metrica | Que mide | Meta Fase 2 |
