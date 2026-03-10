@@ -277,6 +277,60 @@ export async function getRoutines(childId: string): Promise<Routine[]> {
   return demoRoutines.filter(r => r.child_id === childId);
 }
 
+export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created_at'>>): Promise<void> {
+  const familyId = await getFamilyId();
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    await supabase.from('families').update(updates).eq('id', familyId);
+  }
+  notify();
+}
+
+export async function updateParent(parentId: string, updates: Partial<Omit<Parent, 'id' | 'created_at'>>): Promise<void> {
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    await supabase.from('parents').update(updates).eq('id', parentId);
+  }
+  notify();
+}
+
+export async function updateChild(childId: string, updates: Partial<Omit<Child, 'id' | 'created_at'>>): Promise<void> {
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    await supabase.from('children').update(updates).eq('id', childId);
+  }
+  notify();
+}
+
+export async function addChild(child: Omit<Child, 'id' | 'created_at'>): Promise<Child> {
+  const newChild: Child = { ...child, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    const { data } = await supabase.from('children').insert(newChild).select().single();
+    if (data) { notify(); return data as Child; }
+  }
+  notify();
+  return newChild;
+}
+
+export async function deleteEvent(eventId: string): Promise<void> {
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    await supabase.from('events').delete().eq('id', eventId);
+  }
+  _events = _events.filter(e => e.id !== eventId);
+  notify();
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  if (await trySupabase()) {
+    const { supabase } = await import('./supabase');
+    await supabase.from('tasks').delete().eq('id', taskId);
+  }
+  _tasks = _tasks.filter(t => t.id !== taskId);
+  notify();
+}
+
 export function getParentById(id: string): Parent | undefined {
   return demoParents.find(p => p.id === id);
 }
