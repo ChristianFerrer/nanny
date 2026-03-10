@@ -23,7 +23,7 @@ export default function LoginPage() {
     const supabase = getSupabase();
 
     if (mode === 'register') {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
@@ -31,6 +31,19 @@ export default function LoginPage() {
         setError(signUpError.message);
         setLoading(false);
         return;
+      }
+      // If user already exists, signUp succeeds but no session is created
+      // In that case, try signing in instead
+      if (!signUpData.session) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) {
+          setError('Este email ya tiene cuenta. Verifica tu contraseña.');
+          setLoading(false);
+          return;
+        }
       }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -48,18 +61,24 @@ export default function LoginPage() {
       }
     }
 
-    // After auth, check if user has a family
+    // After auth, get the current session user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      setError('Error al obtener usuario');
-      setLoading(false);
-      return;
+      // Fallback: try getting from session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setError('No se pudo iniciar sesión. Intenta de nuevo.');
+        setLoading(false);
+        return;
+      }
     }
+
+    const currentUser = (await supabase.auth.getUser()).data.user!;
 
     const { data: parent } = await supabase
       .from('parents')
       .select('family_id')
-      .eq('auth_user_id', user.id)
+      .eq('auth_user_id', currentUser.id)
       .limit(1)
       .single();
 
