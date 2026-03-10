@@ -1,5 +1,24 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { hasFamily } from '@/lib/store';
 
 export default function Home() {
-  redirect('/chat');
+  const router = useRouter();
+
+  useEffect(() => {
+    hasFamily().then(exists => {
+      router.replace(exists ? '/chat' : '/onboarding');
+    });
+  }, [router]);
+
+  return (
+    <div className="flex items-center justify-center min-h-[100dvh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-[var(--nanny-purple)] animate-pulse" />
+        <p className="text-sm text-[var(--nanny-gray)]">Cargando...</p>
+      </div>
+    </div>
+  );
 }

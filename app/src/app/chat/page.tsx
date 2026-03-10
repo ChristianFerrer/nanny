@@ -2,27 +2,32 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
-import { getMessages, addMessage, getParents, getChildren, DEMO_FAMILY_ID, DEMO_MAMA_ID } from '@/lib/store';
+import { getMessages, addMessage, getParents, getChildren, getFamily } from '@/lib/store';
 import type { Message, Parent, Child } from '@/lib/types';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [familyId, setFamilyId] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [currentParent, setCurrentParent] = useState(DEMO_MAMA_ID);
+  const [currentParent, setCurrentParent] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
-    const [msgs, prts, chld] = await Promise.all([
-      getMessages(), getParents(), getChildren(),
+    const [fam, msgs, prts, chld] = await Promise.all([
+      getFamily(), getMessages(), getParents(), getChildren(),
     ]);
+    setFamilyId(fam.id);
     setMessages(msgs);
     setParents(prts);
     setChildren(chld);
-  }, []);
+    if (prts.length > 0 && !currentParent) {
+      setCurrentParent(prts[0].id);
+    }
+  }, [currentParent]);
 
   useEffect(() => {
     loadData();
@@ -44,7 +49,7 @@ export default function ChatPage() {
 
     // Add parent message
     const parentMsg = await addMessage({
-      family_id: DEMO_FAMILY_ID,
+      family_id: familyId,
       sender_id: currentParent,
       sender_type: 'parent',
       content: text,
@@ -77,7 +82,7 @@ export default function ChatPage() {
       const data = await res.json();
 
       const nannyMsg = await addMessage({
-        family_id: DEMO_FAMILY_ID,
+        family_id: familyId,
         sender_id: null,
         sender_type: 'nanny',
         content: data.reply || data.error || 'Hmm, no entendí. ¿Puedes repetir?',
@@ -90,7 +95,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, nannyMsg]);
     } catch {
       const errorMsg = await addMessage({
-        family_id: DEMO_FAMILY_ID,
+        family_id: familyId,
         sender_id: null,
         sender_type: 'nanny',
         content: '⚠️ Ups, tuve un problema. Intenta de nuevo.',

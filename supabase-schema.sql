@@ -155,6 +155,8 @@ CREATE INDEX idx_pending_confirmations_status ON pending_confirmations(status);
 
 -- ============================================================
 -- ROW LEVEL SECURITY
+-- MVP: acceso abierto con anon key (sin auth por ahora)
+-- TODO: agregar auth con OTP y policies por familia
 -- ============================================================
 
 ALTER TABLE families ENABLE ROW LEVEL SECURITY;
@@ -167,86 +169,19 @@ ALTER TABLE pending_confirmations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE intervention_feedback ENABLE ROW LEVEL SECURITY;
 
--- Policy: parents can only see their family's data
-CREATE POLICY "Parents see own family" ON families
-  FOR ALL USING (
-    id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family parents" ON parents
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family children" ON children
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family events" ON events
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family tasks" ON tasks
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family messages" ON messages
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family confirmations" ON pending_confirmations
-  FOR ALL USING (
-    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
-  );
-
-CREATE POLICY "Parents see own family routines" ON routines
-  FOR ALL USING (
-    child_id IN (
-      SELECT id FROM children WHERE family_id IN (
-        SELECT family_id FROM parents WHERE auth_user_id = auth.uid()
-      )
-    )
-  );
-
-CREATE POLICY "Parents manage own feedback" ON intervention_feedback
-  FOR ALL USING (
-    parent_id IN (SELECT id FROM parents WHERE auth_user_id = auth.uid())
-  );
+-- MVP: permitir acceso con anon key (se restringe cuando se agregue auth)
+CREATE POLICY "Allow all for MVP" ON families FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON parents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON children FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON events FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON tasks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON pending_confirmations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON routines FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for MVP" ON intervention_feedback FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
--- SEED DATA (familia demo para testing)
+-- NOTA: No hay seed data. El onboarding de la app crea la familia.
 -- ============================================================
 
-INSERT INTO families (id, name) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Familia Demo');
-
-INSERT INTO parents (id, family_id, name, role, avatar_emoji) VALUES
-  ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', 'Mamá', 'mama', '👩'),
-  ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', 'Papá', 'papa', '👨');
-
-INSERT INTO children (id, family_id, name, birth_date, emoji, school, teacher, grade) VALUES
-  ('00000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', 'Pau', '2021-03-15', '🧒', 'Colegio San José', 'Miss Ana', '1° Preescolar'),
-  ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', 'Mía', '2023-08-20', '👧', NULL, NULL, NULL);
-
-INSERT INTO routines (child_id, type, name, time_start, time_end) VALUES
-  ('00000000-0000-0000-0000-000000000020', 'morning', 'Despertar y desayuno', '07:00', '08:00'),
-  ('00000000-0000-0000-0000-000000000020', 'morning', 'Ir al colegio', '08:00', '08:30'),
-  ('00000000-0000-0000-0000-000000000020', 'afternoon', 'Recoger del colegio', '14:00', '14:30'),
-  ('00000000-0000-0000-0000-000000000020', 'night', 'Baño y cena', '19:00', '20:00'),
-  ('00000000-0000-0000-0000-000000000020', 'night', 'Cuento y dormir', '20:00', '20:30');
-
--- Eventos de ejemplo
-INSERT INTO events (family_id, child_id, title, event_type, date_start, status, auto_detected) VALUES
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'Cita pediatra - revisión anual', 'doctor', NOW() + INTERVAL '2 days', 'confirmed', true),
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'Festival del colegio', 'school', NOW() + INTERVAL '5 days', 'confirmed', true),
-  ('00000000-0000-0000-0000-000000000001', NULL, 'Cumpleaños abuela', 'birthday', NOW() + INTERVAL '8 days', 'confirmed', false);
-
--- Tareas de ejemplo
-INSERT INTO tasks (family_id, child_id, title, assigned_to, due_date, status, priority, auto_detected) VALUES
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'Comprar uniforme nuevo', '00000000-0000-0000-0000-000000000010', NOW() + INTERVAL '3 days', 'pending', 'normal', true),
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000020', 'Llevar documentos al colegio', '00000000-0000-0000-0000-000000000011', NOW() + INTERVAL '1 day', 'pending', 'high', true),
-  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000021', 'Agendar vacunas Mía', '00000000-0000-0000-0000-000000000010', NOW() + INTERVAL '7 days', 'pending', 'high', true);
+-- Para insertar datos de prueba, usa el onboarding de la app en /onboarding
