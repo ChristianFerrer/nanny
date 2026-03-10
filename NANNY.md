@@ -10,9 +10,9 @@ No es un bot de WhatsApp. No es un calendario que hay que llenar. Es un chat fam
 
 ## ¿Que es Nanny?
 
-### El Problema
+### El Problema: La Carga Mental
 
-Los padres de niños pequeños manejan cientos de micro-detalles diarios que viven dispersos entre conversaciones, notas mentales y buena voluntad:
+Los padres de niños pequeños cargan con una **carga mental invisible**: recordar, coordinar, anticipar y mantener todo bajo control. Cientos de micro-detalles diarios que viven dispersos entre conversaciones, notas mentales y buena voluntad:
 
 - "¿Que marca de pañales usa Mati?" → Nadie recuerda en el momento
 - "El lunes hay dia de disfraces" → Se olvida hasta el domingo en la noche
@@ -21,6 +21,8 @@ Los padres de niños pequeños manejan cientos de micro-detalles diarios que viv
 - "Mañana ni tu ni yo podemos recoger a Pau" → ¿A quien le pedimos?
 - "El cole mando un email sobre la reunion de padres" → Nadie lo leyo
 
+La carga mental no es solo "tener cosas que hacer" — es el peso de ser quien **siempre esta pensando** en todo. Nanny existe para cargar ese peso.
+
 Las apps de familia existentes (Cozi, FamilyWall, OurHome) no resuelven esto porque:
 
 1. **Requieren entrada manual** — otro lugar mas que mantener actualizado
@@ -28,9 +30,9 @@ Las apps de familia existentes (Cozi, FamilyWall, OurHome) no resuelven esto por
 3. **No entienden contexto** — son calendarios glorificados
 4. **No actuan** — registran datos pero no hacen nada con ellos
 
-### La Solucion
+### La Solucion: Reducir la Carga Mental
 
-Nanny es **su propia app** con un chat familiar. Mama y Papa conversan ahi naturalmente sobre sus hijos, y Nanny — el tercer miembro del grupo — hace todo lo demas:
+Nanny es **su propia app** con un chat familiar. Mama y Papa conversan ahi naturalmente sobre sus hijos, y Nanny — el tercer miembro del grupo — absorbe la carga mental haciendo todo lo demas:
 
 1. **Escucha** las conversaciones entre mama y papa
 2. **Recuerda** cada detalle mencionado (marcas, alergias, tallas, horarios)
@@ -782,6 +784,20 @@ Centro de alertas. Acceso desde el icono 🔔 en el header (todas las pantallas)
 - Notificaciones resueltas se colapsan abajo
 - Badge con contador en el icono 🔔 del header
 
+**Las 5 notificaciones que generan engagement:**
+
+Estas son las notificaciones proactivas que Nanny envia para crear habito y reducir carga mental:
+
+| # | Tipo | Ejemplo | Efecto |
+|---|------|---------|--------|
+| 1 | **Agenda del dia** (7:30 AM) | "Hoy: Pau → futbol 17:00, Mati → guarderia" | Crea habito diario |
+| 2 | **Pregunta logistica** | "¿Quien recoge hoy a Pau?" | Dispara conversacion |
+| 3 | **Recordatorio contextual** | "Disfraz de Pau para el lunes. ¿Ya lo tienen?" | Previene olvidos |
+| 4 | **Conflicto de agenda** | "Mama tiene reunion 4-6pm. Futbol de Pau es a las 5. Papa esta libre. ¿Papa lo lleva?" | Resuelve problemas antes de que sean crisis |
+| 5 | **Resumen semanal** (Dom 8pm) | "Eventos completados, proximos, tareas pendientes" | Cierra el ciclo de organizacion |
+
+La agenda del dia y el resumen semanal son automaticos. Las otras 3 se disparan segun contexto detectado en el chat o en los eventos proximos.
+
 **Flujo de push notification (app cerrada):**
 ```
 Push llega al telefono
@@ -1413,6 +1429,16 @@ Cada mensaje del chat pasa por clasificacion. Los intents posibles son:
 | `IGNORE` | Ruido, social, emocional sin contexto | "jaja ok", "que cansado estoy" | No |
 
 Regla principal: **Nanny solo interviene si detecta informacion accionable.** Si `intent = IGNORE` o `intent = EMOTIONAL_WITH_IMPACT`, Nanny no responde en el chat.
+
+##### Limites de Mensajes Proactivos
+
+Nanny anticipa necesidades, pero sin convertirse en spam. Reglas:
+
+- **Maximo 3 mensajes proactivos al dia**: agenda matutina (automatica) + hasta 2 anticipaciones contextuales
+- **Ventana horaria**: nunca antes de las 7:00 AM ni despues de las 10:00 PM
+- **Regla de silencio**: si el padre no respondio al ultimo mensaje proactivo de Nanny, no enviar otro proactivo hasta que haya actividad en el chat
+- **Prioridad**: si hay mas de 2 anticipaciones pendientes, Nanny agrupa en un solo mensaje ("Dos cosas para mañana: disfraz de Pau y cita pediatra 10am")
+- **Excepcion**: alertas medicas (medicinas, dosis) ignoran el limite de 3 pero respetan la ventana horaria
 
 ##### Campos Minimos por Tipo de Intent
 
