@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
 const SYSTEM_PROMPT = `Eres Nanny, una asistente de IA integrada en un chat familiar entre mamá y papá. Tu rol es ayudarles a coordinar la crianza de sus hijos.
 
@@ -60,37 +60,37 @@ export async function POST(req: NextRequest) {
     familyContext = body.familyContext || '';
     recentMessages = body.recentMessages || '';
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.warn('ANTHROPIC_API_KEY not configured — using mock responses');
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey === 'tu-openai-api-key-aqui') {
+      console.warn('OPENAI_API_KEY not configured — using mock responses');
       return NextResponse.json(getMockResponse(message));
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const openai = new OpenAI({ apiKey });
 
     const systemPrompt = SYSTEM_PROMPT
       .replace('{family_context}', familyContext || 'Familia con 2 hijos: Pau (4 años, va al colegio) y Mía (2 años)')
       .replace('{recent_messages}', recentMessages || '');
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 500,
-      system: systemPrompt,
       messages: [
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
     });
 
-    const content = response.content[0];
-    if (!content || content.type !== 'text') {
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 });
     }
 
-    const parsed = JSON.parse(content.text);
+    const parsed = JSON.parse(content);
     return NextResponse.json(parsed);
   } catch (error: unknown) {
     console.error('Chat API error:', error instanceof Error ? error.message : error);
-    // If Claude fails, fall back to mock
+    // If OpenAI fails, fall back to mock
     return NextResponse.json(getMockResponse(message));
   }
 }
