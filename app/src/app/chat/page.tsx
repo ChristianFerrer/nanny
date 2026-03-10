@@ -15,6 +15,7 @@ export default function ChatPage() {
   const [currentParent, setCurrentParent] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sendingRef = useRef(false);
 
   const loadData = useCallback(async () => {
     const [fam, msgs, prts, chld] = await Promise.all([
@@ -42,8 +43,9 @@ export default function ChatPage() {
 
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sendingRef.current) return;
 
+    sendingRef.current = true;
     setInput('');
     setSending(true);
 
@@ -105,6 +107,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, errorMsg]);
     }
 
+    sendingRef.current = false;
     setSending(false);
     inputRef.current?.focus();
   };

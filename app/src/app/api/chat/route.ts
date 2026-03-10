@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 const SYSTEM_PROMPT = `Eres Nanny, una asistente de IA integrada en un chat familiar entre mamá y papá. Tu rol es ayudarles a coordinar la crianza de sus hijos.
 
@@ -46,7 +46,8 @@ REGLAS:
 3. No inventes datos que no se mencionaron
 4. Si el mensaje es solo chat casual, intent=CHAT y confirmation=null
 5. Si mencionan un hijo, inclúyelo en child
-6. Sé concisa: 1-3 oraciones máximo en el reply`;
+6. Sé concisa: 1-3 oraciones máximo en el reply
+7. Responde SOLO el JSON, sin texto adicional`;
 
 export async function POST(req: NextRequest) {
   let message = '';
@@ -59,39 +60,37 @@ export async function POST(req: NextRequest) {
     familyContext = body.familyContext || '';
     recentMessages = body.recentMessages || '';
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.warn('OPENAI_API_KEY not configured — using mock responses');
+      console.warn('ANTHROPIC_API_KEY not configured — using mock responses');
       return NextResponse.json(getMockResponse(message));
     }
 
-    const openai = new OpenAI({ apiKey });
+    const anthropic = new Anthropic({ apiKey });
 
     const systemPrompt = SYSTEM_PROMPT
       .replace('{family_context}', familyContext || 'Familia con 2 hijos: Pau (4 años, va al colegio) y Mía (2 años)')
       .replace('{recent_messages}', recentMessages || '');
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: systemPrompt,
       messages: [
-        { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 500,
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
+    const content = response.content[0];
+    if (!content || content.type !== 'text') {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 });
     }
 
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(content.text);
     return NextResponse.json(parsed);
   } catch (error: unknown) {
     console.error('Chat API error:', error instanceof Error ? error.message : error);
-    // If OpenAI fails, fall back to mock
+    // If Claude fails, fall back to mock
     return NextResponse.json(getMockResponse(message));
   }
 }
