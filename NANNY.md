@@ -1170,6 +1170,82 @@ Panel interno para el equipo de producto durante la Fase 2 (10 familias piloto).
    • <15% correcciones y >85% confirmaciones aceptadas
 ```
 
+#### Captura de Feedback Cualitativo
+
+Las metricas cuantitativas miden el **que**. El feedback cualitativo explica el **por que**. Con 10 familias piloto, lo cualitativo es mas valioso que los numeros.
+
+Principio: **el feedback debe ser tan natural como el chat.** Los padres no van a llenar encuestas. Nanny ya es un chat — usemos eso.
+
+##### 1. Feedback Implicito (sin friccion, automatico)
+
+Lo que los padres ya hacen nos dice todo:
+
+| Señal | Interpretacion |
+|---|---|
+| Padre corrige un evento creado por Nanny | Nanny entendio mal |
+| Padre elimina un dato del perfil | Nanny registro algo incorrecto |
+| Padre ignora una pregunta de Nanny | La pregunta no era relevante o molesto |
+| Padre responde "no" a una confirmacion | Extraccion incorrecta |
+| Padre no abre el resumen semanal | El resumen no aporta valor |
+| Padre desactiva notificaciones | Las notificaciones molestan |
+
+Trackear especificamente: preguntas ignoradas por los padres y desactivaciones de notificaciones. El resto ya se cubre con las metricas de calidad de IA.
+
+##### 2. Micro-feedback Contextual (1 tap, en el momento)
+
+Despues de que Nanny resuelve algo concreto, preguntar **una sola cosa**:
+
+```
+✅ Pediatra Pau martes 10am — confirmado
+
+¿Te sirvio este recordatorio?
+[👍]  [👎]
+```
+
+Reglas:
+- Solo despues de acciones completadas, nunca a mitad de flujo
+- Maximo **1 micro-feedback al dia** — no mas
+- Si el padre da 👎, Nanny pregunta opcionalmente: "¿Que puedo mejorar?" (respuesta libre en el chat)
+- Si el padre ignora, no insistir
+
+##### 3. Check-in Semanal (dentro del resumen)
+
+El resumen semanal del domingo ya existe. Agregar **una pregunta al final**:
+
+```
+Resumen de la semana:
+✅ 8 eventos gestionados
+✅ 3 recordatorios utiles
+⏳ 1 tarea pendiente: comprar pañales
+
+¿Como fue la semana con Nanny?
+[😊 Bien]  [😐 Regular]  [😕 Mal]
+```
+
+Si responden Regular o Mal, Nanny abre conversacion: "¿Que puedo hacer mejor la proxima semana?"
+
+##### 4. Feedback Directo del Equipo (fuera de la app)
+
+Con 10 familias piloto, complementar con:
+- **1 llamada de 15 min** por familia en la semana 2 y la semana 4
+- **Grupo de WhatsApp con las 10 familias** para feedback informal rapido
+
+##### Lo que NO hacer
+
+- **No NPS.** Con 10 familias hablas directamente con ellas, no necesitas escalas del 1 al 10
+- **No encuestas in-app.** Agregan friccion y nadie las completa
+- **No pop-ups de rating.** Es una app de padres estresados, no un juego movil
+- **No canal de feedback separado.** Si tienen que salir de Nanny para dar feedback, no lo daran
+
+##### Resumen de mecanismos de feedback
+
+| Mecanismo | Friccion | Frecuencia | Que captura |
+|---|---|---|---|
+| Feedback implicito | Cero | Continuo | Errores, relevancia, engagement |
+| Micro-feedback 👍👎 | 1 tap | Max 1/dia | Satisfaccion puntual |
+| Check-in semanal | 1 tap + texto opcional | 1/semana | Sentimiento general |
+| Llamadas directas | Alta (pero valiosa) | 2 en 4 semanas | Insights profundos |
+
 ---
 
 ## Arquitectura Tecnica
