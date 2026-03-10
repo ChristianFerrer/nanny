@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+:root {
+  --nanny-purple: #7C3AED;
+  --nanny-purple-light: #A78BFA;
+  --nanny-purple-bg: #F5F3FF;
+  --nanny-green: #10B981;
+  --nanny-orange: #F59E0B;
+  --nanny-red: #EF4444;
+  --nanny-blue: #3B82F6;
+  --nanny-gray: #6B7280;
+  --nanny-gray-light: #F3F4F6;
+  --nanny-bg: #FAFAFA;
+}
+
+@theme inline {
+  --color-background: var(--nanny-bg);
+  --color-foreground: #1F2937;
+  --color-primary: var(--nanny-purple);
+  --color-primary-light: var(--nanny-purple-light);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--nanny-bg);
+  color: #1F2937;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Chat bubbles */
+.bubble-parent {
+  background: var(--nanny-purple);
+  color: white;
+  border-radius: 18px 18px 4px 18px;
+  padding: 10px 14px;
+  max-width: 85%;
+  margin-left: auto;
+}
+
+.bubble-nanny {
+  background: white;
+  color: #1F2937;
+  border: 1px solid #E5E7EB;
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 14px;
+  max-width: 85%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.bubble-other-parent {
+  background: #E0E7FF;
+  color: #1F2937;
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 14px;
+  max-width: 85%;
+}
+
+/* Confirmation card */
+.confirmation-card {
+  background: white;
+  border: 2px solid var(--nanny-purple-light);
+  border-radius: 16px;
+  padding: 16px;
+  max-width: 90%;
+}
+
+/* Bottom nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+  padding: 8px 0;
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+  z-index: 50;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Priority badges */
+.priority-urgent { background: #FEE2E2; color: #DC2626; }
+.priority-high { background: #FEF3C7; color: #D97706; }
+.priority-normal { background: #E0E7FF; color: #4F46E5; }
+.priority-low { background: #F3F4F6; color: #6B7280; }
