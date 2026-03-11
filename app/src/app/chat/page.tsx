@@ -18,15 +18,20 @@ export default function ChatPage() {
   const sendingRef = useRef(false);
 
   const loadData = useCallback(async () => {
-    const [fam, msgs, prts, chld] = await Promise.all([
-      getFamily(), getMessages(), getParents(), getChildren(),
-    ]);
-    setFamilyId(fam.id);
-    setMessages(msgs);
-    setParents(prts);
-    setChildren(chld);
-    if (prts.length > 0 && !currentParent) {
-      setCurrentParent(prts[0].id);
+    try {
+      const [fam, msgs, prts, chld] = await Promise.all([
+        getFamily(), getMessages(), getParents(), getChildren(),
+      ]);
+      if (!fam) { window.location.href = '/login'; return; }
+      setFamilyId(fam.id);
+      setMessages(msgs);
+      setParents(prts);
+      setChildren(chld);
+      if (prts.length > 0 && !currentParent) {
+        setCurrentParent(prts[0].id);
+      }
+    } catch {
+      window.location.href = '/login';
     }
   }, [currentParent]);
 

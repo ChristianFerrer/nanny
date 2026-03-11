@@ -37,15 +37,20 @@ export default function HoyPage() {
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [fam, te, ue, t, c, p] = await Promise.all([
-      getFamily(), getTodayEvents(), getUpcomingEvents(3), getTasks(), getChildren(), getParents(),
-    ]);
-    setFamilyId(fam.id);
-    setTodayEvents(te);
-    setUpcomingEvents(ue.filter(e => !te.find(te2 => te2.id === e.id)));
-    setTasks(t);
-    setChildren(c);
-    setParents(p);
+    try {
+      const [fam, te, ue, t, c, p] = await Promise.all([
+        getFamily(), getTodayEvents(), getUpcomingEvents(3), getTasks(), getChildren(), getParents(),
+      ]);
+      if (!fam) { window.location.href = '/login'; return; }
+      setFamilyId(fam.id);
+      setTodayEvents(te);
+      setUpcomingEvents(ue.filter(e => !te.find(te2 => te2.id === e.id)));
+      setTasks(t);
+      setChildren(c);
+      setParents(p);
+    } catch {
+      window.location.href = '/login';
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

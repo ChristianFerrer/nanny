@@ -59,10 +59,11 @@ export function resetFamilyCache() {
   _currentFamilyId = null;
 }
 
-export async function getFamily(): Promise<Family> {
+export async function getFamily(): Promise<Family | null> {
   const familyId = await getFamilyId();
   const supabase = getSupabase();
-  const { data } = await supabase.from('families').select('*').eq('id', familyId).single();
+  const { data, error } = await supabase.from('families').select('*').eq('id', familyId).single();
+  if (error || !data) return null;
   return data as Family;
 }
 

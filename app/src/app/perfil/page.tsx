@@ -37,15 +37,30 @@ export default function PerfilPage() {
   const [childPersonalityNotes, setChildPersonalityNotes] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [f, p, c] = await Promise.all([getFamily(), getParents(), getChildren()]);
-    setFamily(f);
-    setParents(p);
-    setChildren(c);
+    try {
+      const [f, p, c] = await Promise.all([getFamily(), getParents(), getChildren()]);
+      if (!f) {
+        setLoadError(true);
+        return;
+      }
+      setFamily(f);
+      setParents(p);
+      setChildren(c);
+    } catch {
+      setLoadError(true);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (loadError) {
+      router.replace('/login');
+    }
+  }, [loadError, router]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
