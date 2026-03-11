@@ -19,7 +19,8 @@ async function trySupabase(): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
   if (_supabaseWorking !== null) return _supabaseWorking;
   try {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { error } = await supabase.from('families').select('id').limit(1);
     _supabaseWorking = !error;
     return _supabaseWorking;
@@ -33,7 +34,8 @@ async function trySupabase(): Promise<boolean> {
 async function getFamilyId(): Promise<string> {
   if (_currentFamilyId) return _currentFamilyId;
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
 
     // First try to get family via authenticated user
     const { data: { user } } = await supabase.auth.getUser();
@@ -63,7 +65,8 @@ async function getFamilyId(): Promise<string> {
 // Check if the current authenticated user has a family
 export async function hasFamily(): Promise<boolean> {
   if (!(await trySupabase())) return false;
-  const { supabase } = await import('./supabase');
+  const { getSupabase } = await import('./supabase');
+  const supabase = getSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     const { data: parent } = await supabase
@@ -101,7 +104,8 @@ export function subscribe(fn: () => void) {
 export async function getFamily(): Promise<Family> {
   if (await trySupabase()) {
     const familyId = await getFamilyId();
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('families').select('*').eq('id', familyId).single();
     if (data) return data as Family;
   }
@@ -111,7 +115,8 @@ export async function getFamily(): Promise<Family> {
 export async function getParents(): Promise<Parent[]> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('parents').select('*').eq('family_id', familyId);
     if (data?.length) return data as Parent[];
   }
@@ -121,7 +126,8 @@ export async function getParents(): Promise<Parent[]> {
 export async function getChildren(): Promise<Child[]> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('children').select('*').eq('family_id', familyId);
     if (data?.length) return data as Child[];
   }
@@ -131,7 +137,8 @@ export async function getChildren(): Promise<Child[]> {
 export async function getChild(id: string): Promise<Child | null> {
   if (await trySupabase()) {
     const familyId = await getFamilyId();
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('children').select('*').eq('id', id).eq('family_id', familyId).single();
     if (data) return data as Child;
   }
@@ -141,7 +148,8 @@ export async function getChild(id: string): Promise<Child | null> {
 export async function getEvents(): Promise<FamilyEvent[]> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('events').select('*')
       .eq('family_id', familyId)
       .order('date_start', { ascending: true });
@@ -176,7 +184,8 @@ export async function getUpcomingEvents(days = 7): Promise<FamilyEvent[]> {
 export async function getTasks(): Promise<Task[]> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('tasks').select('*')
       .eq('family_id', familyId)
       .in('status', ['pending', 'in_progress'])
@@ -188,7 +197,8 @@ export async function getTasks(): Promise<Task[]> {
 
 export async function completeTask(taskId: string): Promise<void> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', taskId);
   }
   _tasks = _tasks.map(t => t.id === taskId ? { ...t, status: 'done' as const, completed_at: new Date().toISOString() } : t);
@@ -198,7 +208,8 @@ export async function completeTask(taskId: string): Promise<void> {
 export async function getMessages(): Promise<Message[]> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('messages').select('*')
       .eq('family_id', familyId)
       .order('created_at', { ascending: true })
@@ -216,7 +227,8 @@ export async function addMessage(msg: Omit<Message, 'id' | 'created_at'>): Promi
   };
   if (await trySupabase()) {
     try {
-      const { supabase } = await import('./supabase');
+      const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
       const { data } = await supabase.from('messages').insert(newMsg).select().single();
       if (data) { notify(); return data as Message; }
     } catch {
@@ -236,7 +248,8 @@ export async function addEvent(event: Omit<FamilyEvent, 'id' | 'created_at'>): P
   };
   if (await trySupabase()) {
     try {
-      const { supabase } = await import('./supabase');
+      const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
       const { data } = await supabase.from('events').insert(newEvent).select().single();
       if (data) { notify(); return data as FamilyEvent; }
     } catch {
@@ -256,7 +269,8 @@ export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Ta
   };
   if (await trySupabase()) {
     try {
-      const { supabase } = await import('./supabase');
+      const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
       const { data } = await supabase.from('tasks').insert(newTask).select().single();
       if (data) { notify(); return data as Task; }
     } catch {
@@ -270,7 +284,8 @@ export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Ta
 
 export async function getRoutines(childId: string): Promise<Routine[]> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('routines').select('*').eq('child_id', childId);
     if (data) return data as Routine[];
   }
@@ -280,7 +295,8 @@ export async function getRoutines(childId: string): Promise<Routine[]> {
 export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created_at'>>): Promise<void> {
   const familyId = await getFamilyId();
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('families').update(updates).eq('id', familyId);
   }
   notify();
@@ -288,7 +304,8 @@ export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created
 
 export async function updateParent(parentId: string, updates: Partial<Omit<Parent, 'id' | 'created_at'>>): Promise<void> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('parents').update(updates).eq('id', parentId);
   }
   notify();
@@ -296,7 +313,8 @@ export async function updateParent(parentId: string, updates: Partial<Omit<Paren
 
 export async function updateChild(childId: string, updates: Partial<Omit<Child, 'id' | 'created_at'>>): Promise<void> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('children').update(updates).eq('id', childId);
   }
   notify();
@@ -305,7 +323,8 @@ export async function updateChild(childId: string, updates: Partial<Omit<Child, 
 export async function addChild(child: Omit<Child, 'id' | 'created_at'>): Promise<Child> {
   const newChild: Child = { ...child, id: crypto.randomUUID(), created_at: new Date().toISOString() };
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     const { data } = await supabase.from('children').insert(newChild).select().single();
     if (data) { notify(); return data as Child; }
   }
@@ -315,7 +334,8 @@ export async function addChild(child: Omit<Child, 'id' | 'created_at'>): Promise
 
 export async function deleteEvent(eventId: string): Promise<void> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('events').delete().eq('id', eventId);
   }
   _events = _events.filter(e => e.id !== eventId);
@@ -324,7 +344,8 @@ export async function deleteEvent(eventId: string): Promise<void> {
 
 export async function deleteTask(taskId: string): Promise<void> {
   if (await trySupabase()) {
-    const { supabase } = await import('./supabase');
+    const { getSupabase } = await import('./supabase');
+    const supabase = getSupabase();
     await supabase.from('tasks').delete().eq('id', taskId);
   }
   _tasks = _tasks.filter(t => t.id !== taskId);

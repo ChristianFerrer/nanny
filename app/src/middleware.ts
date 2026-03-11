@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 
 const PUBLIC_PATHS = ['/login'];
 
@@ -12,7 +12,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for Supabase auth token in cookies
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -20,19 +19,33 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get the access token from cookies (Supabase stores it as sb-<ref>-auth-token)
-  const authCookieName = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-  const authCookie = req.cookies.get(authCookieName)?.value;
+  let response = NextResponse.next({ request: req });
 
-  // Also check the newer cookie format
-  const accessTokenCookie = req.cookies.get(`${authCookieName}.0`)?.value;
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) =>
+          req.cookies.set(name, value)
+        );
+        response = NextResponse.next({ request: req });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
-  if (!authCookie && !accessTokenCookie) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     const loginUrl = new URL('/login', req.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

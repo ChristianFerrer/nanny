@@ -1,18 +1,18 @@
+import { createBrowserClient } from '@supabase/ssr';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Cliente público (para el navegador, respeta RLS) — singleton
+// Usa @supabase/ssr para manejar cookies automáticamente
 let _supabase: SupabaseClient;
 export function getSupabase() {
   if (!_supabase) {
-    _supabase = createClient(supabaseUrl, supabaseAnonKey);
+    _supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
   }
   return _supabase;
 }
-// Default export for backward compatibility
-export const supabase = getSupabase();
 
 // Cliente admin (solo para server-side: API routes, server actions)
 // Bypassa RLS — usar solo en el backend
@@ -27,5 +27,3 @@ export function getSupabaseAdmin() {
   }
   return _supabaseAdmin;
 }
-// Lazy — only created when accessed from server-side code
-export const supabaseAdmin = typeof window === 'undefined' ? getSupabaseAdmin() : (null as unknown as SupabaseClient);
