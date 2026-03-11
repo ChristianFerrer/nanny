@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home } from 'lucide-react';
+import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2 } from 'lucide-react';
 import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, resetFamilyCache } from '@/lib/store';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
@@ -19,12 +19,15 @@ export default function PerfilPage() {
   const [editSection, setEditSection] = useState<EditSection>(null);
   const [editId, setEditId] = useState<string>('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Edit state
   const [familyName, setFamilyName] = useState('');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [parentEmail, setParentEmail] = useState('');
+  const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
+  const [parentAvatar, setParentAvatar] = useState('👩');
 
   const [childName, setChildName] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
@@ -81,6 +84,8 @@ export default function PerfilPage() {
     setParentName(p.name);
     setParentPhone(p.phone || '');
     setParentEmail(p.email || '');
+    setParentRole(p.role);
+    setParentAvatar(p.avatar_emoji);
     setEditSection('parent');
   };
 
@@ -125,6 +130,8 @@ export default function PerfilPage() {
       name: parentName,
       phone: parentPhone || null,
       email: parentEmail || null,
+      role: parentRole,
+      avatar_emoji: parentAvatar,
     });
     await loadData();
     setEditSection(null);
@@ -204,6 +211,31 @@ export default function PerfilPage() {
             <>
               <h1 className="text-xl font-bold mb-4">Editar padre/madre</h1>
               <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Rol</label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setParentRole('mama'); setParentAvatar('👩'); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        parentRole === 'mama'
+                          ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <span className="text-lg">👩</span> Mamá
+                    </button>
+                    <button
+                      onClick={() => { setParentRole('papa'); setParentAvatar('👨'); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        parentRole === 'papa'
+                          ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <span className="text-lg">👨</span> Papá
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Nombre</label>
                   <input type="text" value={parentName} onChange={e => setParentName(e.target.value)}
@@ -363,6 +395,38 @@ export default function PerfilPage() {
               </button>
             );
           })}
+        </section>
+
+        {/* Invite partner section */}
+        <section className="bg-white rounded-2xl p-4 shadow-sm">
+          <h2 className="font-semibold text-sm flex items-center gap-2 mb-3">
+            <Share2 size={16} className="text-[var(--nanny-purple)]" /> Invitar pareja
+          </h2>
+          <p className="text-xs text-[var(--nanny-gray)] mb-3">
+            Comparte el enlace para que tu pareja se una a la familia
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                const msg = `Estoy usando Nanny para organizar las cosas de los niños. Únete aquí: ${window.location.origin}/login`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-medium"
+            >
+              <MessageCircle size={16} /> Invitar por WhatsApp
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/login`);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-medium"
+            >
+              {copied ? <Check size={16} className="text-[var(--nanny-green)]" /> : <Copy size={16} />}
+              {copied ? 'Enlace copiado' : 'Copiar enlace'}
+            </button>
+          </div>
         </section>
 
         {/* Logout */}

@@ -26,6 +26,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState('');
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [authUserName, setAuthUserName] = useState('');
+  const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
   const [copied, setCopied] = useState(false);
   const [createdChildren, setCreatedChildren] = useState<{ name: string; emoji: string; age: string }[]>([]);
 
@@ -86,7 +87,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           familyName: familyName || `Familia ${authUserName}`,
-          parents: [{ name: authUserName, role: 'mama', avatar_emoji: '👩' }],
+          parents: [{ name: authUserName, role: parentRole, avatar_emoji: parentRole === 'mama' ? '👩' : '👨' }],
           children: childrenWithDates,
           authUserId,
         }),
@@ -158,7 +159,7 @@ export default function OnboardingPage() {
             Así identificaremos tu grupo familiar
           </p>
 
-          <div className="w-full max-w-xs mb-8">
+          <div className="w-full max-w-xs mb-6">
             <input
               type="text"
               value={familyName}
@@ -167,6 +168,34 @@ export default function OnboardingPage() {
               className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-base text-center focus:ring-2 focus:ring-[var(--nanny-purple-light)] outline-none"
               autoFocus
             />
+          </div>
+
+          <div className="w-full max-w-xs mb-8">
+            <p className="text-sm text-[var(--nanny-gray)] mb-3 text-center">¿Cuál es tu rol?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setParentRole('mama')}
+                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
+                  parentRole === 'mama'
+                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                    : 'border-gray-200'
+                }`}
+              >
+                <span className="text-2xl">👩</span>
+                <span className="text-sm font-medium">Mamá</span>
+              </button>
+              <button
+                onClick={() => setParentRole('papa')}
+                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
+                  parentRole === 'papa'
+                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                    : 'border-gray-200'
+                }`}
+              >
+                <span className="text-2xl">👨</span>
+                <span className="text-sm font-medium">Papá</span>
+              </button>
+            </div>
           </div>
 
           <button
