@@ -73,18 +73,12 @@ export default function LoginPage() {
       }
     }
 
-    const currentUser = (await supabase.auth.getUser()).data.user!;
-
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('family_id')
-      .eq('auth_user_id', currentUser.id)
-      .limit(1)
-      .single();
-
-    if (parent) {
-      router.replace('/chat');
-    } else {
+    // Check if user has a family using admin API (bypasses RLS)
+    try {
+      const res = await fetch('/api/check-family');
+      const { hasFamily } = await res.json();
+      router.replace(hasFamily ? '/chat' : '/onboarding');
+    } catch {
       router.replace('/onboarding');
     }
   };

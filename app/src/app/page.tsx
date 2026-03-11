@@ -2,30 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSupabase } from '@/lib/supabase';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
     async function checkAuth() {
-      const supabase = getSupabase();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
+      try {
+        const res = await fetch('/api/check-family');
+        const data = await res.json();
+        if (data.authenticated === false) {
+          router.replace('/login');
+        } else {
+          router.replace(data.hasFamily ? '/chat' : '/onboarding');
+        }
+      } catch {
         router.replace('/login');
-        return;
       }
-
-      // Check if user has a family linked
-      const { data: parent } = await supabase
-        .from('parents')
-        .select('family_id')
-        .eq('auth_user_id', user.id)
-        .limit(1)
-        .single();
-
-      router.replace(parent ? '/chat' : '/onboarding');
     }
 
     checkAuth();
