@@ -1,7 +1,6 @@
-// State management — Supabase only (no demo fallbacks)
+// State management — all data goes through API routes (admin client, bypasses RLS)
 
 import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine } from './types';
-import { getSupabase } from './supabase';
 
 // Track current family
 let _currentFamilyId: string | null = null;
@@ -16,20 +15,34 @@ export function subscribe(fn: () => void) {
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
-// Get family_id using server API (bypasses RLS)
+// Fetch family data from server API (bypasses RLS)
+async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown>> {
+  const res = await fetch(`/api/family-data?tables=${tables.join(',')}`);
+  if (!res.ok) throw new Error('Failed to load family data');
+  const data = await res.json();
+  if (data.familyId) _currentFamilyId = data.familyId;
+  return data;
+}
+
+// Write operation through server API (bypasses RLS)
+async function writeData(table: string, operation: 'insert' | 'update' | 'delete', data?: Record<string, unknown>, id?: string) {
+  const res = await fetch('/api/family-write', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table, operation, data, id }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(err.error || 'Write failed');
+  }
+  return res.json();
+}
+
 async function getFamilyId(): Promise<string> {
   if (_currentFamilyId) return _currentFamilyId;
-
-  const res = await fetch('/api/check-family');
-  if (res.ok) {
-    const data = await res.json();
-    if (data.familyId) {
-      _currentFamilyId = data.familyId;
-      return data.familyId;
-    }
-  }
-
-  throw new Error('No se encontró familia para el usuario');
+  const data = await fetchFamilyData(['family']);
+  if (!data.familyId) throw new Error('No se encontró familia para el usuario');
+  return data.familyId as string;
 }
 
 // Check if the current authenticated user has a family
@@ -52,41 +65,28 @@ export function resetFamilyCache() {
 }
 
 export async function getFamily(): Promise<Family | null> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data, error } = await supabase.from('families').select('*').eq('id', familyId).single();
-  if (error || !data) return null;
-  return data as Family;
+  const data = await fetchFamilyData(['family']);
+  return (data.family as Family) || null;
 }
 
 export async function getParents(): Promise<Parent[]> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('parents').select('*').eq('family_id', familyId);
-  return (data || []) as Parent[];
+  const data = await fetchFamilyData(['parents']);
+  return (data.parents as Parent[]) || [];
 }
 
 export async function getChildren(): Promise<Child[]> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('children').select('*').eq('family_id', familyId);
-  return (data || []) as Child[];
+  const data = await fetchFamilyData(['children']);
+  return (data.children as Child[]) || [];
 }
 
 export async function getChild(id: string): Promise<Child | null> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('children').select('*').eq('id', id).eq('family_id', familyId).single();
-  return (data as Child) || null;
+  const children = await getChildren();
+  return children.find(c => c.id === id) || null;
 }
 
 export async function getEvents(): Promise<FamilyEvent[]> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('events').select('*')
-    .eq('family_id', familyId)
-    .order('date_start', { ascending: true });
-  return (data || []) as FamilyEvent[];
+  const data = await fetchFamilyData(['events']);
+  return (data.events as FamilyEvent[]) || [];
 }
 
 export async function getTodayEvents(): Promise<FamilyEvent[]> {
@@ -113,108 +113,90 @@ export async function getUpcomingEvents(days = 7): Promise<FamilyEvent[]> {
 }
 
 export async function getTasks(): Promise<Task[]> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('tasks').select('*')
-    .eq('family_id', familyId)
-    .in('status', ['pending', 'in_progress'])
-    .order('due_date', { ascending: true });
-  return (data || []) as Task[];
+  const data = await fetchFamilyData(['tasks']);
+  return (data.tasks as Task[]) || [];
 }
 
 export async function completeTask(taskId: string): Promise<void> {
-  const supabase = getSupabase();
-  await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', taskId);
+  await writeData('tasks', 'update', { status: 'done', completed_at: new Date().toISOString() }, taskId);
   notify();
 }
 
 export async function getMessages(): Promise<Message[]> {
-  const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  const { data } = await supabase.from('messages').select('*')
-    .eq('family_id', familyId)
-    .order('created_at', { ascending: true })
-    .limit(100);
-  return (data || []) as Message[];
+  const data = await fetchFamilyData(['messages']);
+  return (data.messages as Message[]) || [];
 }
 
 export async function addMessage(msg: Omit<Message, 'id' | 'created_at'>): Promise<Message> {
-  const supabase = getSupabase();
   const newMsg = {
     ...msg,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
-  const { data } = await supabase.from('messages').insert(newMsg).select().single();
+  const result = await writeData('messages', 'insert', newMsg as unknown as Record<string, unknown>);
   notify();
-  return (data || newMsg) as Message;
+  return (result.data || newMsg) as Message;
 }
 
 export async function addEvent(event: Omit<FamilyEvent, 'id' | 'created_at'>): Promise<FamilyEvent> {
-  const supabase = getSupabase();
   const newEvent = {
     ...event,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
-  const { data } = await supabase.from('events').insert(newEvent).select().single();
+  const result = await writeData('events', 'insert', newEvent as unknown as Record<string, unknown>);
   notify();
-  return (data || newEvent) as FamilyEvent;
+  return (result.data || newEvent) as FamilyEvent;
 }
 
 export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Task> {
-  const supabase = getSupabase();
   const newTask = {
     ...task,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
-  const { data } = await supabase.from('tasks').insert(newTask).select().single();
+  const result = await writeData('tasks', 'insert', newTask as unknown as Record<string, unknown>);
   notify();
-  return (data || newTask) as Task;
+  return (result.data || newTask) as Task;
 }
 
 export async function getRoutines(childId: string): Promise<Routine[]> {
-  const supabase = getSupabase();
-  const { data } = await supabase.from('routines').select('*').eq('child_id', childId);
-  return (data || []) as Routine[];
+  const children = await getChildren();
+  const child = children.find(c => c.id === childId);
+  if (!child) return [];
+  // TODO: add routines to family-data endpoint if needed
+  return [];
 }
 
 export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created_at'>>): Promise<void> {
   const familyId = await getFamilyId();
-  const supabase = getSupabase();
-  await supabase.from('families').update(updates).eq('id', familyId);
+  await writeData('families', 'update', updates as Record<string, unknown>, familyId);
   notify();
 }
 
 export async function updateParent(parentId: string, updates: Partial<Omit<Parent, 'id' | 'created_at'>>): Promise<void> {
-  const supabase = getSupabase();
-  await supabase.from('parents').update(updates).eq('id', parentId);
+  await writeData('parents', 'update', updates as Record<string, unknown>, parentId);
   notify();
 }
 
 export async function updateChild(childId: string, updates: Partial<Omit<Child, 'id' | 'created_at'>>): Promise<void> {
-  const supabase = getSupabase();
-  await supabase.from('children').update(updates).eq('id', childId);
+  await writeData('children', 'update', updates as Record<string, unknown>, childId);
   notify();
 }
 
 export async function addChild(child: Omit<Child, 'id' | 'created_at'>): Promise<Child> {
-  const supabase = getSupabase();
   const newChild = { ...child, id: crypto.randomUUID(), created_at: new Date().toISOString() };
-  const { data } = await supabase.from('children').insert(newChild).select().single();
+  const result = await writeData('children', 'insert', newChild as unknown as Record<string, unknown>);
   notify();
-  return (data || newChild) as Child;
+  return (result.data || newChild) as Child;
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {
-  const supabase = getSupabase();
-  await supabase.from('events').delete().eq('id', eventId);
+  await writeData('events', 'delete', undefined, eventId);
   notify();
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  const supabase = getSupabase();
-  await supabase.from('tasks').delete().eq('id', taskId);
+  await writeData('tasks', 'delete', undefined, taskId);
   notify();
 }
