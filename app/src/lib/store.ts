@@ -16,22 +16,16 @@ export function subscribe(fn: () => void) {
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
-// Get family_id from the authenticated user's parent record
+// Get family_id using server API (bypasses RLS)
 async function getFamilyId(): Promise<string> {
   if (_currentFamilyId) return _currentFamilyId;
 
-  const supabase = getSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('family_id')
-      .eq('auth_user_id', user.id)
-      .limit(1)
-      .single();
-    if (parent) {
-      _currentFamilyId = parent.family_id;
-      return parent.family_id;
+  const res = await fetch('/api/check-family');
+  if (res.ok) {
+    const data = await res.json();
+    if (data.familyId) {
+      _currentFamilyId = data.familyId;
+      return data.familyId;
     }
   }
 
@@ -40,18 +34,16 @@ async function getFamilyId(): Promise<string> {
 
 // Check if the current authenticated user has a family
 export async function hasFamily(): Promise<boolean> {
-  const supabase = getSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('family_id')
-      .eq('auth_user_id', user.id)
-      .limit(1)
-      .single();
-    return !!parent;
+  try {
+    const res = await fetch('/api/check-family');
+    if (res.ok) {
+      const data = await res.json();
+      return data.hasFamily;
+    }
+    return false;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 // Reset cached family when user logs out or switches

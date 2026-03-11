@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .single();
 
-    return NextResponse.json({ hasFamily: !!parent });
+    return NextResponse.json({
+      hasFamily: !!parent,
+      familyId: parent?.family_id || null,
+    });
   } catch {
     return NextResponse.json({ hasFamily: false }, { status: 500 });
   }
