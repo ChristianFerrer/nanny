@@ -31,6 +31,11 @@ export interface Database {
         Insert: Omit<Message, 'id' | 'created_at'>;
         Update: Partial<Omit<Message, 'id'>>;
       };
+      medications: {
+        Row: Medication;
+        Insert: Omit<Medication, 'id' | 'created_at'>;
+        Update: Partial<Omit<Medication, 'id'>>;
+      };
       pending_confirmations: {
         Row: PendingConfirmation;
         Insert: Omit<PendingConfirmation, 'id' | 'created_at'>;
@@ -136,6 +141,24 @@ export interface NannyMetadata {
   [key: string]: unknown;
 }
 
+export interface Medication {
+  id: string;
+  family_id: string;
+  child_id: string | null;
+  child_name: string;
+  medication_name: string;
+  duration_days: number | null;
+  start_date: string;
+  end_date: string | null;
+  frequency: string | null;
+  schedule_times: string[];
+  status: 'active' | 'completed' | 'cancelled';
+  source: string;
+  auto_detected: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface PendingConfirmation {
   id: string;
   family_id: string;
@@ -172,10 +195,10 @@ export interface InterventionFeedback {
 // OpenAI response types
 export interface NannyResponse {
   reply: string;
-  intent: 'EVENT' | 'TASK' | 'INFO' | 'CHAT' | 'UPDATE' | 'REMINDER';
+  intent: 'EVENT' | 'TASK' | 'INFO' | 'CHAT' | 'UPDATE' | 'REMINDER' | 'MEDICATION';
   child?: string;
   confirmation?: {
-    type: 'event' | 'task';
+    type: 'event' | 'task' | 'medication';
     data: Record<string, unknown>;
   };
 }

@@ -85,6 +85,14 @@ export async function GET(req: NextRequest) {
           .then(({ data }) => { result.tasks = data || []; }) as Promise<void>
       );
     }
+    if (tables.includes('medications')) {
+      queries.push(
+        admin.from('medications').select('*').eq('family_id', familyId)
+          .eq('status', 'active')
+          .order('start_date', { ascending: true })
+          .then(({ data }) => { result.medications = data || []; }) as Promise<void>
+      );
+    }
     if (tables.includes('messages')) {
       queries.push(
         admin.from('messages').select('*').eq('family_id', familyId)

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X } from 'lucide-react';
-import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill } from 'lucide-react';
+import { getMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
-import type { Message, Parent, Child, FamilyEvent, Task } from '@/lib/types';
+import type { Message, Parent, Child, FamilyEvent, Task, Medication } from '@/lib/types';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -12,20 +12,26 @@ export default function ChatPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [familyId, setFamilyId] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [currentParent, setCurrentParent] = useState<string>('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
+  const [pendingMedConfirm, setPendingMedConfirm] = useState<{
+    messageId: string;
+    data: Record<string, unknown>;
+    childName: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [fam, msgs, prts, chld, evts, tsks] = await Promise.all([
-        getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(),
+      const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
+        getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
       ]);
       if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
@@ -34,6 +40,7 @@ export default function ChatPage() {
       setChildren(chld);
       setEvents(evts);
       setTasks(tsks);
+      setMedications(meds);
       if (prts.length > 0 && !currentParent) {
         // Use the authenticated user's parent ID, fallback to first parent
         const myParentId = getCurrentParentId();
@@ -116,6 +123,10 @@ export default function ChatPage() {
         `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''})`
       ).join('\n');
 
+      const activeMeds = medications.filter(m => m.status === 'active').map(m =>
+        `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
+      ).join('\n');
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,6 +136,7 @@ export default function ChatPage() {
           recentMessages: recentMsgs,
           existingEvents,
           existingTasks,
+          activeMedications: activeMeds || 'Ninguno',
           senderName: currentParentObj?.name || 'Padre',
         }),
       });
@@ -148,7 +160,18 @@ export default function ChatPage() {
         if (data.confirmation) {
           const { type, data: confData } = data.confirmation;
           try {
-            if (type === 'event') {
+            if (type === 'medication') {
+              // Don't auto-create — show confirmation buttons and wait for user response
+              // The nannyMsg will be created below, we store the pending confirmation
+              const medMsgId = crypto.randomUUID();
+              setPendingMedConfirm({
+                messageId: medMsgId,
+                data: confData,
+                childName: (data.child as string) || '',
+              });
+              // Store messageId for matching later
+              data._medMsgId = medMsgId;
+            } else if (type === 'event') {
               const dateStart = (confData.date_start as string) || new Date().toISOString();
               const title = (confData.title as string) || 'Evento';
               // Deduplicate: skip if same title + same day already exists
@@ -215,8 +238,14 @@ export default function ChatPage() {
             metadata: {
               intent: data.intent,
               child: data.child,
+              ...(data._medMsgId ? { medConfirmId: data._medMsgId } : {}),
+              ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
             },
           });
+          // Update pending med confirm with actual message ID
+          if (data._medMsgId) {
+            setPendingMedConfirm(prev => prev ? { ...prev, messageId: nannyMsg.id } : null);
+          }
           setMessages(prev => [...prev, nannyMsg]);
 
           // Notify all parents about Nanny's reply
@@ -245,6 +274,93 @@ export default function ChatPage() {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const handleMedicationConfirm = async (action: 'confirm' | 'reject') => {
+    if (!pendingMedConfirm) return;
+    const { data: medData, childName } = pendingMedConfirm;
+
+    if (action === 'confirm') {
+      try {
+        // Find the child ID
+        const matchedChild = children.find(c => c.name.toLowerCase() === childName.toLowerCase());
+
+        const newMed = await addMedication({
+          family_id: familyId,
+          child_id: matchedChild?.id || null,
+          child_name: childName || (medData.medication_name as string) || 'Hijo',
+          medication_name: (medData.medication_name as string) || 'Medicamento',
+          duration_days: (medData.duration_days as number) || null,
+          start_date: (medData.start_date as string) || new Date().toISOString(),
+          end_date: (medData.end_date as string) || null,
+          frequency: (medData.frequency as string) || null,
+          schedule_times: (medData.schedule_times as string[]) || [],
+          status: 'active',
+          source: 'chat',
+          auto_detected: true,
+          created_by: currentParent,
+        });
+        setMedications(prev => [...prev, newMed]);
+
+        // Create reminder events for each schedule time for the duration
+        const scheduleTimes = (medData.schedule_times as string[]) || [];
+        const durationDays = (medData.duration_days as number) || 1;
+        const startDate = new Date((medData.start_date as string) || new Date().toISOString());
+        const medName = (medData.medication_name as string) || 'Medicamento';
+
+        for (let day = 0; day < durationDays; day++) {
+          for (const time of scheduleTimes) {
+            const [hours, minutes] = time.split(':').map(Number);
+            const eventDate = new Date(startDate);
+            eventDate.setDate(eventDate.getDate() + day);
+            eventDate.setHours(hours, minutes, 0, 0);
+
+            // Don't create reminders in the past
+            if (eventDate <= new Date()) continue;
+
+            await addEvent({
+              family_id: familyId,
+              child_id: matchedChild?.id || null,
+              title: `💊 ${medName} - ${childName}`,
+              description: `${medData.frequency || ''} - ${time}`,
+              event_type: 'doctor',
+              date_start: eventDate.toISOString(),
+              date_end: null,
+              location: null,
+              status: 'confirmed',
+              source: 'chat',
+              auto_detected: true,
+              created_by: currentParent,
+            });
+          }
+        }
+
+        // Send confirmation message
+        const confirmMsg = await addMessage({
+          family_id: familyId,
+          sender_id: null,
+          sender_type: 'nanny',
+          content: `✅ Listo! Creé el tratamiento y ${scheduleTimes.length * durationDays} recordatorios para ${medName} de ${childName}. Los verán en el calendario 📅`,
+          message_type: 'text',
+          metadata: { intent: 'MEDICATION', child: childName },
+        });
+        setMessages(prev => [...prev, confirmMsg]);
+        sendPushToFamily(familyId, '🤖 Nanny', `Recordatorios de ${medName} creados para ${childName}`);
+      } catch {
+        console.error('Failed to create medication');
+      }
+    } else {
+      const declineMsg = await addMessage({
+        family_id: familyId,
+        sender_id: null,
+        sender_type: 'nanny',
+        content: 'Entendido, no crearé recordatorios. Si cambian de opinión, me avisan 👍',
+        message_type: 'text',
+        metadata: { intent: 'CHAT' },
+      });
+      setMessages(prev => [...prev, declineMsg]);
+    }
+    setPendingMedConfirm(null);
   };
 
   const handleFeedback = async (messageId: string, useful: boolean) => {
@@ -386,6 +502,34 @@ export default function ChatPage() {
                     <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
                       <CheckSquare size={14} className="text-[var(--nanny-purple)]" />
                       <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tarea registrada</span>
+                    </div>
+                  )}
+                  {isNanny && msg.metadata?.intent === 'MEDICATION' && !pendingMedConfirm && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
+                      <Pill size={14} className="text-[var(--nanny-purple)]" />
+                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tratamiento registrado</span>
+                    </div>
+                  )}
+                  {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
+                    <div className="mt-3 pt-2 border-t border-[var(--nanny-purple-light)]">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Pill size={14} className="text-[var(--nanny-purple)]" />
+                        <span className="text-[11px] font-medium text-[var(--nanny-purple)]">¿Crear recordatorios?</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleMedicationConfirm('confirm')}
+                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple)] text-white text-xs font-semibold"
+                        >
+                          Sí, crear
+                        </button>
+                        <button
+                          onClick={() => handleMedicationConfirm('reject')}
+                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-semibold"
+                        >
+                          No
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

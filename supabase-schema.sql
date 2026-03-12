@@ -99,6 +99,28 @@ CREATE TABLE tasks (
 );
 
 -- ============================================================
+-- TRATAMIENTOS MÉDICOS
+-- ============================================================
+
+CREATE TABLE medications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  child_id UUID REFERENCES children(id) ON DELETE SET NULL,
+  child_name TEXT NOT NULL,
+  medication_name TEXT NOT NULL,
+  duration_days INT,
+  start_date DATE NOT NULL,
+  end_date DATE,
+  frequency TEXT,
+  schedule_times TEXT[] DEFAULT '{}',
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  source TEXT DEFAULT 'chat',
+  auto_detected BOOLEAN DEFAULT TRUE,
+  created_by UUID REFERENCES parents(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- CAPA 1 — CONTEXTO INMEDIATO (chat)
 -- ============================================================
 
@@ -148,6 +170,9 @@ CREATE INDEX idx_events_child ON events(child_id);
 CREATE INDEX idx_tasks_family ON tasks(family_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_assigned ON tasks(assigned_to);
+CREATE INDEX idx_medications_family ON medications(family_id);
+CREATE INDEX idx_medications_status ON medications(status);
+CREATE INDEX idx_medications_child ON medications(child_id);
 CREATE INDEX idx_messages_family ON messages(family_id);
 CREATE INDEX idx_messages_created ON messages(created_at);
 CREATE INDEX idx_pending_confirmations_family ON pending_confirmations(family_id);
@@ -165,6 +190,7 @@ ALTER TABLE children ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE medications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_confirmations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE intervention_feedback ENABLE ROW LEVEL SECURITY;
@@ -225,6 +251,15 @@ CREATE POLICY "Users can manage own family tasks" ON tasks
 
 -- MESSAGES: scoped to family
 CREATE POLICY "Users can manage own family messages" ON messages
+  FOR ALL USING (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  )
+  WITH CHECK (
+    family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
+  );
+
+-- MEDICATIONS: scoped to family
+CREATE POLICY "Users can manage own family medications" ON medications
   FOR ALL USING (
     family_id IN (SELECT family_id FROM parents WHERE auth_user_id = auth.uid())
   )

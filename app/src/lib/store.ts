@@ -1,6 +1,6 @@
 // State management — all data goes through API routes (admin client, bypasses RLS)
 
-import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine } from './types';
+import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, Medication } from './types';
 
 // Track current family and parent
 let _currentFamilyId: string | null = null;
@@ -166,6 +166,27 @@ export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Ta
   const result = await writeData('tasks', 'insert', newTask as unknown as Record<string, unknown>);
   notify();
   return (result.data || newTask) as Task;
+}
+
+export async function getMedications(): Promise<Medication[]> {
+  const data = await fetchFamilyData(['medications']);
+  return (data.medications as Medication[]) || [];
+}
+
+export async function addMedication(medication: Omit<Medication, 'id' | 'created_at'>): Promise<Medication> {
+  const newMed = {
+    ...medication,
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+  };
+  const result = await writeData('medications', 'insert', newMed as unknown as Record<string, unknown>);
+  notify();
+  return (result.data || newMed) as Medication;
+}
+
+export async function updateMedication(medicationId: string, updates: Partial<Omit<Medication, 'id' | 'created_at'>>): Promise<void> {
+  await writeData('medications', 'update', updates as Record<string, unknown>, medicationId);
+  notify();
 }
 
 export async function getRoutines(childId: string): Promise<Routine[]> {
