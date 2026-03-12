@@ -127,26 +127,60 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center">
-            <Bot size={18} className="text-white" />
+      <div className="bg-white border-b px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Participant avatars - stacked */}
+            <div className="flex -space-x-2">
+              <div className="w-8 h-8 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
+                <Bot size={16} className="text-white" />
+              </div>
+              {parents.map((p, i) => (
+                <div
+                  key={p.id}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-base ring-2 ring-white ${
+                    p.id === currentParent ? 'bg-[var(--nanny-purple-bg)]' : 'bg-[var(--nanny-gray-light)]'
+                  }`}
+                  style={{ zIndex: parents.length - i }}
+                >
+                  {p.avatar_emoji}
+                </div>
+              ))}
+            </div>
+            <div>
+              <h1 className="font-semibold text-sm">Chat Familiar</h1>
+              <p className="text-[10px] text-[var(--nanny-gray)]">
+                Nanny{parents.map(p => `, ${p.name}`).join('')}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-semibold text-sm">Chat Familiar</h1>
-            <p className="text-[10px] text-[var(--nanny-gray)]">
-              {children.map(c => `${c.emoji} ${c.name}`).join('  ')}
-            </p>
-          </div>
+          {/* Current parent indicator + switcher */}
+          {parents.length > 1 ? (
+            <button
+              onClick={() => setCurrentParent(otherParent?.id || currentParent)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]"
+              title="Cambiar quién escribe"
+            >
+              <span className="text-base">{currentParentObj?.avatar_emoji}</span>
+              Yo
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]">
+              <span className="text-base">{currentParentObj?.avatar_emoji}</span>
+              Yo
+            </div>
+          )}
         </div>
-        {/* Parent switcher */}
-        <button
-          onClick={() => setCurrentParent(otherParent?.id || currentParent)}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]"
-        >
-          <span className="text-base">{currentParentObj?.avatar_emoji}</span>
-          {currentParentObj?.name}
-        </button>
+        {/* Children strip */}
+        {children.length > 0 && (
+          <div className="flex gap-2 mt-2 overflow-x-auto">
+            {children.map(c => (
+              <span key={c.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--nanny-gray-light)] rounded-full text-[10px] text-[var(--nanny-gray)] whitespace-nowrap">
+                {c.emoji} {c.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Messages */}
