@@ -2,8 +2,9 @@
 
 import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine } from './types';
 
-// Track current family
+// Track current family and parent
 let _currentFamilyId: string | null = null;
+let _currentParentId: string | null = null;
 let _listeners: (() => void)[] = [];
 
 function notify() {
@@ -21,6 +22,7 @@ async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown
   if (!res.ok) throw new Error('Failed to load family data');
   const data = await res.json();
   if (data.familyId) _currentFamilyId = data.familyId;
+  if (data.currentParentId) _currentParentId = data.currentParentId;
   return data;
 }
 
@@ -59,9 +61,15 @@ export async function hasFamily(): Promise<boolean> {
   }
 }
 
+// Get the current authenticated user's parent ID
+export function getCurrentParentId(): string | null {
+  return _currentParentId;
+}
+
 // Reset cached family when user logs out or switches
 export function resetFamilyCache() {
   _currentFamilyId = null;
+  _currentParentId = null;
 }
 
 export async function getFamily(): Promise<Family | null> {

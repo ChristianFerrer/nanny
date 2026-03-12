@@ -17,15 +17,16 @@ async function getAuthUserId(req: NextRequest): Promise<string | null> {
   return user?.id || null;
 }
 
-async function getFamilyId(userId: string): Promise<string | null> {
+async function getParentForUser(userId: string): Promise<{ family_id: string; parent_id: string } | null> {
   const admin = getSupabaseAdmin();
   const { data: parent } = await admin
     .from('parents')
-    .select('family_id')
+    .select('id, family_id')
     .eq('auth_user_id', userId)
     .limit(1)
     .single();
-  return parent?.family_id || null;
+  if (!parent) return null;
+  return { family_id: parent.family_id, parent_id: parent.id };
 }
 
 // GET /api/family-data?tables=family,parents,children,events,tasks,messages
@@ -36,17 +37,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const familyId = await getFamilyId(userId);
-    if (!familyId) {
+    const parentInfo = await getParentForUser(userId);
+    if (!parentInfo) {
       return NextResponse.json({ error: 'No family found' }, { status: 404 });
     }
+    const { family_id: familyId, parent_id: currentParentId } = parentInfo;
 
     const tables = req.nextUrl.searchParams.get('tables')?.split(',') || [
       'family', 'parents', 'children', 'events', 'tasks', 'messages',
     ];
 
     const admin = getSupabaseAdmin();
-    const result: Record<string, unknown> = { familyId };
+    const result: Record<string, unknown> = { familyId, currentParentId };
 
     const queries: Promise<void>[] = [];
 

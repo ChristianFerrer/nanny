@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
-import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks } from '@/lib/store';
+import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import type { Message, Parent, Child, FamilyEvent, Task } from '@/lib/types';
 
 export default function ChatPage() {
@@ -33,7 +33,10 @@ export default function ChatPage() {
       setEvents(evts);
       setTasks(tsks);
       if (prts.length > 0 && !currentParent) {
-        setCurrentParent(prts[0].id);
+        // Use the authenticated user's parent ID, fallback to first parent
+        const myParentId = getCurrentParentId();
+        const matchedParent = myParentId && prts.find(p => p.id === myParentId);
+        setCurrentParent(matchedParent ? matchedParent.id : prts[0].id);
       }
     } catch {
       window.location.href = '/login';
