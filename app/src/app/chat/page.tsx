@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication } from '@/lib/types';
@@ -24,6 +24,7 @@ export default function ChatPage() {
     data: Record<string, unknown>;
     childName: string;
   } | null>(null);
+  const [editingMedTimes, setEditingMedTimes] = useState<string[] | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +108,7 @@ export default function ChatPage() {
 
     try {
       // Build context
-      const recentMsgs = [...messages.slice(-10), parentMsg]
+      const recentMsgs = [...messages.slice(-15), parentMsg]
         .map(m => {
           const sender = m.sender_type === 'nanny' ? 'Nanny'
             : parents.find(p => p.id === m.sender_id)?.name || 'Padre';
@@ -312,20 +313,23 @@ export default function ChatPage() {
         for (let day = 0; day < durationDays; day++) {
           for (const time of scheduleTimes) {
             const [hours, minutes] = time.split(':').map(Number);
-            const eventDate = new Date(startDate);
-            eventDate.setDate(eventDate.getDate() + day);
-            eventDate.setHours(hours, minutes, 0, 0);
+            const doseDate = new Date(startDate);
+            doseDate.setDate(doseDate.getDate() + day);
+            doseDate.setHours(hours, minutes, 0, 0);
 
             // Don't create reminders in the past
-            if (eventDate <= new Date()) continue;
+            if (doseDate <= new Date()) continue;
+
+            // Reminder 10 minutes before the dose
+            const reminderDate = new Date(doseDate.getTime() - 10 * 60 * 1000);
 
             await addEvent({
               family_id: familyId,
               child_id: matchedChild?.id || null,
-              title: `💊 ${medName} - ${childName}`,
-              description: `${medData.frequency || ''} - ${time}`,
+              title: `💊 ${medName} - ${childName} en 10 min`,
+              description: `Toma de ${time} — ${medData.frequency || ''}`,
               event_type: 'doctor',
-              date_start: eventDate.toISOString(),
+              date_start: reminderDate.toISOString(),
               date_end: null,
               location: null,
               status: 'confirmed',
@@ -341,12 +345,12 @@ export default function ChatPage() {
           family_id: familyId,
           sender_id: null,
           sender_type: 'nanny',
-          content: `✅ Listo! Creé el tratamiento y ${scheduleTimes.length * durationDays} recordatorios para ${medName} de ${childName}. Los verán en el calendario 📅`,
+          content: `✅ Listo! Creé el tratamiento de ${medName} para ${childName}. Les avisaré 10 minutos antes de cada toma 📅`,
           message_type: 'text',
           metadata: { intent: 'MEDICATION', child: childName },
         });
         setMessages(prev => [...prev, confirmMsg]);
-        sendPushToFamily(familyId, '🤖 Nanny', `Recordatorios de ${medName} creados para ${childName}`);
+        sendPushToFamily(familyId, '💊 Nanny', `Recordatorios de ${medName} para ${childName} activados. Les avisaré 10 min antes de cada toma.`);
       } catch {
         console.error('Failed to create medication');
       }
@@ -688,21 +692,81 @@ export default function ChatPage() {
                       <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tratamiento registrado</span>
                     </div>
                   )}
+                  {isNanny && msg.metadata?.intent === 'HEALTH_LOG' && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-amber-200">
+                      <Thermometer size={14} className="text-amber-600" />
+                      <span className="text-[11px] font-medium text-amber-600">Síntoma registrado</span>
+                    </div>
+                  )}
                   {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
                     <div className="mt-3 pt-2 border-t border-[var(--nanny-purple-light)]">
                       <div className="flex items-center gap-1.5 mb-2">
                         <Pill size={14} className="text-[var(--nanny-purple)]" />
                         <span className="text-[11px] font-medium text-[var(--nanny-purple)]">¿Crear recordatorios?</span>
                       </div>
+                      {/* Time editor */}
+                      {editingMedTimes && (
+                        <div className="mb-3 space-y-2">
+                          <p className="text-[10px] text-[var(--nanny-gray)]">Ajusta los horarios:</p>
+                          {editingMedTimes.map((t, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={t}
+                                onChange={(e) => {
+                                  const updated = [...editingMedTimes];
+                                  updated[i] = e.target.value;
+                                  setEditingMedTimes(updated);
+                                }}
+                                className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
+                              />
+                              {editingMedTimes.length > 1 && (
+                                <button
+                                  onClick={() => setEditingMedTimes(editingMedTimes.filter((_, j) => j !== i))}
+                                  className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)]"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setEditingMedTimes([...editingMedTimes, '12:00'])}
+                            className="text-[10px] text-[var(--nanny-purple)] font-medium"
+                          >
+                            + Agregar horario
+                          </button>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleMedicationConfirm('confirm')}
+                          onClick={() => {
+                            if (editingMedTimes && pendingMedConfirm) {
+                              setPendingMedConfirm({
+                                ...pendingMedConfirm,
+                                data: { ...pendingMedConfirm.data, schedule_times: editingMedTimes },
+                              });
+                              setEditingMedTimes(null);
+                            }
+                            handleMedicationConfirm('confirm');
+                          }}
                           className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple)] text-white text-xs font-semibold"
                         >
-                          Sí, crear
+                          {editingMedTimes ? 'Confirmar' : 'Sí, crear'}
                         </button>
+                        {!editingMedTimes && (
+                          <button
+                            onClick={() => {
+                              const times = (pendingMedConfirm?.data?.schedule_times as string[]) || ['08:00'];
+                              setEditingMedTimes([...times]);
+                            }}
+                            className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] text-xs font-semibold"
+                          >
+                            Editar horarios
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleMedicationConfirm('reject')}
+                          onClick={() => { setEditingMedTimes(null); handleMedicationConfirm('reject'); }}
                           className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-semibold"
                         >
                           No

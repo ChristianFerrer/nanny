@@ -195,7 +195,7 @@ export interface InterventionFeedback {
 // OpenAI response types
 export interface NannyResponse {
   reply: string;
-  intent: 'EVENT' | 'TASK' | 'INFO' | 'CHAT' | 'UPDATE' | 'REMINDER' | 'MEDICATION';
+  intent: 'EVENT' | 'TASK' | 'INFO' | 'CHAT' | 'UPDATE' | 'REMINDER' | 'MEDICATION' | 'HEALTH_LOG';
   child?: string;
   confirmation?: {
     type: 'event' | 'task' | 'medication';

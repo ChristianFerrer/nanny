@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus } from 'lucide-react';
-import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, addEvent, addTask, getFamily } from '@/lib/store';
-import type { FamilyEvent, Task, Child, Parent } from '@/lib/types';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill } from 'lucide-react';
+import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
+import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
 type ModalType = null | 'event' | 'task';
 
@@ -13,6 +13,7 @@ export default function HoyPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [familyId, setFamilyId] = useState('');
   const [showFab, setShowFab] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
@@ -38,8 +39,8 @@ export default function HoyPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [fam, te, ue, t, c, p] = await Promise.all([
-        getFamily(), getTodayEvents(), getUpcomingEvents(3), getTasks(), getChildren(), getParents(),
+      const [fam, te, ue, t, c, p, meds] = await Promise.all([
+        getFamily(), getTodayEvents(), getUpcomingEvents(3), getTasks(), getChildren(), getParents(), getMedications(),
       ]);
       if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
@@ -48,6 +49,7 @@ export default function HoyPage() {
       setTasks(t);
       setChildren(c);
       setParents(p);
+      setMedications(meds);
     } catch {
       window.location.href = '/login';
     }
@@ -324,6 +326,47 @@ export default function HoyPage() {
                   <span className="text-xs text-red-500">vencida</span>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* Active treatments */}
+        {medications.filter(m => m.status === 'active').length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--nanny-purple)] mb-2 flex items-center gap-1">
+              <Pill size={14} /> TRATAMIENTOS ACTIVOS
+            </h2>
+            <div className="space-y-2">
+              {medications.filter(m => m.status === 'active').map(med => {
+                const start = new Date(med.start_date);
+                const daysPassed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+                const totalDays = med.duration_days || 1;
+                const progress = Math.min(100, Math.round((daysPassed / totalDays) * 100));
+                const daysLeft = Math.max(0, totalDays - daysPassed);
+                return (
+                  <div key={med.id} className="bg-white rounded-xl p-3 shadow-sm">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-sm">💊 {med.medication_name}</p>
+                        <p className="text-xs text-[var(--nanny-gray)] mt-0.5">{med.child_name} — {med.frequency || ''}</p>
+                        {med.schedule_times?.length > 0 && (
+                          <p className="text-xs text-[var(--nanny-gray)]">Horarios: {med.schedule_times.join(', ')}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-medium text-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)] px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {daysLeft === 0 ? 'Último día' : `${daysLeft}d restantes`}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-[var(--nanny-gray-light)] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--nanny-purple)] rounded-full transition-all"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[var(--nanny-gray)] mt-1">Día {daysPassed + 1} de {totalDays}</p>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

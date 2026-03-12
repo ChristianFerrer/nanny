@@ -60,7 +60,7 @@ Responde SIEMPRE en JSON con esta estructura:
 {
   "should_respond": true/false,
   "reply": "tu mensaje (confirma + preguntas de seguimiento). String vacío si should_respond es false",
-  "intent": "EVENT|TASK|INFO|CHAT|UPDATE|REMINDER|MEDICATION",
+  "intent": "EVENT|TASK|INFO|CHAT|UPDATE|REMINDER|MEDICATION|HEALTH_LOG",
   "child": "nombre del hijo si aplica o null",
   "confirmation": null o {
     "type": "event|task|medication",
@@ -111,6 +111,31 @@ Debes responder con:
   }
 }
 
+DETECCIÓN DE SÍNTOMAS / CONDICIONES DE SALUD (HEALTH_LOG):
+Cuando los padres mencionan síntomas o condiciones de un hijo SIN tratamiento específico:
+- Fiebre, temperatura, dolor, tos, vómito, diarrea, alergia, sarpullido, etc.
+- "Pau tiene fiebre", "le duele la garganta", "está con tos"
+
+Usa intent=HEALTH_LOG, confirmation=null. Registra en el reply qué síntoma detectaste y pregunta si necesitan agendar cita médica.
+
+Ejemplo:
+{
+  "should_respond": true,
+  "reply": "Anoté que Pau tiene fiebre. ¿Le tomaron la temperatura? ¿Quieren que agende una cita con el pediatra?",
+  "intent": "HEALTH_LOG",
+  "child": "Pau",
+  "confirmation": null
+}
+
+DETECCIÓN ENRIQUECIDA DE CITAS MÉDICAS:
+Cuando detectes una cita médica (pediatra, dentista, oftalmólogo, vacuna, etc.), SIEMPRE pregunta en el reply:
+1. ¿Quién lo lleva?
+2. ¿Necesitan llevar estudios, documentos o algo especial?
+
+Ejemplo:
+- "Pau tiene cita con el pediatra mañana"
+Responde con intent=EVENT, tipo=doctor, y en el reply incluye: "¿Quién lo lleva? ¿Necesitan llevar algún estudio o documento?"
+
 CONTEXTO DE LA FAMILIA:
 {family_context}
 
@@ -130,13 +155,14 @@ REGLAS:
 1. OBLIGATORIO: Si detectas un evento, tarea o medicamento, SIEMPRE incluye "confirmation" con todos los datos posibles. NUNCA uses intent=EVENT/TASK/MEDICATION sin confirmation.
 2. SIEMPRE haz preguntas de seguimiento en el reply para coordinar.
 3. Infiere fechas cuando sea obvio ("mañana" = día siguiente, "el lunes" = próximo lunes, "el sábado 7/3" = sábado 7 de marzo). Si no mencionan hora, usa una hora razonable (citas médicas: 10:00, eventos escolares: 08:00, actividades tarde: 16:00).
-4. Si el mensaje es chat casual sin eventos, tareas ni info médica, intent=CHAT y confirmation=null.
+4. Si el mensaje es chat casual sin eventos, tareas ni info médica ni síntomas, intent=CHAT y confirmation=null.
 5. Si mencionan un hijo, inclúyelo en child.
 6. Responde SOLO el JSON, sin texto adicional.
 7. Máximo 3-4 oraciones en el reply: confirma lo detectado + preguntas de coordinación.
 8. NO dupliques: revisa EVENTOS YA AGENDADOS, TAREAS PENDIENTES y MEDICAMENTOS ACTIVOS. Si ya existe, NO incluyas confirmation — menciona que ya está registrado y ofrece actualizarlo.
 9. ANALIZA VARIOS MENSAJES JUNTOS. La información de un tratamiento puede venir en 3-4 mensajes separados. Junta toda la información antes de responder.
-10. Para medicamentos: si falta información crítica (horarios, duración), pregunta lo que falta en vez de inventarlo.`;
+10. Para medicamentos: si falta información crítica (horarios, duración), pregunta lo que falta en vez de inventarlo.
+11. Para HEALTH_LOG: no crees confirmation, solo registra el síntoma en el reply y ofrece ayuda.`;
 
 export async function POST(req: NextRequest) {
   try {
