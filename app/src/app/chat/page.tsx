@@ -88,18 +88,32 @@ export default function ChatPage() {
 
       const data = await res.json();
 
-      const nannyMsg = await addMessage({
-        family_id: familyId,
-        sender_id: null,
-        sender_type: 'nanny',
-        content: data.reply || data.error || 'Hmm, no entendí. ¿Puedes repetir?',
-        message_type: data.confirmation ? 'confirmation' : 'text',
-        metadata: {
-          intent: data.intent,
-          child: data.child,
-        },
-      });
-      setMessages(prev => [...prev, nannyMsg]);
+      if (data.error) {
+        // Show API error as a local message (don't persist errors to DB)
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          family_id: familyId,
+          sender_id: null,
+          sender_type: 'nanny',
+          content: `⚠️ ${data.error}`,
+          message_type: 'text',
+          metadata: {},
+          created_at: new Date().toISOString(),
+        }]);
+      } else {
+        const nannyMsg = await addMessage({
+          family_id: familyId,
+          sender_id: null,
+          sender_type: 'nanny',
+          content: data.reply || 'Hmm, no entendí. ¿Puedes repetir?',
+          message_type: data.confirmation ? 'confirmation' : 'text',
+          metadata: {
+            intent: data.intent,
+            child: data.child,
+          },
+        });
+        setMessages(prev => [...prev, nannyMsg]);
+      }
     } catch {
       const errorMsg = await addMessage({
         family_id: familyId,

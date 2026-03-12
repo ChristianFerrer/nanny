@@ -50,31 +50,30 @@ REGLAS:
 7. Responde SOLO el JSON, sin texto adicional`;
 
 export async function POST(req: NextRequest) {
-  let message = '';
-  let familyContext = '';
-  let recentMessages = '';
-
   try {
     const body = await req.json();
-    message = body.message || '';
-    familyContext = body.familyContext || '';
-    recentMessages = body.recentMessages || '';
+    const message = body.message || '';
+    const familyContext = body.familyContext || '';
+    const recentMessages = body.recentMessages || '';
 
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey || apiKey === 'tu-openai-api-key-aqui') {
-      console.warn('OPENAI_API_KEY not configured — using mock responses');
-      return NextResponse.json(getMockResponse(message));
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY no está configurada en el servidor.' },
+        { status: 500 }
+      );
     }
 
     const openai = new OpenAI({ apiKey });
 
     const systemPrompt = SYSTEM_PROMPT
-      .replace('{family_context}', familyContext || 'Familia con 2 hijos: Pau (4 años, va al colegio) y Mía (2 años)')
-      .replace('{recent_messages}', recentMessages || '');
+      .replace('{family_context}', familyContext)
+      .replace('{recent_messages}', recentMessages);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 500,
+      temperature: 0.7,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
@@ -83,118 +82,52 @@ export async function POST(req: NextRequest) {
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      return NextResponse.json({ error: 'No response from AI' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'No se recibió respuesta de la IA.' },
+        { status: 500 }
+      );
     }
 
-    const parsed = JSON.parse(content);
-    return NextResponse.json(parsed);
+    // Parse JSON response, handling potential markdown code blocks
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    try {
+      const parsed = JSON.parse(cleanContent);
+      return NextResponse.json(parsed);
+    } catch {
+      // If AI didn't return valid JSON, wrap the text as a chat reply
+      return NextResponse.json({
+        reply: content,
+        intent: 'CHAT',
+        child: null,
+        confirmation: null,
+      });
+    }
   } catch (error: unknown) {
     console.error('Chat API error:', error instanceof Error ? error.message : error);
-    // If OpenAI fails, fall back to mock
-    return NextResponse.json(getMockResponse(message));
+
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+
+    // Surface specific OpenAI errors
+    if (errorMessage.includes('Incorrect API key') || errorMessage.includes('invalid_api_key')) {
+      return NextResponse.json(
+        { error: 'La API key de OpenAI es inválida. Verifica la configuración.' },
+        { status: 401 }
+      );
+    }
+    if (errorMessage.includes('insufficient_quota') || errorMessage.includes('rate_limit')) {
+      return NextResponse.json(
+        { error: 'Se agotó la cuota de OpenAI o hay demasiadas solicitudes. Intenta en unos minutos.' },
+        { status: 429 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Error al comunicarse con la IA. Intenta de nuevo.' },
+      { status: 500 }
+    );
   }
-}
-
-function detectChild(lower: string): string | null {
-  if (lower.includes('mía') || lower.includes('mia')) return 'Mía';
-  if (lower.includes('pau')) return 'Pau';
-  return null;
-}
-
-function getMockResponse(message: string) {
-  const lower = message.toLowerCase();
-  const child = detectChild(lower);
-
-  // Greetings
-  if (/^(hola|hey|buenos|buenas|hi|qué tal|que tal|ey)\b/.test(lower)) {
-    return {
-      reply: '¡Hola! 👋 Aquí estoy. ¿En qué les puedo ayudar?',
-      intent: 'CHAT',
-      child: null,
-      confirmation: null,
-    };
-  }
-
-  // Medical appointments
-  if (lower.includes('doctor') || lower.includes('pediatra') || lower.includes('cita') || lower.includes('médico') || lower.includes('medico') || lower.includes('hospital') || lower.includes('dentista') || lower.includes('vacuna')) {
-    return {
-      reply: '📅 Entendido, agendo la cita médica. ¿A qué hora es y con qué doctor?',
-      intent: 'EVENT',
-      child: child || 'Pau',
-      confirmation: {
-        type: 'event',
-        data: { title: 'Cita médica', event_type: 'doctor', date_description: 'Por confirmar' },
-      },
-    };
-  }
-
-  // Tasks: shopping, errands
-  if (lower.includes('comprar') || lower.includes('llevar') || lower.includes('traer') || lower.includes('falta') || lower.includes('necesitamos') || lower.includes('uniforme') || lower.includes('ropa') || lower.includes('pañales') || lower.includes('leche')) {
-    return {
-      reply: `📝 Anoté: ${message}. ¿Quién se encarga? ¿Para cuándo lo necesitan?`,
-      intent: 'TASK',
-      child,
-      confirmation: {
-        type: 'task',
-        data: { title: message, assigned_to: null },
-      },
-    };
-  }
-
-  // School events
-  if (lower.includes('colegio') || lower.includes('escuela') || lower.includes('festival') || lower.includes('clase') || lower.includes('maestra') || lower.includes('tarea') || lower.includes('recreo')) {
-    return {
-      reply: '🏫 Lo tengo, evento escolar registrado. ¿Necesitan preparar algo especial?',
-      intent: 'EVENT',
-      child: child || 'Pau',
-      confirmation: {
-        type: 'event',
-        data: { title: message, event_type: 'school', date_description: 'Por confirmar' },
-      },
-    };
-  }
-
-  // Time-based events: pickup, activities, appointments with hours
-  if (lower.includes('recoger') || lower.includes('sale a las') || lower.includes('llevar a') || lower.includes('visitar') || lower.includes('tenemos que') || lower.includes('hay que') || /\b\d{1,2}(:\d{2})?\s*(am|pm|hrs|h)?\b/.test(lower)) {
-    return {
-      reply: `📋 Anotado: ${message}. ¿Quién se encarga de esto?`,
-      intent: 'EVENT',
-      child,
-      confirmation: {
-        type: 'event',
-        data: { title: message, event_type: 'activity', date_description: 'Hoy' },
-      },
-    };
-  }
-
-  // Birthday, celebrations
-  if (lower.includes('cumpleaños') || lower.includes('fiesta') || lower.includes('celebración') || lower.includes('piñata') || lower.includes('regalo')) {
-    return {
-      reply: '🎉 ¡Qué emoción! ¿Cuándo es y dónde será?',
-      intent: 'EVENT',
-      child,
-      confirmation: {
-        type: 'event',
-        data: { title: message, event_type: 'birthday', date_description: 'Por confirmar' },
-      },
-    };
-  }
-
-  // Thanks
-  if (lower.includes('gracias') || lower.includes('perfecto') || lower.includes('genial') || lower.includes('ok') || lower.includes('listo')) {
-    return {
-      reply: '👍 ¡De nada! Aquí estoy para lo que necesiten.',
-      intent: 'CHAT',
-      child: null,
-      confirmation: null,
-    };
-  }
-
-  // Default: acknowledge and ask for more info
-  return {
-    reply: `📝 Entendido: "${message}". ¿Necesitan que lo agende o es solo informativo?`,
-    intent: 'INFO',
-    child,
-    confirmation: null,
-  };
 }
