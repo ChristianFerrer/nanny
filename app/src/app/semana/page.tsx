@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
 import { getEvents, getChildren } from '@/lib/store';
 import type { FamilyEvent, Child } from '@/lib/types';
@@ -10,7 +10,6 @@ export default function SemanaPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
-  const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -92,8 +91,8 @@ export default function SemanaPage() {
               <button
                 key={i}
                 onClick={() => {
-                  setSelectedDayIdx(i);
-                  dayRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  // Toggle: deselect if already selected, otherwise select
+                  setSelectedDayIdx(prev => prev === i ? null : i);
                 }}
                 className={`flex flex-col items-center gap-1 py-1.5 px-2.5 rounded-xl transition-all ${
                   isSelected
@@ -122,25 +121,26 @@ export default function SemanaPage() {
         </div>
       </div>
 
-      {/* Day-by-day events */}
+      {/* Day-by-day events — filtered when a day is selected */}
       <div className="px-4 py-4 space-y-4 pb-20">
-        {days.map((day, i) => {
+        {days
+          .map((day, i) => ({ day, i }))
+          .filter(({ i }) => selectedDayIdx === null || selectedDayIdx === i)
+          .map(({ day, i }) => {
           const dayEvents = events.filter(e => {
             const ed = new Date(e.date_start);
             return ed.toDateString() === day.toDateString();
           });
           const isToday = day.toDateString() === today.toDateString();
-          const isSelected = selectedDayIdx === i;
           const isPast = day < today && !isToday;
 
           return (
             <div
               key={i}
-              ref={el => { dayRefs.current[i] = el; }}
-              className={`${isPast && !isSelected ? 'opacity-50' : ''} ${isSelected ? 'scroll-mt-40' : ''}`}
+              className={isPast && selectedDayIdx === null ? 'opacity-50' : ''}
             >
               <h3 className={`text-xs font-semibold mb-2 ${
-                isSelected ? 'text-[var(--nanny-purple)]' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
+                selectedDayIdx === i ? 'text-[var(--nanny-purple)]' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
               }`}>
                 {isToday ? '📍 HOY' : day.toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).toUpperCase()}
               </h3>
