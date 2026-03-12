@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetStatus, setResetStatus] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +165,40 @@ export default function LoginPage() {
             </p>
           )}
         </div>
+        {/* Reset button for testing */}
+        {email && (
+          <div className="mt-8 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              disabled={!!resetStatus}
+              onClick={async () => {
+                if (!confirm(`¿Borrar TODOS los datos de ${email}? Esta acción no se puede deshacer.`)) return;
+                setResetStatus('Borrando...');
+                try {
+                  const res = await fetch('/api/reset-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    setResetStatus('Datos borrados. Puedes registrarte de nuevo.');
+                    // Sign out locally
+                    await getSupabase().auth.signOut();
+                  } else {
+                    setResetStatus(data.error || 'Error al borrar');
+                  }
+                } catch {
+                  setResetStatus('Error de conexión');
+                }
+                setTimeout(() => setResetStatus(''), 4000);
+              }}
+              className="w-full text-xs text-[var(--nanny-gray)] py-2 hover:text-[var(--nanny-red)] transition-colors"
+            >
+              {resetStatus || `Reiniciar datos de ${email}`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
