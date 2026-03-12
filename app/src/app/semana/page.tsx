@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
 import { getEvents, getChildren } from '@/lib/store';
 import type { FamilyEvent, Child } from '@/lib/types';
@@ -9,6 +9,8 @@ export default function SemanaPage() {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -52,7 +54,7 @@ export default function SemanaPage() {
       <div className="bg-white border-b px-4 pt-12 pb-4 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-3">
           <button
-            onClick={() => setWeekOffset(w => w - 1)}
+            onClick={() => { setWeekOffset(w => w - 1); setSelectedDayIdx(null); }}
             className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)]"
           >
             <ChevronLeft size={20} />
@@ -61,7 +63,7 @@ export default function SemanaPage() {
             <h1 className="font-semibold capitalize">{monthYear}</h1>
             {weekOffset !== 0 && (
               <button
-                onClick={() => setWeekOffset(0)}
+                onClick={() => { setWeekOffset(0); setSelectedDayIdx(null); }}
                 className="text-xs text-[var(--nanny-purple)] font-medium"
               >
                 Ir a esta semana
@@ -69,39 +71,52 @@ export default function SemanaPage() {
             )}
           </div>
           <button
-            onClick={() => setWeekOffset(w => w + 1)}
+            onClick={() => { setWeekOffset(w => w + 1); setSelectedDayIdx(null); }}
             className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)]"
           >
             <ChevronRight size={20} />
           </button>
         </div>
 
-        {/* Day pills */}
+        {/* Day pills — selectable */}
         <div className="flex justify-between">
           {days.map((day, i) => {
             const isToday = day.toDateString() === today.toDateString();
+            const isSelected = selectedDayIdx === i;
             const dayEvents = events.filter(e => {
               const ed = new Date(e.date_start);
               return ed.toDateString() === day.toDateString();
             });
             const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
             return (
-              <div
+              <button
                 key={i}
-                className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl ${
-                  isToday ? 'bg-[var(--nanny-purple)] text-white' : ''
+                onClick={() => {
+                  setSelectedDayIdx(i);
+                  dayRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`flex flex-col items-center gap-1 py-1.5 px-2.5 rounded-xl transition-all ${
+                  isSelected
+                    ? 'bg-[var(--nanny-purple)] text-white scale-105'
+                    : isToday
+                      ? 'bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] ring-2 ring-[var(--nanny-purple)]'
+                      : 'hover:bg-[var(--nanny-gray-light)]'
                 }`}
               >
-                <span className={`text-[10px] font-medium ${isToday ? 'text-white/80' : 'text-[var(--nanny-gray)]'}`}>
+                <span className={`text-[10px] font-medium ${
+                  isSelected ? 'text-white/80' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
+                }`}>
                   {dayNames[i]}
                 </span>
-                <span className={`text-sm font-semibold ${isToday ? '' : ''}`}>
+                <span className="text-sm font-semibold">
                   {day.getDate()}
                 </span>
                 {dayEvents.length > 0 && (
-                  <div className={`w-1.5 h-1.5 rounded-full ${isToday ? 'bg-white' : 'bg-[var(--nanny-purple)]'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    isSelected ? 'bg-white' : isToday ? 'bg-[var(--nanny-purple)]' : 'bg-[var(--nanny-purple)]'
+                  }`} />
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -115,14 +130,17 @@ export default function SemanaPage() {
             return ed.toDateString() === day.toDateString();
           });
           const isToday = day.toDateString() === today.toDateString();
+          const isSelected = selectedDayIdx === i;
           const isPast = day < today && !isToday;
 
-          if (dayEvents.length === 0 && !isToday) return null;
-
           return (
-            <div key={i} className={isPast ? 'opacity-50' : ''}>
+            <div
+              key={i}
+              ref={el => { dayRefs.current[i] = el; }}
+              className={`${isPast && !isSelected ? 'opacity-50' : ''} ${isSelected ? 'scroll-mt-40' : ''}`}
+            >
               <h3 className={`text-xs font-semibold mb-2 ${
-                isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
+                isSelected ? 'text-[var(--nanny-purple)]' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
               }`}>
                 {isToday ? '📍 HOY' : day.toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).toUpperCase()}
               </h3>
