@@ -82,8 +82,64 @@ Responde SIEMPRE en JSON con esta estructura:
       "frequency": "descripción de frecuencia (ej: cada 8 horas)",
       "schedule_times": ["08:00", "16:00", "00:00"]
     }
+  },
+  "pending_detection": null o {
+    "type": "event|task|medication",
+    "partial_data": { campos que ya se conocen },
+    "missing": ["lista de lo que falta"],
+    "summary": "descripción breve de lo que se detectó parcialmente"
   }
 }
+
+CONTEXT STITCHING — CONVERSACIONES INCOMPLETAS:
+Los padres hablan con frases cortas e incompletas. DEBES unir contexto entre varios mensajes.
+
+Ejemplo:
+Papá: "Pau tiene fútbol el jueves"
+Mamá: "¿a qué hora?"
+Papá: "17"
+Mamá: "ok"
+
+Cuando recibes "Pau tiene fútbol el jueves" → tienes evento parcial (falta hora). NO crees el evento incompleto. En su lugar:
+- Pon should_respond: true
+- En el reply, confirma lo detectado y pregunta lo que falta: "Anoté fútbol de Pau el jueves. ¿A qué hora?"
+- Pon confirmation: null (NO crear todavía)
+- Pon pending_detection con los datos parciales y lo que falta
+
+Cuando luego recibes "17" y hay una DETECCIÓN PENDIENTE de fútbol:
+- Completa el evento con hora 17:00
+- AHORA sí incluye confirmation con todos los datos
+- Pon pending_detection: null (ya está completo)
+
+DETECCIONES PENDIENTES ACTUALES:
+{pending_detection}
+
+REGLAS DE PENDING DETECTION:
+- Si hay una detección pendiente y el mensaje actual la COMPLETA (aporta la info que faltaba), crea la confirmation final.
+- Si hay una detección pendiente y el mensaje dice "ok", "sí", "dale", "listo", "va", "perfecto" → es una CONFIRMACIÓN IMPLÍCITA. Crea la confirmation con los datos que tengas (usa valores razonables para lo que falte).
+- Si hay una detección pendiente y el mensaje es TOTALMENTE distinto (otro tema), abandona la detección pendiente y procesa el nuevo mensaje normalmente.
+- Si NO hay detección pendiente, analiza el mensaje normalmente.
+
+DETECCIÓN DE DELEGACIÓN:
+Cuando un padre dice "yo no puedo", "no puedo ir", "no me da tiempo" y el otro responde "ok yo lo hago", "yo veo eso", "yo lo llevo":
+- Asigna la tarea/evento al padre que acepta (assigned_to).
+- Ejemplo: Mamá: "yo no puedo ir al pediatra" → Papá: "ok lo llevo yo" → assigned_to: "papa"
+
+EJEMPLO DE CONTEXT STITCHING:
+Mensajes:
+- Papá: "pediatra mañana"
+- Mamá: "yo no puedo"
+- Papá: "ok lo llevo"
+
+Primer mensaje ("pediatra mañana"):
+→ pending_detection: { type: "event", partial_data: { title: "Cita pediatra", event_type: "doctor", date_start: "2026-03-13T10:00:00" }, missing: ["quién lo lleva", "hora exacta"], summary: "Cita pediatra mañana" }
+→ reply: "Anoté cita con el pediatra mañana. ¿A qué hora? ¿Quién lo lleva?"
+→ confirmation: null
+
+Tercer mensaje ("ok lo llevo") con pending_detection activa:
+→ confirmation: { type: "event", data: { title: "Cita pediatra", event_type: "doctor", date_start: "2026-03-13T10:00:00", assigned_to: "papa" } }
+→ pending_detection: null
+→ reply: "Listo! Cita pediatra mañana a las 10:00, lleva papá 📅 ¿Necesitan llevar algún estudio o documento?"
 
 EJEMPLO DE DETECCIÓN DE MEDICAMENTO:
 Si en los mensajes recientes ves:
@@ -152,17 +208,20 @@ MENSAJES RECIENTES:
 {recent_messages}
 
 REGLAS:
-1. OBLIGATORIO: Si detectas un evento, tarea o medicamento, SIEMPRE incluye "confirmation" con todos los datos posibles. NUNCA uses intent=EVENT/TASK/MEDICATION sin confirmation.
+1. OBLIGATORIO: Solo incluye "confirmation" cuando tienes SUFICIENTES datos para crear el item. Si falta info crítica, usa pending_detection en vez de crear algo incompleto.
 2. SIEMPRE haz preguntas de seguimiento en el reply para coordinar.
 3. Infiere fechas cuando sea obvio ("mañana" = día siguiente, "el lunes" = próximo lunes, "el sábado 7/3" = sábado 7 de marzo). Si no mencionan hora, usa una hora razonable (citas médicas: 10:00, eventos escolares: 08:00, actividades tarde: 16:00).
-4. Si el mensaje es chat casual sin eventos, tareas ni info médica ni síntomas, intent=CHAT y confirmation=null.
+4. Si el mensaje es chat casual sin eventos, tareas ni info médica ni síntomas, intent=CHAT y confirmation=null y pending_detection=null.
 5. Si mencionan un hijo, inclúyelo en child.
 6. Responde SOLO el JSON, sin texto adicional.
 7. Máximo 3-4 oraciones en el reply: confirma lo detectado + preguntas de coordinación.
 8. NO dupliques: revisa EVENTOS YA AGENDADOS, TAREAS PENDIENTES y MEDICAMENTOS ACTIVOS. Si ya existe, NO incluyas confirmation — menciona que ya está registrado y ofrece actualizarlo.
-9. ANALIZA VARIOS MENSAJES JUNTOS. La información de un tratamiento puede venir en 3-4 mensajes separados. Junta toda la información antes de responder.
-10. Para medicamentos: si falta información crítica (horarios, duración), pregunta lo que falta en vez de inventarlo.
-11. Para HEALTH_LOG: no crees confirmation, solo registra el síntoma en el reply y ofrece ayuda.`;
+9. ANALIZA VARIOS MENSAJES JUNTOS. La información puede venir en 3-4 mensajes separados. Junta toda la información antes de responder.
+10. Para CUALQUIER tipo (evento, tarea, medicamento): si falta información crítica, NO inventes — pregunta lo que falta y usa pending_detection.
+11. Para HEALTH_LOG: no crees confirmation, solo registra el síntoma en el reply y ofrece ayuda.
+12. Para eventos: información mínima necesaria = título + fecha. Si tienes eso, crea confirmation. Si falta la fecha, usa pending_detection.
+13. Para tareas: información mínima necesaria = título. Si tienes eso, puedes crear confirmation directamente.
+14. Para medicamentos: información mínima = nombre + frecuencia u horarios. Si falta, usa pending_detection.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -174,6 +233,7 @@ export async function POST(req: NextRequest) {
     const existingTasks = body.existingTasks || 'Ninguna';
     const activeMedications = body.activeMedications || 'Ninguno';
     const senderName = body.senderName || 'Padre';
+    const pendingDetection = body.pendingDetection || null;
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -187,18 +247,23 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
     const currentDate = now.toISOString().split('T')[0] + ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ')';
+    const pendingDetectionStr = pendingDetection
+      ? `ACTIVA: ${JSON.stringify(pendingDetection)}\nIMPORTANTE: Hay una detección pendiente. Si el mensaje actual aporta información que falta o es una confirmación (ok/sí/dale/listo), COMPLETA la detección y emite confirmation. Si es otro tema, abandónala.`
+      : 'Ninguna';
+
     const systemPrompt = SYSTEM_PROMPT
       .replace('{family_context}', familyContext)
       .replace('{recent_messages}', recentMessages)
       .replace('{existing_events}', existingEvents || 'Ninguno')
       .replace('{existing_tasks}', existingTasks || 'Ninguna')
       .replace('{active_medications}', activeMedications || 'Ninguno')
+      .replace('{pending_detection}', pendingDetectionStr)
       .replace('{current_date}', currentDate)
       .replace('{sender_name}', senderName);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      max_tokens: 700,
+      max_tokens: 900,
       temperature: 0.7,
       messages: [
         { role: 'system', content: systemPrompt },

@@ -25,6 +25,12 @@ export default function ChatPage() {
     childName: string;
   } | null>(null);
   const [editingMedTimes, setEditingMedTimes] = useState<string[] | null>(null);
+  const [pendingDetection, setPendingDetection] = useState<{
+    type: string;
+    partial_data: Record<string, unknown>;
+    missing: string[];
+    summary: string;
+  } | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +146,7 @@ export default function ChatPage() {
           existingTasks,
           activeMedications: activeMeds || 'Ninguno',
           senderName: currentParentObj?.name || 'Padre',
+          pendingDetection,
         }),
       });
 
@@ -227,6 +234,14 @@ export default function ChatPage() {
           } catch {
             console.error('Failed to auto-create event/task');
           }
+        }
+
+        // Update pending detection state
+        if (data.pending_detection && data.pending_detection.type) {
+          setPendingDetection(data.pending_detection);
+        } else if (data.confirmation) {
+          // If we got a confirmation, the detection is complete — clear pending
+          setPendingDetection(null);
         }
 
         // Only show Nanny's reply if she should respond (not a parent-to-parent message)
@@ -625,6 +640,21 @@ export default function ChatPage() {
                 {c.emoji} {c.name}
               </span>
             ))}
+          </div>
+        )}
+        {/* Pending detection indicator */}
+        {pendingDetection && (
+          <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[10px] text-amber-700 font-medium">
+              Escuchando: {pendingDetection.summary}
+            </span>
+            <button
+              onClick={() => setPendingDetection(null)}
+              className="ml-auto text-amber-400 hover:text-amber-600"
+            >
+              <X size={12} />
+            </button>
           </div>
         )}
       </div>
