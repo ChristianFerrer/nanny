@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import type { Message, Parent, Child, FamilyEvent, Task } from '@/lib/types';
 
@@ -326,6 +326,19 @@ export default function ChatPage() {
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
                 }>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  {/* Event/Task badge */}
+                  {isNanny && msg.metadata?.intent === 'EVENT' && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
+                      <CalendarDays size={14} className="text-[var(--nanny-purple)]" />
+                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Evento registrado</span>
+                    </div>
+                  )}
+                  {isNanny && msg.metadata?.intent === 'TASK' && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
+                      <CheckSquare size={14} className="text-[var(--nanny-purple)]" />
+                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tarea registrada</span>
+                    </div>
+                  )}
                 </div>
                 {/* Feedback buttons for Nanny messages */}
                 {isNanny && (
