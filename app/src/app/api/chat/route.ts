@@ -43,6 +43,12 @@ Responde SIEMPRE en JSON con esta estructura:
 CONTEXTO DE LA FAMILIA:
 {family_context}
 
+EVENTOS YA AGENDADOS:
+{existing_events}
+
+TAREAS PENDIENTES:
+{existing_tasks}
+
 MENSAJES RECIENTES:
 {recent_messages}
 
@@ -53,7 +59,8 @@ REGLAS:
 4. Si el mensaje es chat casual sin eventos ni tareas, intent=CHAT y confirmation=null.
 5. Si mencionan un hijo, inclúyelo en child.
 6. Responde SOLO el JSON, sin texto adicional.
-7. Máximo 3-4 oraciones en el reply: confirma lo agendado + preguntas de coordinación.`;
+7. Máximo 3-4 oraciones en el reply: confirma lo agendado + preguntas de coordinación.
+8. NO dupliques: revisa EVENTOS YA AGENDADOS y TAREAS PENDIENTES antes de crear uno nuevo. Si el evento/tarea ya existe, NO incluyas confirmation — en su lugar, menciona que ya está agendado y ofrece actualizarlo si es necesario.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,6 +68,8 @@ export async function POST(req: NextRequest) {
     const message = body.message || '';
     const familyContext = body.familyContext || '';
     const recentMessages = body.recentMessages || '';
+    const existingEvents = body.existingEvents || 'Ninguno';
+    const existingTasks = body.existingTasks || 'Ninguna';
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -77,6 +86,8 @@ export async function POST(req: NextRequest) {
     const systemPrompt = SYSTEM_PROMPT
       .replace('{family_context}', familyContext)
       .replace('{recent_messages}', recentMessages)
+      .replace('{existing_events}', existingEvents || 'Ninguno')
+      .replace('{existing_tasks}', existingTasks || 'Ninguna')
       .replace('{current_date}', currentDate);
 
     const response = await openai.chat.completions.create({

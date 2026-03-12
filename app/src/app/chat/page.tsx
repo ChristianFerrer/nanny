@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
-import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily } from '@/lib/store';
-import type { Message, Parent, Child } from '@/lib/types';
+import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks } from '@/lib/store';
+import type { Message, Parent, Child, FamilyEvent, Task } from '@/lib/types';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [events, setEvents] = useState<FamilyEvent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [familyId, setFamilyId] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -20,14 +22,16 @@ export default function ChatPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [fam, msgs, prts, chld] = await Promise.all([
-        getFamily(), getMessages(), getParents(), getChildren(),
+      const [fam, msgs, prts, chld, evts, tsks] = await Promise.all([
+        getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(),
       ]);
       if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
       setMessages(msgs);
       setParents(prts);
       setChildren(chld);
+      setEvents(evts);
+      setTasks(tsks);
       if (prts.length > 0 && !currentParent) {
         setCurrentParent(prts[0].id);
       }
@@ -77,6 +81,14 @@ export default function ChatPage() {
 
       const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
 
+      // Include existing events/tasks so AI knows what's already scheduled
+      const existingEvents = events.slice(-10).map(e =>
+        `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
+      ).join('\n');
+      const existingTasks = tasks.filter(t => t.status !== 'done').slice(-10).map(t =>
+        `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''})`
+      ).join('\n');
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,6 +96,8 @@ export default function ChatPage() {
           message: text,
           familyContext: familyCtx,
           recentMessages: recentMsgs,
+          existingEvents,
+          existingTasks,
         }),
       });
 
@@ -108,10 +122,20 @@ export default function ChatPage() {
           try {
             if (type === 'event') {
               const dateStart = (confData.date_start as string) || new Date().toISOString();
-              await addEvent({
+              const title = (confData.title as string) || 'Evento';
+              // Deduplicate: skip if same title + same day already exists
+              const newDay = dateStart.split('T')[0];
+              const isDuplicate = events.some(e =>
+                e.title.toLowerCase() === title.toLowerCase() &&
+                e.date_start.split('T')[0] === newDay
+              );
+              if (isDuplicate) {
+                console.log('Skipped duplicate event:', title, newDay);
+              } else {
+              const newEvent = await addEvent({
                 family_id: familyId,
                 child_id: null,
-                title: (confData.title as string) || 'Evento',
+                title,
                 description: (confData.date_description as string) || null,
                 event_type: (confData.event_type as string) || 'other',
                 date_start: dateStart,
@@ -122,11 +146,18 @@ export default function ChatPage() {
                 auto_detected: true,
                 created_by: currentParent,
               });
+              setEvents(prev => [...prev, newEvent]);
+              }
             } else if (type === 'task') {
-              await addTask({
+              const taskTitle = (confData.title as string) || 'Tarea';
+              const isDupTask = tasks.some(t =>
+                t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done'
+              );
+              if (!isDupTask) {
+              const newTask = await addTask({
                 family_id: familyId,
                 child_id: null,
-                title: (confData.title as string) || 'Tarea',
+                title: taskTitle,
                 description: null,
                 assigned_to: (confData.assigned_to as string) || null,
                 due_date: (confData.due_date as string) || null,
@@ -137,6 +168,8 @@ export default function ChatPage() {
                 created_by: currentParent,
                 completed_at: null,
               });
+              setTasks(prev => [...prev, newTask]);
+              }
             }
           } catch {
             console.error('Failed to auto-create event/task');
