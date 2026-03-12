@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
-import { getMessages, addMessage, getParents, getChildren, getFamily } from '@/lib/store';
+import { Send, ThumbsUp, ThumbsDown, Bot, Check, X } from 'lucide-react';
+import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily } from '@/lib/store';
 import type { Message, Parent, Child } from '@/lib/types';
 
 export default function ChatPage() {
@@ -13,6 +13,8 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [currentParent, setCurrentParent] = useState<string>('');
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
+  const [confirmationHandled, setConfirmationHandled] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
@@ -138,6 +140,83 @@ export default function ChatPage() {
     }
   };
 
+  const handleFeedback = async (messageId: string, useful: boolean) => {
+    setFeedbackGiven(prev => ({ ...prev, [messageId]: useful ? 'up' : 'down' }));
+    try {
+      const res = await fetch('/api/family-write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'intervention_feedback',
+          operation: 'insert',
+          data: {
+            id: crypto.randomUUID(),
+            message_id: messageId,
+            parent_id: currentParent,
+            useful,
+            created_at: new Date().toISOString(),
+          },
+        }),
+      });
+      if (!res.ok) console.error('Failed to save feedback');
+    } catch {
+      console.error('Failed to save feedback');
+    }
+  };
+
+  const handleConfirmation = async (msg: Message, accept: boolean) => {
+    setConfirmationHandled(prev => ({ ...prev, [msg.id]: accept ? 'accepted' : 'rejected' }));
+    const confirmation = msg.metadata as { confirmation?: { type: string; data: Record<string, unknown> }; child?: string };
+    if (!accept || !confirmation?.confirmation) return;
+
+    try {
+      const { type, data } = confirmation.confirmation;
+      if (type === 'event') {
+        await addEvent({
+          family_id: familyId,
+          child_id: null,
+          title: (data.title as string) || 'Evento',
+          description: (data.date_description as string) || null,
+          event_type: (data.event_type as string) || 'other',
+          date_start: new Date().toISOString(),
+          date_end: null,
+          location: (data.location as string) || null,
+          status: 'pending',
+          source: 'chat',
+          auto_detected: true,
+          created_by: currentParent,
+        });
+      } else if (type === 'task') {
+        await addTask({
+          family_id: familyId,
+          child_id: null,
+          title: (data.title as string) || 'Tarea',
+          description: null,
+          assigned_to: (data.assigned_to as string) || null,
+          due_date: null,
+          status: 'pending',
+          priority: 'normal',
+          source: 'chat',
+          auto_detected: true,
+          created_by: currentParent,
+          completed_at: null,
+        });
+      }
+      // Add confirmation message
+      const confirmMsg = await addMessage({
+        family_id: familyId,
+        sender_id: null,
+        sender_type: 'nanny',
+        content: `✅ ¡Listo! ${type === 'event' ? 'Evento' : 'Tarea'} "${(data.title as string) || ''}" agregado.`,
+        message_type: 'text',
+        metadata: {},
+      });
+      setMessages(prev => [...prev, confirmMsg]);
+    } catch {
+      console.error('Failed to handle confirmation');
+    }
+  };
+
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
@@ -222,15 +301,51 @@ export default function ChatPage() {
                 }>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 </div>
+                {/* Confirmation buttons for event/task suggestions */}
+                {isNanny && msg.message_type === 'confirmation' && !confirmationHandled[msg.id] && (
+                  <div className="flex gap-2 mt-2 ml-1">
+                    <button
+                      onClick={() => handleConfirmation(msg, true)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--nanny-green)] text-white text-xs font-medium"
+                    >
+                      <Check size={12} /> Aceptar
+                    </button>
+                    <button
+                      onClick={() => handleConfirmation(msg, false)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-medium"
+                    >
+                      <X size={12} /> Rechazar
+                    </button>
+                  </div>
+                )}
+                {isNanny && confirmationHandled[msg.id] && (
+                  <p className="text-[10px] mt-1 ml-1 text-[var(--nanny-gray)]">
+                    {confirmationHandled[msg.id] === 'accepted' ? '✅ Aceptado' : '❌ Rechazado'}
+                  </p>
+                )}
                 {/* Feedback buttons for Nanny messages */}
                 {isNanny && (
                   <div className="flex gap-2 mt-1 ml-1">
-                    <button className="text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors">
-                      <ThumbsUp size={12} />
-                    </button>
-                    <button className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)] transition-colors">
-                      <ThumbsDown size={12} />
-                    </button>
+                    {feedbackGiven[msg.id] ? (
+                      <span className="text-[10px] text-[var(--nanny-gray)]">
+                        {feedbackGiven[msg.id] === 'up' ? '👍 Gracias' : '👎 Anotado'}
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleFeedback(msg.id, true)}
+                          className="text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors"
+                        >
+                          <ThumbsUp size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(msg.id, false)}
+                          className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)] transition-colors"
+                        >
+                          <ThumbsDown size={12} />
+                        </button>
+                      </>
+                    )}
                     <span className="text-[9px] text-[var(--nanny-gray)]">
                       {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     </span>

@@ -244,7 +244,7 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
         <div className="text-center py-8 text-[var(--nanny-gray)]">
           <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
           <p className="text-sm">Sin rutinas registradas</p>
-          <p className="text-xs mt-1">Las rutinas se detectan automáticamente del chat</p>
+          <p className="text-xs mt-1">Puedes agregar rutinas desde el chat</p>
         </div>
       )}
     </div>
