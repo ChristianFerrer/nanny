@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare } from 'lucide-react';
 import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
@@ -389,12 +389,16 @@ export default function HoyPage() {
           )}
         </section>
 
-        {/* Urgent tasks */}
-        {urgentTasks.length > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-[var(--nanny-orange)] mb-2 flex items-center gap-1">
-              <AlertTriangle size={14} /> URGENTE
-            </h2>
+        {/* Tasks */}
+        <section>
+          <h2 className="text-sm font-semibold text-[var(--nanny-gray)] mb-2 flex items-center gap-1">
+            <CheckSquare size={14} /> TAREAS PENDIENTES ({tasks.length})
+          </h2>
+          {tasks.length === 0 ? (
+            <div className="bg-white rounded-xl p-4 text-center text-sm text-[var(--nanny-gray)]">
+              No hay tareas pendientes
+            </div>
+          ) : (
             <div className="space-y-2">
               {urgentTasks.map(task => (
                 <TaskCard
@@ -405,26 +409,17 @@ export default function HoyPage() {
                   onComplete={handleComplete}
                 />
               ))}
+              {normalTasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  child={getChild(task.child_id)}
+                  parent={getParent(task.assigned_to)}
+                  onComplete={handleComplete}
+                />
+              ))}
             </div>
-          </section>
-        )}
-
-        {/* Normal tasks */}
-        <section>
-          <h2 className="text-sm font-semibold text-[var(--nanny-gray)] mb-2">
-            PENDIENTES ({tasks.length})
-          </h2>
-          <div className="space-y-2">
-            {normalTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                child={getChild(task.child_id)}
-                parent={getParent(task.assigned_to)}
-                onComplete={handleComplete}
-              />
-            ))}
-          </div>
+          )}
         </section>
 
         {/* Upcoming */}

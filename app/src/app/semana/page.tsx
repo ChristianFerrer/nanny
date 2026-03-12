@@ -1,25 +1,34 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
-import { getEvents, getChildren } from '@/lib/store';
-import type { FamilyEvent, Child } from '@/lib/types';
+import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill } from 'lucide-react';
+import { getEvents, getChildren, getTasks, getMedications, completeTask } from '@/lib/store';
+import type { FamilyEvent, Child, Task, Medication } from '@/lib/types';
 
 export default function SemanaPage() {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [e, c] = await Promise.all([getEvents(), getChildren()]);
+      const [e, c, t, m] = await Promise.all([getEvents(), getChildren(), getTasks(), getMedications()]);
       setEvents(e);
       setChildren(c);
+      setTasks(t);
+      setMedications(m);
     } catch {
       window.location.href = '/login';
     }
   }, []);
+
+  const handleComplete = async (taskId: string) => {
+    await completeTask(taskId);
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -110,11 +119,20 @@ export default function SemanaPage() {
                 <span className="text-sm font-semibold">
                   {day.getDate()}
                 </span>
-                {dayEvents.length > 0 && (
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    isSelected ? 'bg-white' : isToday ? 'bg-[var(--nanny-purple)]' : 'bg-[var(--nanny-purple)]'
-                  }`} />
-                )}
+                {(() => {
+                  const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
+                  const hasItems = dayEvents.length > 0 || dayTasks.length > 0;
+                  return hasItems ? (
+                    <div className="flex gap-0.5">
+                      {dayEvents.length > 0 && (
+                        <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[var(--nanny-purple)]'}`} />
+                      )}
+                      {dayTasks.length > 0 && (
+                        <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/60' : 'bg-[var(--nanny-orange)]'}`} />
+                      )}
+                    </div>
+                  ) : null;
+                })()}
               </button>
             );
           })}
@@ -131,8 +149,10 @@ export default function SemanaPage() {
             const ed = new Date(e.date_start);
             return ed.toDateString() === day.toDateString();
           });
+          const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
           const isToday = day.toDateString() === today.toDateString();
           const isPast = day < today && !isToday;
+          const hasNothing = dayEvents.length === 0 && dayTasks.length === 0;
 
           return (
             <div
@@ -144,9 +164,9 @@ export default function SemanaPage() {
               }`}>
                 {isToday ? '📍 HOY' : day.toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).toUpperCase()}
               </h3>
-              {dayEvents.length === 0 ? (
+              {hasNothing ? (
                 <div className="bg-white rounded-xl p-3 text-center text-sm text-[var(--nanny-gray)]">
-                  Sin eventos
+                  Sin eventos ni tareas
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -180,11 +200,95 @@ export default function SemanaPage() {
                       </div>
                     );
                   })}
+                  {dayTasks.map(task => {
+                    const child = getChild(task.child_id);
+                    return (
+                      <div
+                        key={task.id}
+                        className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm"
+                      >
+                        <div className="flex items-start gap-2">
+                          <button
+                            onClick={() => handleComplete(task.id)}
+                            className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors shrink-0"
+                          >
+                            <Circle size={18} />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{task.title}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-[var(--nanny-gray)]">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium priority-${task.priority}`}>
+                                {task.priority}
+                              </span>
+                              {task.assigned_to && (
+                                <span className="text-[var(--nanny-gray)]">asignado</span>
+                              )}
+                            </div>
+                          </div>
+                          {child && <span className="text-lg">{child.emoji}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           );
         })}
+        {/* Tasks without due date */}
+        {tasks.filter(t => !t.due_date).length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-gray)]">
+              📋 TAREAS SIN FECHA
+            </h3>
+            <div className="space-y-2">
+              {tasks.filter(t => !t.due_date).map(task => {
+                const child = getChild(task.child_id);
+                return (
+                  <div key={task.id} className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm">
+                    <div className="flex items-start gap-2">
+                      <button
+                        onClick={() => handleComplete(task.id)}
+                        className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors shrink-0"
+                      >
+                        <Circle size={18} />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{task.title}</p>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium priority-${task.priority}`}>
+                          {task.priority}
+                        </span>
+                      </div>
+                      {child && <span className="text-lg">{child.emoji}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Active medications */}
+        {medications.filter(m => m.status === 'active').length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-purple)]">
+              💊 TRATAMIENTOS ACTIVOS
+            </h3>
+            <div className="space-y-2">
+              {medications.filter(m => m.status === 'active').map(med => (
+                <div key={med.id} className="bg-white rounded-xl p-3 border-l-4 border-l-purple-400 shadow-sm">
+                  <p className="font-medium text-sm">💊 {med.medication_name}</p>
+                  <p className="text-xs text-[var(--nanny-gray)] mt-0.5">
+                    {med.child_name} — {med.frequency || ''} — {med.schedule_times?.join(', ') || ''}
+                  </p>
+                  <p className="text-[10px] text-[var(--nanny-gray)] mt-0.5">
+                    {med.start_date} al {med.end_date || '?'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
