@@ -180,18 +180,21 @@ export default function ChatPage() {
           }
         }
 
-        const nannyMsg = await addMessage({
-          family_id: familyId,
-          sender_id: null,
-          sender_type: 'nanny',
-          content: data.reply || 'Hmm, no entendí. ¿Puedes repetir?',
-          message_type: 'text',
-          metadata: {
-            intent: data.intent,
-            child: data.child,
-          },
-        });
-        setMessages(prev => [...prev, nannyMsg]);
+        // Only show Nanny's reply if she should respond (not a parent-to-parent message)
+        if (data.should_respond !== false && data.reply) {
+          const nannyMsg = await addMessage({
+            family_id: familyId,
+            sender_id: null,
+            sender_type: 'nanny',
+            content: data.reply,
+            message_type: 'text',
+            metadata: {
+              intent: data.intent,
+              child: data.child,
+            },
+          });
+          setMessages(prev => [...prev, nannyMsg]);
+        }
       }
     } catch {
       const errorMsg = await addMessage({
