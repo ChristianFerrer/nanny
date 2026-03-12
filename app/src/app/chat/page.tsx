@@ -318,11 +318,9 @@ export default function ChatPage() {
             >
               <div className="max-w-[85%]">
                 {/* Sender label */}
-                {!isCurrentParent && (
-                  <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1">
-                    {isNanny ? '🤖 Nanny' : `${senderParent?.avatar_emoji} ${senderParent?.name}`}
-                  </p>
-                )}
+                <p className={`text-[10px] text-[var(--nanny-gray)] mb-1 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
+                  {isNanny ? '🤖 Nanny' : `${senderParent?.avatar_emoji || currentParentObj?.avatar_emoji} ${senderParent?.name || currentParentObj?.name}`}
+                </p>
                 <div className={
                   isNanny ? 'bubble-nanny' :
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
@@ -357,8 +355,8 @@ export default function ChatPage() {
                     </span>
                   </div>
                 )}
-                {isCurrentParent && (
-                  <p className="text-[9px] text-[var(--nanny-gray)] text-right mt-0.5 mr-1">
+                {!isNanny && (
+                  <p className={`text-[9px] text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                     {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -368,11 +366,14 @@ export default function ChatPage() {
         })}
         {sending && (
           <div className="flex justify-start animate-fade-in">
-            <div className="bubble-nanny">
-              <div className="flex gap-1 py-1">
-                <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple-light)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple-light)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple-light)] animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div>
+              <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1">🤖 Nanny</p>
+              <div className="bubble-nanny">
+                <div className="flex gap-1 py-1">
+                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
               </div>
             </div>
           </div>
