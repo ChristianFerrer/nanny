@@ -29,6 +29,7 @@ export default function OnboardingPage() {
   const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
   const [copied, setCopied] = useState(false);
   const [createdChildren, setCreatedChildren] = useState<{ name: string; emoji: string; age: string }[]>([]);
+  const [familyId, setFamilyId] = useState<string | null>(null);
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data: { user } }) => {
@@ -92,9 +93,14 @@ export default function OnboardingPage() {
           authUserId,
         }),
       });
+      const result = await res.json();
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Error al guardar');
+        throw new Error(result.error || 'Error al guardar');
+      }
+
+      // Save family ID for invite links
+      if (result.family_id) {
+        setFamilyId(result.family_id);
       }
 
       // Save children info for the wow screen
@@ -110,11 +116,11 @@ export default function OnboardingPage() {
     setSaving(false);
   };
 
-  const inviteMessage = `Estoy probando una app que organiza las cosas de los niños automáticamente.\n\nÚnete aquí: ${typeof window !== 'undefined' ? window.location.origin : ''}/login`;
+  const inviteLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/login${familyId ? `?invite=${familyId}` : ''}`;
+  const inviteMessage = `Estoy probando una app que organiza las cosas de los niños automáticamente.\n\nÚnete aquí: ${inviteLink}`;
 
   const handleCopyLink = () => {
-    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/login`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

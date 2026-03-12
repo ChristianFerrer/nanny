@@ -408,7 +408,8 @@ export default function PerfilPage() {
           <div className="space-y-2">
             <button
               onClick={() => {
-                const msg = `Estoy usando Nanny para organizar las cosas de los niños. Únete aquí: ${window.location.origin}/login`;
+                const inviteLink = `${window.location.origin}/login?invite=${family.id}`;
+                const msg = `Estoy usando Nanny para organizar las cosas de los niños. Únete aquí: ${inviteLink}`;
                 window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
               }}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-medium"
@@ -417,7 +418,7 @@ export default function PerfilPage() {
             </button>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/login`);
+                navigator.clipboard.writeText(`${window.location.origin}/login?invite=${family.id}`);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}

@@ -1,14 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Baby, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 type Mode = 'login' | 'register';
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteFamilyId = searchParams.get('invite');
   const [mode, setMode] = useState<Mode>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,6 +84,24 @@ export default function LoginPage() {
       }
     }
 
+    // If invite link, join the existing family
+    if (inviteFamilyId) {
+      try {
+        const joinRes = await fetch('/api/join-family', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ familyId: inviteFamilyId }),
+        });
+        const joinData = await joinRes.json();
+        if (joinData.success) {
+          router.replace('/chat');
+          return;
+        }
+      } catch {
+        // Fall through to normal check
+      }
+    }
+
     // Check if user has a family using admin API (bypasses RLS)
     try {
       const res = await fetch('/api/check-family');
@@ -93,7 +121,9 @@ export default function LoginPage() {
           </div>
           <h1 className="text-3xl font-bold">Bienvenido a Nanny</h1>
           <p className="text-sm text-[var(--nanny-gray)] mt-2 text-center max-w-[250px]">
-            Organiza la vida de tus hijos desde el chat.
+            {inviteFamilyId
+              ? 'Crea tu cuenta para unirte a la familia.'
+              : 'Organiza la vida de tus hijos desde el chat.'}
           </p>
         </div>
 
