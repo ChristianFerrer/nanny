@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
+import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import type { Message, Parent, Child, FamilyEvent, Task } from '@/lib/types';
 
 export default function ChatPage() {
@@ -16,6 +17,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [currentParent, setCurrentParent] = useState<string>('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
+  const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
@@ -51,6 +53,20 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Push notification registration
+  useEffect(() => {
+    if (!familyId) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+
+    if (Notification.permission === 'granted') {
+      registerPushNotifications().then((ok) => setPushStatus(ok ? 'granted' : 'denied'));
+    } else if (Notification.permission === 'default') {
+      setPushStatus('prompt');
+    } else {
+      setPushStatus('denied');
+    }
+  }, [familyId]);
+
   const currentParentObj = parents.find(p => p.id === currentParent);
   const otherParent = parents.find(p => p.id !== currentParent);
 
@@ -72,6 +88,14 @@ export default function ChatPage() {
       metadata: {},
     });
     setMessages(prev => [...prev, parentMsg]);
+
+    // Notify the other parent
+    sendPushToFamily(
+      familyId,
+      `${currentParentObj?.avatar_emoji} ${currentParentObj?.name}`,
+      text,
+      currentParent
+    );
 
     try {
       // Build context
@@ -194,6 +218,9 @@ export default function ChatPage() {
             },
           });
           setMessages(prev => [...prev, nannyMsg]);
+
+          // Notify all parents about Nanny's reply
+          sendPushToFamily(familyId, '🤖 Nanny', data.reply);
         }
       }
     } catch {
@@ -303,6 +330,28 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Push notification prompt */}
+      {pushStatus === 'prompt' && (
+        <div className="mx-4 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-bg)] rounded-xl px-4 py-3">
+          <Bell size={18} className="text-[var(--nanny-purple)] shrink-0" />
+          <p className="text-xs text-[var(--nanny-purple)] flex-1">
+            Activa las notificaciones para no perderte mensajes
+          </p>
+          <button
+            onClick={async () => {
+              const ok = await registerPushNotifications();
+              setPushStatus(ok ? 'granted' : 'denied');
+            }}
+            className="text-xs font-semibold text-white bg-[var(--nanny-purple)] px-3 py-1.5 rounded-lg shrink-0"
+          >
+            Activar
+          </button>
+          <button onClick={() => setPushStatus('denied')} className="text-[var(--nanny-gray)] shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-20">
