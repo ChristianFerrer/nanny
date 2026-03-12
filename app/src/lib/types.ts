@@ -192,10 +192,41 @@ export interface InterventionFeedback {
   created_at: string;
 }
 
+// Intent types - specific categories for better classification
+export type NannyIntent =
+  | 'EVENT_SCHOOL'        // Eventos escolares: excursiones, reuniones, festivales
+  | 'EVENT_ACTIVITY'      // Actividades extracurriculares: fútbol, natación, clases
+  | 'EVENT_MEDICAL'       // Citas médicas: pediatra, dentista, vacunas
+  | 'TASK_SHOPPING'       // Compras: pañales, útiles, ropa
+  | 'TASK_PAYMENT'        // Pagos: excursiones, colegiaturas, inscripciones
+  | 'MEDICATION'          // Tratamientos médicos con dosis/horarios
+  | 'LOGISTICS_PICKUP'    // Responsabilidad de recogida: "yo lo recojo"
+  | 'LOGISTICS_TRANSPORT' // Transporte: "puedes llevar a Pau al fútbol?"
+  | 'SCHEDULE_CHANGE'     // Cambios de horario: "lo movieron al jueves"
+  | 'MILESTONE'           // Fechas importantes: cumpleaños, graduaciones
+  | 'SUPPLY_LOW'          // Suministros bajos: "quedan pocos pañales"
+  | 'HEALTH_LOG'          // Síntomas sin tratamiento
+  | 'CHAT'                // Conversación casual
+  | 'INFO'                // Información general
+  | 'IGNORE';             // No requiere intervención
+
+// Next Best Action - what the system should do after classification
+export type NextAction =
+  | 'ask_for_missing_time'
+  | 'ask_for_missing_responsible_parent'
+  | 'confirm_event'
+  | 'confirm_task'
+  | 'confirm_medication'
+  | 'offer_reminders'
+  | 'update_existing_event'
+  | 'update_existing_task'
+  | 'stay_silent';
+
 // OpenAI response types
 export interface NannyResponse {
   reply: string;
-  intent: 'EVENT' | 'TASK' | 'INFO' | 'CHAT' | 'UPDATE' | 'REMINDER' | 'MEDICATION' | 'HEALTH_LOG';
+  intent: NannyIntent;
+  next_action: NextAction;
   child?: string;
   confirmation?: {
     type: 'event' | 'task' | 'medication';

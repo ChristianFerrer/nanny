@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
-import type { Message, Parent, Child, FamilyEvent, Task, Medication } from '@/lib/types';
+import { validateNannyResponse } from '@/lib/validation';
+import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -150,55 +151,52 @@ export default function ChatPage() {
         }),
       });
 
-      const data = await res.json();
+      const rawData = await res.json();
 
-      if (data.error) {
+      if (rawData.error) {
         // Show API error as a local message (don't persist errors to DB)
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           family_id: familyId,
           sender_id: null,
           sender_type: 'nanny',
-          content: `⚠️ ${data.error}`,
+          content: `⚠️ ${rawData.error}`,
           message_type: 'text',
           metadata: {},
           created_at: new Date().toISOString(),
         }]);
       } else {
-        // Auto-create event/task if Nanny detected one
+        // ═══ VALIDATION LAYER ═══
+        // LLM proposes, validation decides what's safe to persist
+        const data = validateNannyResponse(rawData, events, tasks, medications);
+
+        // Log validation warnings for debugging
+        if (data.validation_warnings.length > 0) {
+          console.log('[Validation warnings]:', data.validation_warnings);
+        }
+
+        // Auto-create event/task if Nanny detected one AND validation passed
         if (data.confirmation) {
           const { type, data: confData } = data.confirmation;
           try {
             if (type === 'medication') {
               // Don't auto-create — show confirmation buttons and wait for user response
-              // The nannyMsg will be created below, we store the pending confirmation
               const medMsgId = crypto.randomUUID();
               setPendingMedConfirm({
                 messageId: medMsgId,
                 data: confData,
-                childName: (data.child as string) || '',
+                childName: data.child || '',
               });
               // Store messageId for matching later
-              data._medMsgId = medMsgId;
+              (data as unknown as Record<string, unknown>)._medMsgId = medMsgId;
             } else if (type === 'event') {
-              const dateStart = (confData.date_start as string) || new Date().toISOString();
-              const title = (confData.title as string) || 'Evento';
-              // Deduplicate: skip if same title + same day already exists
-              const newDay = dateStart.split('T')[0];
-              const isDuplicate = events.some(e =>
-                e.title.toLowerCase() === title.toLowerCase() &&
-                e.date_start.split('T')[0] === newDay
-              );
-              if (isDuplicate) {
-                console.log('Skipped duplicate event:', title, newDay);
-              } else {
               const newEvent = await addEvent({
                 family_id: familyId,
                 child_id: null,
-                title,
+                title: confData.title as string,
                 description: (confData.date_description as string) || null,
                 event_type: (confData.event_type as string) || 'other',
-                date_start: dateStart,
+                date_start: confData.date_start as string,
                 date_end: null,
                 location: (confData.location as string) || null,
                 status: 'pending',
@@ -207,17 +205,11 @@ export default function ChatPage() {
                 created_by: currentParent,
               });
               setEvents(prev => [...prev, newEvent]);
-              }
             } else if (type === 'task') {
-              const taskTitle = (confData.title as string) || 'Tarea';
-              const isDupTask = tasks.some(t =>
-                t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done'
-              );
-              if (!isDupTask) {
               const newTask = await addTask({
                 family_id: familyId,
                 child_id: null,
-                title: taskTitle,
+                title: confData.title as string,
                 description: null,
                 assigned_to: (confData.assigned_to as string) || null,
                 due_date: (confData.due_date as string) || null,
@@ -229,7 +221,6 @@ export default function ChatPage() {
                 completed_at: null,
               });
               setTasks(prev => [...prev, newTask]);
-              }
             }
           } catch {
             console.error('Failed to auto-create event/task');
@@ -244,8 +235,9 @@ export default function ChatPage() {
           setPendingDetection(null);
         }
 
-        // Only show Nanny's reply if she should respond (not a parent-to-parent message)
+        // Only show Nanny's reply if she should respond
         if (data.should_respond !== false && data.reply) {
+          const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
           const nannyMsg = await addMessage({
             family_id: familyId,
             sender_id: null,
@@ -254,13 +246,14 @@ export default function ChatPage() {
             message_type: 'text',
             metadata: {
               intent: data.intent,
-              child: data.child,
-              ...(data._medMsgId ? { medConfirmId: data._medMsgId } : {}),
+              next_action: data.next_action,
+              child: data.child || undefined,
+              ...(medMsgId ? { medConfirmId: medMsgId } : {}),
               ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
             },
           });
           // Update pending med confirm with actual message ID
-          if (data._medMsgId) {
+          if (medMsgId) {
             setPendingMedConfirm(prev => prev ? { ...prev, messageId: nannyMsg.id } : null);
           }
           setMessages(prev => [...prev, nannyMsg]);
@@ -573,6 +566,41 @@ export default function ChatPage() {
   };
 
 
+  const renderIntentBadge = (intent: NannyIntent | undefined, hasPendingMed: boolean) => {
+    if (!intent) return null;
+
+    const badgeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; borderColor: string }> = {
+      EVENT_SCHOOL: { icon: <CalendarDays size={14} />, label: 'Evento escolar', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      EVENT_ACTIVITY: { icon: <CalendarDays size={14} />, label: 'Actividad', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      EVENT_MEDICAL: { icon: <CalendarDays size={14} />, label: 'Cita médica', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      MILESTONE: { icon: <CalendarDays size={14} />, label: 'Fecha importante', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      TASK_SHOPPING: { icon: <ShoppingCart size={14} />, label: 'Compra pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
+      TASK_PAYMENT: { icon: <CreditCard size={14} />, label: 'Pago pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
+      SUPPLY_LOW: { icon: <AlertTriangle size={14} />, label: 'Suministro bajo', color: 'text-orange-600', borderColor: 'border-orange-200' },
+      MEDICATION: { icon: <Pill size={14} />, label: hasPendingMed ? '¿Crear recordatorios?' : 'Tratamiento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      LOGISTICS_PICKUP: { icon: <Car size={14} />, label: 'Recogida asignada', color: 'text-green-600', borderColor: 'border-green-200' },
+      LOGISTICS_TRANSPORT: { icon: <Car size={14} />, label: 'Transporte', color: 'text-green-600', borderColor: 'border-green-200' },
+      SCHEDULE_CHANGE: { icon: <Clock size={14} />, label: 'Cambio de horario', color: 'text-amber-600', borderColor: 'border-amber-200' },
+      HEALTH_LOG: { icon: <Thermometer size={14} />, label: 'Síntoma registrado', color: 'text-amber-600', borderColor: 'border-amber-200' },
+      // Legacy intents (backward compatibility)
+      EVENT: { icon: <CalendarDays size={14} />, label: 'Evento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      TASK: { icon: <CheckSquare size={14} />, label: 'Tarea registrada', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+    };
+
+    const config = badgeConfig[intent];
+    if (!config) return null;
+
+    // Skip the standalone badge for MEDICATION when pending confirm is active (buttons shown separately)
+    if (intent === 'MEDICATION' && hasPendingMed) return null;
+
+    return (
+      <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${config.borderColor}`}>
+        <span className={config.color}>{config.icon}</span>
+        <span className={`text-[11px] font-medium ${config.color}`}>{config.label}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
@@ -703,31 +731,8 @@ export default function ChatPage() {
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
                 }>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  {/* Event/Task badge */}
-                  {isNanny && msg.metadata?.intent === 'EVENT' && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
-                      <CalendarDays size={14} className="text-[var(--nanny-purple)]" />
-                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Evento registrado</span>
-                    </div>
-                  )}
-                  {isNanny && msg.metadata?.intent === 'TASK' && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
-                      <CheckSquare size={14} className="text-[var(--nanny-purple)]" />
-                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tarea registrada</span>
-                    </div>
-                  )}
-                  {isNanny && msg.metadata?.intent === 'MEDICATION' && !pendingMedConfirm && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--nanny-purple-light)]">
-                      <Pill size={14} className="text-[var(--nanny-purple)]" />
-                      <span className="text-[11px] font-medium text-[var(--nanny-purple)]">Tratamiento registrado</span>
-                    </div>
-                  )}
-                  {isNanny && msg.metadata?.intent === 'HEALTH_LOG' && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-amber-200">
-                      <Thermometer size={14} className="text-amber-600" />
-                      <span className="text-[11px] font-medium text-amber-600">Síntoma registrado</span>
-                    </div>
-                  )}
+                  {/* Intent badges */}
+                  {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm)}
                   {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
                     <div className="mt-3 pt-2 border-t border-[var(--nanny-purple-light)]">
                       <div className="flex items-center gap-1.5 mb-2">
