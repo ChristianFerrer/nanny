@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication } from '@/lib/types';
@@ -24,6 +24,7 @@ export default function ChatPage() {
     data: Record<string, unknown>;
     childName: string;
   } | null>(null);
+  const [catchingUp, setCatchingUp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
@@ -363,6 +364,145 @@ export default function ChatPage() {
     setPendingMedConfirm(null);
   };
 
+  const runCatchup = async () => {
+    if (catchingUp || messages.length === 0) return;
+    setCatchingUp(true);
+
+    // Show "analyzing" message
+    const analyzingMsg: Message = {
+      id: crypto.randomUUID(),
+      family_id: familyId,
+      sender_id: null,
+      sender_type: 'nanny',
+      content: 'Revisando todo el historial del chat para encontrar información que me haya faltado...',
+      message_type: 'text',
+      metadata: { intent: 'INFO' },
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, analyzingMsg]);
+
+    try {
+      // Build full message history with timestamps
+      const allMsgs = messages
+        .map(m => {
+          const sender = m.sender_type === 'nanny' ? 'Nanny'
+            : parents.find(p => p.id === m.sender_id)?.name || 'Padre';
+          const time = new Date(m.created_at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          return `[${time}] ${sender}: ${m.content}`;
+        }).join('\n');
+
+      const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
+
+      const existingEvts = events.slice(-20).map(e =>
+        `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })})`
+      ).join('\n');
+      const existingTsks = tasks.filter(t => t.status !== 'done').map(t =>
+        `- ${t.title} (${t.priority})`
+      ).join('\n');
+      const activeMeds = medications.filter(m => m.status === 'active').map(m =>
+        `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, ${m.start_date} al ${m.end_date || '?'})`
+      ).join('\n');
+
+      const res = await fetch('/api/chat-catchup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allMessages: allMsgs,
+          familyContext: familyCtx,
+          existingEvents: existingEvts || 'Ninguno',
+          existingTasks: existingTsks || 'Ninguna',
+          activeMedications: activeMeds || 'Ninguno',
+        }),
+      });
+
+      const data = await res.json();
+
+      // Remove the "analyzing" placeholder
+      setMessages(prev => prev.filter(m => m.id !== analyzingMsg.id));
+
+      if (data.error) {
+        const errMsg = await addMessage({
+          family_id: familyId, sender_id: null, sender_type: 'nanny',
+          content: `⚠️ ${data.error}`, message_type: 'text', metadata: {},
+        });
+        setMessages(prev => [...prev, errMsg]);
+      } else {
+        // Process found items
+        const items = data.found_items || [];
+        for (const item of items) {
+          try {
+            if (item.type === 'medication') {
+              // Store as pending confirmation — show in the reply message
+              setPendingMedConfirm({
+                messageId: crypto.randomUUID(),
+                data: item.data,
+                childName: item.child || '',
+              });
+            } else if (item.type === 'event') {
+              const dateStart = (item.data.date_start as string) || new Date().toISOString();
+              const title = (item.data.title as string) || 'Evento';
+              const newDay = dateStart.split('T')[0];
+              const isDuplicate = events.some(e =>
+                e.title.toLowerCase() === title.toLowerCase() && e.date_start.split('T')[0] === newDay
+              );
+              if (!isDuplicate) {
+                const newEvent = await addEvent({
+                  family_id: familyId, child_id: null, title,
+                  description: (item.data.date_description as string) || null,
+                  event_type: (item.data.event_type as string) || 'other',
+                  date_start: dateStart, date_end: null,
+                  location: (item.data.location as string) || null,
+                  status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
+                });
+                setEvents(prev => [...prev, newEvent]);
+              }
+            } else if (item.type === 'task') {
+              const taskTitle = (item.data.title as string) || 'Tarea';
+              const isDupTask = tasks.some(t => t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done');
+              if (!isDupTask) {
+                const newTask = await addTask({
+                  family_id: familyId, child_id: null, title: taskTitle,
+                  description: null,
+                  assigned_to: (item.data.assigned_to as string) || null,
+                  due_date: (item.data.due_date as string) || null,
+                  status: 'pending', priority: 'normal', source: 'chat',
+                  auto_detected: true, created_by: currentParent, completed_at: null,
+                });
+                setTasks(prev => [...prev, newTask]);
+              }
+            }
+          } catch {
+            console.error('Failed to create catchup item:', item);
+          }
+        }
+
+        // Determine the intent for the reply badge
+        const hasOnlyMeds = items.length > 0 && items.every((i: { type: string }) => i.type === 'medication');
+        const replyIntent = hasOnlyMeds ? 'MEDICATION' : items.length > 0 ? 'INFO' : 'CHAT';
+
+        // Post the summary reply
+        const replyMsg = await addMessage({
+          family_id: familyId, sender_id: null, sender_type: 'nanny',
+          content: data.reply || 'Revisé todo el chat y ya tengo toda la información capturada.',
+          message_type: 'text',
+          metadata: { intent: replyIntent, catchup: true },
+        });
+        setMessages(prev => [...prev, replyMsg]);
+        sendPushToFamily(familyId, '🤖 Nanny', data.reply || 'Revisión del chat completada');
+      }
+    } catch {
+      setMessages(prev => prev.filter(m => m.id !== analyzingMsg.id));
+      const errMsg = await addMessage({
+        family_id: familyId, sender_id: null, sender_type: 'nanny',
+        content: '⚠️ Ups, tuve un problema al revisar el historial. Intenta de nuevo.',
+        message_type: 'text', metadata: {},
+      });
+      setMessages(prev => [...prev, errMsg]);
+    }
+
+    setCatchingUp(false);
+  };
+
   const handleFeedback = async (messageId: string, useful: boolean) => {
     setFeedbackGiven(prev => ({ ...prev, [messageId]: useful ? 'up' : 'down' }));
     try {
@@ -418,22 +558,34 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
-          {/* Current parent indicator + switcher */}
-          {parents.length > 1 ? (
+          <div className="flex items-center gap-2">
+            {/* Catch-up button */}
             <button
-              onClick={() => setCurrentParent(otherParent?.id || currentParent)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]"
-              title="Cambiar quién escribe"
+              onClick={runCatchup}
+              disabled={catchingUp || messages.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[var(--nanny-gray-light)] text-xs font-medium text-[var(--nanny-gray)] disabled:opacity-40 transition-opacity"
+              title="Nanny re-lee todo el chat"
             >
-              <span className="text-base">{currentParentObj?.avatar_emoji}</span>
-              Yo
+              <RefreshCw size={13} className={catchingUp ? 'animate-spin' : ''} />
+              <span className="hidden min-[380px]:inline">Re-leer</span>
             </button>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]">
-              <span className="text-base">{currentParentObj?.avatar_emoji}</span>
-              Yo
-            </div>
-          )}
+            {/* Current parent indicator + switcher */}
+            {parents.length > 1 ? (
+              <button
+                onClick={() => setCurrentParent(otherParent?.id || currentParent)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]"
+                title="Cambiar quién escribe"
+              >
+                <span className="text-base">{currentParentObj?.avatar_emoji}</span>
+                Yo
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]">
+                <span className="text-base">{currentParentObj?.avatar_emoji}</span>
+                Yo
+              </div>
+            )}
+          </div>
         </div>
         {/* Children strip */}
         {children.length > 0 && (
