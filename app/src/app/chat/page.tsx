@@ -101,6 +101,7 @@ export default function ChatPage() {
           recentMessages: recentMsgs,
           existingEvents,
           existingTasks,
+          senderName: currentParentObj?.name || 'Padre',
         }),
       });
 
