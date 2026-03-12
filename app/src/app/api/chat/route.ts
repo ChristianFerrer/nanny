@@ -43,13 +43,14 @@ MENSAJES RECIENTES:
 {recent_messages}
 
 REGLAS:
-1. Si detectas un evento o tarea, usa confirmation para proponerlo
-2. Si falta información (hora, lugar, quién), pregunta en el reply
-3. No inventes datos que no se mencionaron
-4. Si el mensaje es solo chat casual, intent=CHAT y confirmation=null
-5. Si mencionan un hijo, inclúyelo en child
-6. Sé concisa: 1-3 oraciones máximo en el reply
-7. Responde SOLO el JSON, sin texto adicional`;
+1. OBLIGATORIO: Si detectas un evento o tarea (intent=EVENT o intent=TASK), SIEMPRE incluye el objeto "confirmation" con todos los datos. NUNCA uses intent=EVENT/TASK sin confirmation.
+2. Si falta información crítica (hora, lugar, quién), pregunta en el reply PERO igual incluye confirmation con los datos que sí tienes (usa valores razonables para lo que falta).
+3. No inventes datos que no se mencionaron, pero sí infiere la fecha cuando sea obvio (ej: "mañana" = día siguiente, "el lunes" = próximo lunes).
+4. Si el mensaje es solo chat casual, intent=CHAT y confirmation=null.
+5. Si mencionan un hijo, inclúyelo en child.
+6. Sé concisa: 1-3 oraciones máximo en el reply.
+7. Responde SOLO el JSON, sin texto adicional.
+8. En el reply, confirma lo que vas a agendar (ej: "Agendé la cita del doctor para el viernes a las 3pm 📅").`;
 
 export async function POST(req: NextRequest) {
   try {

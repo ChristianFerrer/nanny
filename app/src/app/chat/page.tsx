@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, Check, X } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot } from 'lucide-react';
 import { getMessages, addMessage, addEvent, addTask, getParents, getChildren, getFamily } from '@/lib/store';
 import type { Message, Parent, Child } from '@/lib/types';
 
@@ -14,7 +14,6 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [currentParent, setCurrentParent] = useState<string>('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
-  const [confirmationHandled, setConfirmationHandled] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendingRef = useRef(false);
@@ -103,16 +102,56 @@ export default function ChatPage() {
           created_at: new Date().toISOString(),
         }]);
       } else {
+        // Auto-create event/task if Nanny detected one
+        if (data.confirmation) {
+          const { type, data: confData } = data.confirmation;
+          try {
+            if (type === 'event') {
+              const dateStart = (confData.date_start as string) || new Date().toISOString();
+              await addEvent({
+                family_id: familyId,
+                child_id: null,
+                title: (confData.title as string) || 'Evento',
+                description: (confData.date_description as string) || null,
+                event_type: (confData.event_type as string) || 'other',
+                date_start: dateStart,
+                date_end: null,
+                location: (confData.location as string) || null,
+                status: 'pending',
+                source: 'chat',
+                auto_detected: true,
+                created_by: currentParent,
+              });
+            } else if (type === 'task') {
+              await addTask({
+                family_id: familyId,
+                child_id: null,
+                title: (confData.title as string) || 'Tarea',
+                description: null,
+                assigned_to: (confData.assigned_to as string) || null,
+                due_date: (confData.due_date as string) || null,
+                status: 'pending',
+                priority: 'normal',
+                source: 'chat',
+                auto_detected: true,
+                created_by: currentParent,
+                completed_at: null,
+              });
+            }
+          } catch {
+            console.error('Failed to auto-create event/task');
+          }
+        }
+
         const nannyMsg = await addMessage({
           family_id: familyId,
           sender_id: null,
           sender_type: 'nanny',
           content: data.reply || 'Hmm, no entendí. ¿Puedes repetir?',
-          message_type: data.confirmation ? 'confirmation' : 'text',
+          message_type: 'text',
           metadata: {
             intent: data.intent,
             child: data.child,
-            ...(data.confirmation ? { confirmation: data.confirmation } : {}),
           },
         });
         setMessages(prev => [...prev, nannyMsg]);
@@ -165,60 +204,6 @@ export default function ChatPage() {
     }
   };
 
-  const handleConfirmation = async (msg: Message, accept: boolean) => {
-    setConfirmationHandled(prev => ({ ...prev, [msg.id]: accept ? 'accepted' : 'rejected' }));
-    const confirmation = msg.metadata as { confirmation?: { type: string; data: Record<string, unknown> }; child?: string };
-    if (!accept || !confirmation?.confirmation) return;
-
-    try {
-      const { type, data } = confirmation.confirmation;
-      if (type === 'event') {
-        // Use AI-provided date or fallback to now
-        const dateStart = (data.date_start as string) || new Date().toISOString();
-        await addEvent({
-          family_id: familyId,
-          child_id: null,
-          title: (data.title as string) || 'Evento',
-          description: (data.date_description as string) || null,
-          event_type: (data.event_type as string) || 'other',
-          date_start: dateStart,
-          date_end: null,
-          location: (data.location as string) || null,
-          status: 'pending',
-          source: 'chat',
-          auto_detected: true,
-          created_by: currentParent,
-        });
-      } else if (type === 'task') {
-        await addTask({
-          family_id: familyId,
-          child_id: null,
-          title: (data.title as string) || 'Tarea',
-          description: null,
-          assigned_to: (data.assigned_to as string) || null,
-          due_date: (data.due_date as string) || null,
-          status: 'pending',
-          priority: 'normal',
-          source: 'chat',
-          auto_detected: true,
-          created_by: currentParent,
-          completed_at: null,
-        });
-      }
-      // Add confirmation message
-      const confirmMsg = await addMessage({
-        family_id: familyId,
-        sender_id: null,
-        sender_type: 'nanny',
-        content: `✅ ¡Listo! ${type === 'event' ? 'Evento' : 'Tarea'} "${(data.title as string) || ''}" agregado.`,
-        message_type: 'text',
-        metadata: {},
-      });
-      setMessages(prev => [...prev, confirmMsg]);
-    } catch {
-      console.error('Failed to handle confirmation');
-    }
-  };
 
   return (
     <div className="flex flex-col h-[100dvh]">
@@ -304,28 +289,6 @@ export default function ChatPage() {
                 }>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 </div>
-                {/* Confirmation buttons for event/task suggestions */}
-                {isNanny && msg.message_type === 'confirmation' && !confirmationHandled[msg.id] && (
-                  <div className="flex gap-2 mt-2 ml-1">
-                    <button
-                      onClick={() => handleConfirmation(msg, true)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--nanny-green)] text-white text-xs font-medium"
-                    >
-                      <Check size={12} /> Aceptar
-                    </button>
-                    <button
-                      onClick={() => handleConfirmation(msg, false)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-medium"
-                    >
-                      <X size={12} /> Rechazar
-                    </button>
-                  </div>
-                )}
-                {isNanny && confirmationHandled[msg.id] && (
-                  <p className="text-[10px] mt-1 ml-1 text-[var(--nanny-gray)]">
-                    {confirmationHandled[msg.id] === 'accepted' ? '✅ Aceptado' : '❌ Rechazado'}
-                  </p>
-                )}
                 {/* Feedback buttons for Nanny messages */}
                 {isNanny && (
                   <div className="flex gap-2 mt-1 ml-1">

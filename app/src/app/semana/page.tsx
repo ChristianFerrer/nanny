@@ -11,9 +11,13 @@ export default function SemanaPage() {
   const [weekOffset, setWeekOffset] = useState(0);
 
   const loadData = useCallback(async () => {
-    const [e, c] = await Promise.all([getEvents(), getChildren()]);
-    setEvents(e);
-    setChildren(c);
+    try {
+      const [e, c] = await Promise.all([getEvents(), getChildren()]);
+      setEvents(e);
+      setChildren(c);
+    } catch {
+      window.location.href = '/login';
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
