@@ -112,6 +112,7 @@ export default function ChatPage() {
           metadata: {
             intent: data.intent,
             child: data.child,
+            ...(data.confirmation ? { confirmation: data.confirmation } : {}),
           },
         });
         setMessages(prev => [...prev, nannyMsg]);
@@ -172,13 +173,15 @@ export default function ChatPage() {
     try {
       const { type, data } = confirmation.confirmation;
       if (type === 'event') {
+        // Use AI-provided date or fallback to now
+        const dateStart = (data.date_start as string) || new Date().toISOString();
         await addEvent({
           family_id: familyId,
           child_id: null,
           title: (data.title as string) || 'Evento',
           description: (data.date_description as string) || null,
           event_type: (data.event_type as string) || 'other',
-          date_start: new Date().toISOString(),
+          date_start: dateStart,
           date_end: null,
           location: (data.location as string) || null,
           status: 'pending',
@@ -193,7 +196,7 @@ export default function ChatPage() {
           title: (data.title as string) || 'Tarea',
           description: null,
           assigned_to: (data.assigned_to as string) || null,
-          due_date: null,
+          due_date: (data.due_date as string) || null,
           status: 'pending',
           priority: 'normal',
           source: 'chat',

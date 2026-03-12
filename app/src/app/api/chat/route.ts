@@ -27,9 +27,11 @@ Responde SIEMPRE en JSON con esta estructura:
     "data": {
       "title": "...",
       "event_type": "doctor|school|birthday|activity|travel|other",
-      "date_description": "descripcion de la fecha mencionada",
-      "location": "si se menciona",
-      "assigned_to": "mama|papa|null"
+      "date_start": "fecha ISO 8601 (YYYY-MM-DDTHH:mm:ss). Calcula la fecha real basándote en la fecha actual: {current_date}. Ej: 'mañana a las 3' → día siguiente a las 15:00",
+      "date_description": "descripcion legible de la fecha",
+      "location": "si se menciona o null",
+      "assigned_to": "mama|papa|null",
+      "due_date": "para tareas: fecha ISO 8601 de vencimiento o null"
     }
   }
 }
@@ -66,9 +68,12 @@ export async function POST(req: NextRequest) {
 
     const openai = new OpenAI({ apiKey });
 
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0] + ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ')';
     const systemPrompt = SYSTEM_PROMPT
       .replace('{family_context}', familyContext)
-      .replace('{recent_messages}', recentMessages);
+      .replace('{recent_messages}', recentMessages)
+      .replace('{current_date}', currentDate);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
