@@ -428,67 +428,93 @@ export default function ChatPage() {
         setMessages(prev => [...prev, errMsg]);
       } else {
         // Process found items
-        const items = data.found_items || [];
+        const items = Array.isArray(data.found_items) ? data.found_items : [];
+        console.log('[Catchup] Found items:', items.length, JSON.stringify(items));
+        let createdCount = 0;
+        let medFound = false;
+
         for (const item of items) {
+          console.log('[Catchup] Processing item:', item.type, item.summary);
           try {
-            if (item.type === 'medication') {
+            if (item.type === 'medication' && item.data) {
+              medFound = true;
               // Store as pending confirmation — show in the reply message
               setPendingMedConfirm({
                 messageId: crypto.randomUUID(),
                 data: item.data,
                 childName: item.child || '',
               });
-            } else if (item.type === 'event') {
+              createdCount++;
+            } else if (item.type === 'event' && item.data) {
               const dateStart = (item.data.date_start as string) || new Date().toISOString();
-              const title = (item.data.title as string) || 'Evento';
+              const title = (item.data.title as string) || item.summary || 'Evento';
               const newDay = dateStart.split('T')[0];
               const isDuplicate = events.some(e =>
                 e.title.toLowerCase() === title.toLowerCase() && e.date_start.split('T')[0] === newDay
               );
               if (!isDuplicate) {
+                const matchedChild = children.find(c => c.name.toLowerCase() === (item.child || '').toLowerCase());
                 const newEvent = await addEvent({
-                  family_id: familyId, child_id: null, title,
-                  description: (item.data.date_description as string) || null,
+                  family_id: familyId,
+                  child_id: matchedChild?.id || null,
+                  title,
+                  description: (item.data.date_description as string) || item.summary || null,
                   event_type: (item.data.event_type as string) || 'other',
                   date_start: dateStart, date_end: null,
                   location: (item.data.location as string) || null,
                   status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
                 });
                 setEvents(prev => [...prev, newEvent]);
+                createdCount++;
+                console.log('[Catchup] Created event:', title);
+              } else {
+                console.log('[Catchup] Skipped duplicate event:', title);
               }
-            } else if (item.type === 'task') {
-              const taskTitle = (item.data.title as string) || 'Tarea';
+            } else if (item.type === 'task' && item.data) {
+              const taskTitle = (item.data.title as string) || item.summary || 'Tarea';
               const isDupTask = tasks.some(t => t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done');
               if (!isDupTask) {
+                const matchedChild = children.find(c => c.name.toLowerCase() === (item.child || '').toLowerCase());
                 const newTask = await addTask({
-                  family_id: familyId, child_id: null, title: taskTitle,
-                  description: null,
+                  family_id: familyId,
+                  child_id: matchedChild?.id || null,
+                  title: taskTitle,
+                  description: item.summary || null,
                   assigned_to: (item.data.assigned_to as string) || null,
                   due_date: (item.data.due_date as string) || null,
                   status: 'pending', priority: 'normal', source: 'chat',
                   auto_detected: true, created_by: currentParent, completed_at: null,
                 });
                 setTasks(prev => [...prev, newTask]);
+                createdCount++;
+                console.log('[Catchup] Created task:', taskTitle);
+              } else {
+                console.log('[Catchup] Skipped duplicate task:', taskTitle);
               }
             }
-          } catch {
-            console.error('Failed to create catchup item:', item);
+          } catch (err) {
+            console.error('[Catchup] Failed to create item:', item.type, item.summary, err);
           }
         }
 
         // Determine the intent for the reply badge
-        const hasOnlyMeds = items.length > 0 && items.every((i: { type: string }) => i.type === 'medication');
-        const replyIntent = hasOnlyMeds ? 'MEDICATION' : items.length > 0 ? 'INFO' : 'CHAT';
+        const replyIntent = medFound ? 'MEDICATION' : createdCount > 0 ? 'INFO' : 'CHAT';
+
+        // Build reply — append creation summary if items were created
+        let replyText = data.reply || 'Revisé todo el chat y ya tengo toda la información capturada.';
+        if (createdCount > 0 && !medFound) {
+          replyText += `\n\nRegistré ${createdCount} item${createdCount > 1 ? 's' : ''} en el sistema.`;
+        }
 
         // Post the summary reply
         const replyMsg = await addMessage({
           family_id: familyId, sender_id: null, sender_type: 'nanny',
-          content: data.reply || 'Revisé todo el chat y ya tengo toda la información capturada.',
+          content: replyText,
           message_type: 'text',
           metadata: { intent: replyIntent, catchup: true },
         });
         setMessages(prev => [...prev, replyMsg]);
-        sendPushToFamily(familyId, '🤖 Nanny', data.reply || 'Revisión del chat completada');
+        sendPushToFamily(familyId, '🤖 Nanny', replyText);
       }
     } catch {
       setMessages(prev => prev.filter(m => m.id !== analyzingMsg.id));
