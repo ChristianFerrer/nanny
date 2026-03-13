@@ -135,6 +135,13 @@ export async function getMessages(): Promise<Message[]> {
   return (data.messages as Message[]) || [];
 }
 
+export async function getNewMessages(since: string): Promise<Message[]> {
+  const res = await fetch(`/api/family-data?tables=messages&since=${encodeURIComponent(since)}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.messages as Message[]) || [];
+}
+
 export async function addMessage(msg: Omit<Message, 'id' | 'created_at'>): Promise<Message> {
   const newMsg = {
     ...msg,

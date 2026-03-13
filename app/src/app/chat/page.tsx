@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle } from 'lucide-react';
-import { getMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
@@ -16,7 +16,6 @@ export default function ChatPage() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [familyId, setFamilyId] = useState<string>('');
   const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
   const [currentParent, setCurrentParent] = useState<string>('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
@@ -33,9 +32,9 @@ export default function ChatPage() {
     summary: string;
   } | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
+  const [nannyThinking, setNannyThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const sendingRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -69,6 +68,28 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Poll for new messages every 3 seconds (messages from other parent or other sessions)
+  useEffect(() => {
+    if (!familyId) return;
+    const interval = setInterval(async () => {
+      try {
+        const lastMsg = messages[messages.length - 1];
+        if (!lastMsg) return;
+        const newMsgs = await getNewMessages(lastMsg.created_at);
+        if (newMsgs.length > 0) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const truly_new = newMsgs.filter(m => !existingIds.has(m.id));
+            return truly_new.length > 0 ? [...prev, ...truly_new] : prev;
+          });
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [familyId, messages]);
+
   // Push notification registration
   useEffect(() => {
     if (!familyId) return;
@@ -86,35 +107,10 @@ export default function ChatPage() {
   const currentParentObj = parents.find(p => p.id === currentParent);
   const otherParent = parents.find(p => p.id !== currentParent);
 
-  const sendMessage = async () => {
-    const text = input.trim();
-    if (!text || sendingRef.current) return;
-
-    sendingRef.current = true;
-    setInput('');
-    setSending(true);
-
-    // Add parent message
-    const parentMsg = await addMessage({
-      family_id: familyId,
-      sender_id: currentParent,
-      sender_type: 'parent',
-      content: text,
-      message_type: 'text',
-      metadata: {},
-    });
-    setMessages(prev => [...prev, parentMsg]);
-
-    // Notify the other parent
-    sendPushToFamily(
-      familyId,
-      `${currentParentObj?.avatar_emoji} ${currentParentObj?.name}`,
-      text,
-      currentParent
-    );
-
+  // Process Nanny AI response in background (doesn't block input)
+  const processNannyResponse = useCallback(async (text: string, parentMsg: Message) => {
+    setNannyThinking(true);
     try {
-      // Build context
       const recentMsgs = [...messages.slice(-15), parentMsg]
         .map(m => {
           const sender = m.sender_type === 'nanny' ? 'Nanny'
@@ -124,14 +120,12 @@ export default function ChatPage() {
 
       const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
 
-      // Include existing events/tasks so AI knows what's already scheduled
-      const existingEvents = events.slice(-10).map(e =>
+      const existingEventsStr = events.slice(-10).map(e =>
         `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
       ).join('\n');
-      const existingTasks = tasks.filter(t => t.status !== 'done').slice(-10).map(t =>
+      const existingTasksStr = tasks.filter(t => t.status !== 'done').slice(-10).map(t =>
         `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''})`
       ).join('\n');
-
       const activeMeds = medications.filter(m => m.status === 'active').map(m =>
         `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
       ).join('\n');
@@ -143,8 +137,8 @@ export default function ChatPage() {
           message: text,
           familyContext: familyCtx,
           recentMessages: recentMsgs,
-          existingEvents,
-          existingTasks,
+          existingEvents: existingEventsStr,
+          existingTasks: existingTasksStr,
           activeMedications: activeMeds || 'Ninguno',
           senderName: currentParentObj?.name || 'Padre',
           pendingDetection,
@@ -154,7 +148,6 @@ export default function ChatPage() {
       const rawData = await res.json();
 
       if (rawData.error) {
-        // Show API error as a local message (don't persist errors to DB)
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(),
           family_id: familyId,
@@ -166,59 +159,38 @@ export default function ChatPage() {
           created_at: new Date().toISOString(),
         }]);
       } else {
-        // ═══ VALIDATION LAYER ═══
-        // LLM proposes, validation decides what's safe to persist
         const data = validateNannyResponse(rawData, events, tasks, medications);
 
-        // Log validation warnings for debugging
         if (data.validation_warnings.length > 0) {
           console.log('[Validation warnings]:', data.validation_warnings);
         }
 
-        // Auto-create event/task if Nanny detected one AND validation passed
         if (data.confirmation) {
           const { type, data: confData } = data.confirmation;
           try {
             if (type === 'medication') {
-              // Don't auto-create — show confirmation buttons and wait for user response
               const medMsgId = crypto.randomUUID();
-              setPendingMedConfirm({
-                messageId: medMsgId,
-                data: confData,
-                childName: data.child || '',
-              });
-              // Store messageId for matching later
+              setPendingMedConfirm({ messageId: medMsgId, data: confData, childName: data.child || '' });
               (data as unknown as Record<string, unknown>)._medMsgId = medMsgId;
             } else if (type === 'event') {
               const newEvent = await addEvent({
-                family_id: familyId,
-                child_id: null,
+                family_id: familyId, child_id: null,
                 title: confData.title as string,
                 description: (confData.date_description as string) || null,
                 event_type: (confData.event_type as string) || 'other',
-                date_start: confData.date_start as string,
-                date_end: null,
+                date_start: confData.date_start as string, date_end: null,
                 location: (confData.location as string) || null,
-                status: 'pending',
-                source: 'chat',
-                auto_detected: true,
-                created_by: currentParent,
+                status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
               });
               setEvents(prev => [...prev, newEvent]);
             } else if (type === 'task') {
               const newTask = await addTask({
-                family_id: familyId,
-                child_id: null,
-                title: confData.title as string,
-                description: null,
+                family_id: familyId, child_id: null,
+                title: confData.title as string, description: null,
                 assigned_to: (confData.assigned_to as string) || null,
                 due_date: (confData.due_date as string) || null,
-                status: 'pending',
-                priority: 'normal',
-                source: 'chat',
-                auto_detected: true,
-                created_by: currentParent,
-                completed_at: null,
+                status: 'pending', priority: 'normal', source: 'chat',
+                auto_detected: true, created_by: currentParent, completed_at: null,
               });
               setTasks(prev => [...prev, newTask]);
             }
@@ -227,56 +199,69 @@ export default function ChatPage() {
           }
         }
 
-        // Update pending detection state
         if (data.pending_detection && data.pending_detection.type) {
           setPendingDetection(data.pending_detection);
         } else if (data.confirmation) {
-          // If we got a confirmation, the detection is complete — clear pending
           setPendingDetection(null);
         }
 
-        // Only show Nanny's reply if she should respond
         if (data.should_respond !== false && data.reply) {
           const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
           const nannyMsg = await addMessage({
-            family_id: familyId,
-            sender_id: null,
-            sender_type: 'nanny',
-            content: data.reply,
-            message_type: 'text',
+            family_id: familyId, sender_id: null, sender_type: 'nanny',
+            content: data.reply, message_type: 'text',
             metadata: {
-              intent: data.intent,
-              next_action: data.next_action,
+              intent: data.intent, next_action: data.next_action,
               child: data.child || undefined,
               ...(medMsgId ? { medConfirmId: medMsgId } : {}),
               ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
             },
           });
-          // Update pending med confirm with actual message ID
           if (medMsgId) {
             setPendingMedConfirm(prev => prev ? { ...prev, messageId: nannyMsg.id } : null);
           }
           setMessages(prev => [...prev, nannyMsg]);
-
-          // Notify all parents about Nanny's reply
           sendPushToFamily(familyId, '🤖 Nanny', data.reply);
         }
       }
     } catch {
       const errorMsg = await addMessage({
-        family_id: familyId,
-        sender_id: null,
-        sender_type: 'nanny',
+        family_id: familyId, sender_id: null, sender_type: 'nanny',
         content: '⚠️ Ups, tuve un problema. Intenta de nuevo.',
-        message_type: 'text',
-        metadata: {},
+        message_type: 'text', metadata: {},
       });
       setMessages(prev => [...prev, errorMsg]);
     }
+    setNannyThinking(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, parents, children, events, tasks, medications, familyId, currentParent, currentParentObj, pendingDetection]);
 
-    sendingRef.current = false;
-    setSending(false);
-    inputRef.current?.focus();
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text) return;
+
+    setInput('');
+
+    // Add parent message immediately
+    const parentMsg = await addMessage({
+      family_id: familyId,
+      sender_id: currentParent,
+      sender_type: 'parent',
+      content: text,
+      message_type: 'text',
+      metadata: {},
+    });
+    setMessages(prev => [...prev, parentMsg]);
+
+    sendPushToFamily(
+      familyId,
+      `${currentParentObj?.avatar_emoji} ${currentParentObj?.name}`,
+      text,
+      currentParent
+    );
+
+    // Process Nanny AI in background — input stays free
+    processNannyResponse(text, parentMsg);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -847,7 +832,7 @@ export default function ChatPage() {
             </div>
           );
         })}
-        {sending && (
+        {nannyThinking && (
           <div className="flex justify-start animate-fade-in">
             <div>
               <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1">🤖 Nanny</p>
@@ -875,11 +860,10 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje..."
             className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
-            disabled={sending}
           />
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || sending}
+            disabled={!input.trim()}
             className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity"
           >
             <Send size={18} className="text-white ml-0.5" />

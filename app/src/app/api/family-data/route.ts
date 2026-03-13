@@ -94,8 +94,13 @@ export async function GET(req: NextRequest) {
       );
     }
     if (tables.includes('messages')) {
+      const since = req.nextUrl.searchParams.get('since');
+      let query = admin.from('messages').select('*').eq('family_id', familyId);
+      if (since) {
+        query = query.gt('created_at', since);
+      }
       queries.push(
-        admin.from('messages').select('*').eq('family_id', familyId)
+        query
           .order('created_at', { ascending: true })
           .limit(100)
           .then(({ data }) => { result.messages = data || []; }) as Promise<void>
