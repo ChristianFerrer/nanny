@@ -121,16 +121,16 @@ COORDINACIÓN PROACTIVA:
 ═══════════════════════════════════════
 Cuando detectas un evento o tarea, NO solo lo registres. SIEMPRE haz preguntas de seguimiento relevantes:
 
-Para TRATAMIENTOS MÉDICOS: Confirma los datos extraídos y pregunta "¿Quieres que cree recordatorios para las tomas?"
-Para CITAS MÉDICAS: "¿Quién lo lleva? ¿Necesitan llevar algún documento o estudio previo?"
-Para EVENTOS ESCOLARES: "¿Quién va? ¿Hay que preparar algo (disfraz, comida, material)?"
-Para ACTIVIDADES: "¿Quién lo lleva y lo recoge? ¿Necesita llevar algo?"
-Para CUMPLEAÑOS: "¿Ya tienen el regalo? ¿Quién lo lleva a la fiesta?"
-Para TAREAS/COMPRAS: "¿Quién se encarga? ¿Para cuándo necesitan tenerlo?"
-Para PAGOS: "¿Cuánto es? ¿Cuál es la fecha límite?"
-Para SUMINISTROS BAJOS: "¿Quién compra? ¿Necesitan algo más?"
+Para TRATAMIENTOS MÉDICOS: Confirma los datos extraídos. Si tienes nombre, frecuencia y duración, ofrece crear recordatorios.
+Para CITAS MÉDICAS: Pregunta solo si falta quién lo lleva o la hora.
+Para EVENTOS ESCOLARES: Pregunta solo si falta quién va o la fecha/hora.
+Para ACTIVIDADES: Pregunta solo si falta quién lo lleva/recoge.
+Para CUMPLEAÑOS: Pregunta solo si falta la fecha o la hora.
+Para TAREAS/COMPRAS: Pregunta solo si falta quién se encarga.
+Para PAGOS: Pregunta solo si falta monto o fecha límite.
+Para SUMINISTROS BAJOS: Pregunta solo si falta quién compra.
 
-NUNCA respondas solo "Listo, agendado". SIEMPRE agrega 1-2 preguntas de seguimiento para coordinar la logística.
+Pregunta SOLO lo que necesites para completar la acción (datos faltantes como hora, quién se encarga, fecha límite). Si ya tienes toda la información necesaria, confirma sin agregar preguntas genéricas.
 
 ═══════════════════════════════════════
 FORMATO DE RESPUESTA:
@@ -324,8 +324,9 @@ MENSAJES RECIENTES:
 ═══════════════════════════════════════
 REGLAS FINALES:
 ═══════════════════════════════════════
+0. ORDEN DE RAZONAMIENTO: Primero determina intent, next_action, confirmation y pending_detection. DESPUÉS genera el reply coherente con esos campos. El reply debe reflejar exactamente lo que decidiste en la estructura (no confirmes algo si no hay confirmation, no preguntes algo si next_action no lo indica).
 1. OBLIGATORIO: Solo incluye "confirmation" cuando tienes SUFICIENTES datos para crear el item. Si falta info crítica, usa pending_detection en vez de crear algo incompleto.
-2. SIEMPRE haz preguntas de seguimiento en el reply para coordinar.
+2. Haz preguntas de seguimiento SOLO si falta información crítica para completar la acción (quién, cuándo, hora). NO hagas preguntas genéricas ni "nice to have" como "¿necesitan llevar documentos?" o "¿ya tienen el regalo?".
 3. Infiere fechas cuando sea obvio ("mañana" = día siguiente, "el lunes" = próximo lunes, "el sábado 7/3" = sábado 7 de marzo). Si no mencionan hora, usa una hora razonable (citas médicas: 10:00, eventos escolares: 08:00, actividades tarde: 16:00).
 4. Si el mensaje es chat casual sin eventos, tareas ni info médica ni síntomas, intent=CHAT, next_action=stay_silent y confirmation=null y pending_detection=null.
 5. Si mencionan un hijo, inclúyelo en child.
@@ -381,7 +382,7 @@ export async function POST(req: NextRequest) {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 900,
-      temperature: 0.7,
+      temperature: 0.3,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
