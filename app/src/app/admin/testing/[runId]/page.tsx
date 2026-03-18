@@ -273,6 +273,9 @@ function DiagnosisPanel({ runId }: { runId: string }) {
   const [diagnosis, setDiagnosis] = useState<DiagnosisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
+  const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   async function runDiagnosis() {
     setLoading(true);
@@ -296,6 +299,41 @@ function DiagnosisPanel({ runId }: { runId: string }) {
     }
   }
 
+  async function applyAdjustment(adj: DiagnosisData['proposedAdjustments'][0], index: number) {
+    if (!adj.currentPromptSection || !adj.proposedChange) {
+      setApplyError('Este ajuste no tiene sección actual o cambio propuesto definido.');
+      return;
+    }
+
+    setApplyingIndex(index);
+    setApplyError(null);
+    try {
+      const res = await fetch('/api/eval/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentSection: adj.currentPromptSection,
+          proposedChange: adj.proposedChange,
+          description: `${adj.pattern}: ${adj.expectedImpact}`,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+
+      const result = await res.json();
+      setAppliedIndexes(prev => new Set([...prev, index]));
+      setApplyError(null);
+      alert(`Ajuste aplicado. Nueva versión del prompt: ${result.version}`);
+    } catch (e) {
+      setApplyError(e instanceof Error ? e.message : 'Error aplicando ajuste');
+    } finally {
+      setApplyingIndex(null);
+    }
+  }
+
   const riskColors = {
     bajo: 'bg-green-900/30 text-green-400 border-green-800',
     medio: 'bg-yellow-900/30 text-yellow-400 border-yellow-800',
@@ -303,7 +341,7 @@ function DiagnosisPanel({ runId }: { runId: string }) {
   };
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 pb-8">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-gray-400">Diagnóstico AI</h2>
         {!diagnosis && (
@@ -330,6 +368,12 @@ function DiagnosisPanel({ runId }: { runId: string }) {
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-3 text-xs text-red-300">
           {error}
+        </div>
+      )}
+
+      {applyError && (
+        <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-3 text-xs text-red-300">
+          {applyError}
         </div>
       )}
 
@@ -374,42 +418,67 @@ function DiagnosisPanel({ runId }: { runId: string }) {
                 Ajustes propuestos al prompt ({diagnosis.proposedAdjustments.length})
               </h3>
               <div className="space-y-3">
-                {diagnosis.proposedAdjustments.map((adj, i) => (
-                  <div key={i} className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskColors[adj.riskLevel]}`}>
-                        Riesgo {adj.riskLevel}
-                      </span>
-                      <span className="text-xs text-gray-400">{adj.pattern}</span>
-                    </div>
+                {diagnosis.proposedAdjustments.map((adj, i) => {
+                  const isApplied = appliedIndexes.has(i);
+                  const isApplying = applyingIndex === i;
 
-                    {adj.currentPromptSection && (
+                  return (
+                    <div key={i} className={`bg-gray-800 rounded-lg p-3 ${isApplied ? 'border border-green-800' : ''}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskColors[adj.riskLevel]}`}>
+                          Riesgo {adj.riskLevel}
+                        </span>
+                        <span className="text-xs text-gray-400">{adj.pattern}</span>
+                        {isApplied && (
+                          <span className="text-[10px] text-green-400 ml-auto">Aplicado</span>
+                        )}
+                      </div>
+
+                      {adj.currentPromptSection && (
+                        <div className="mb-2">
+                          <p className="text-[10px] text-gray-500 mb-1">Sección actual:</p>
+                          <pre className="text-[10px] text-red-300 bg-red-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
+                            {adj.currentPromptSection}
+                          </pre>
+                        </div>
+                      )}
+
                       <div className="mb-2">
-                        <p className="text-[10px] text-gray-500 mb-1">Sección actual:</p>
-                        <pre className="text-[10px] text-red-300 bg-red-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
-                          {adj.currentPromptSection}
+                        <p className="text-[10px] text-gray-500 mb-1">Cambio propuesto:</p>
+                        <pre className="text-[10px] text-green-300 bg-green-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
+                          {adj.proposedChange}
                         </pre>
                       </div>
-                    )}
 
-                    <div className="mb-2">
-                      <p className="text-[10px] text-gray-500 mb-1">Cambio propuesto:</p>
-                      <pre className="text-[10px] text-green-300 bg-green-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
-                        {adj.proposedChange}
-                      </pre>
+                      <p className="text-[10px] text-gray-400 mb-3">
+                        Impacto esperado: {adj.expectedImpact}
+                      </p>
+
+                      {!isApplied && (
+                        <button
+                          onClick={() => applyAdjustment(adj, i)}
+                          disabled={isApplying || applyingIndex !== null}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          {isApplying ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Aplicando...
+                            </>
+                          ) : (
+                            'Aplicar este ajuste al prompt'
+                          )}
+                        </button>
+                      )}
                     </div>
-
-                    <p className="text-[10px] text-gray-400">
-                      Impacto esperado: {adj.expectedImpact}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
           <button
-            onClick={() => setDiagnosis(null)}
+            onClick={() => { setDiagnosis(null); setAppliedIndexes(new Set()); }}
             className="w-full text-xs text-gray-500 hover:text-gray-400 py-2"
           >
             Cerrar diagnóstico

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const SYSTEM_PROMPT = `Eres Nanny, una asistente de IA para coordinación familiar. Estás en un chat grupal entre mamá y papá. Tu trabajo es ayudarles a organizar TODO lo relacionado con sus hijos.
 
@@ -379,7 +380,23 @@ export async function processChat(input: ChatInput): Promise<ChatResponse> {
     ? `ACTIVA: ${JSON.stringify(input.pendingDetection)}\nIMPORTANTE: Hay una detección pendiente. Si el mensaje actual aporta información que falta o es una confirmación (ok/sí/dale/listo), COMPLETA la detección y emite confirmation. Si es otro tema, abandónala.`
     : 'Ninguna';
 
-  const systemPrompt = SYSTEM_PROMPT
+  // Cargar prompt activo desde DB, fallback al hardcoded
+  let promptTemplate = SYSTEM_PROMPT;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from('system_prompts')
+      .select('content')
+      .eq('is_active', true)
+      .single();
+    if (data?.content) {
+      promptTemplate = data.content;
+    }
+  } catch {
+    // Si falla (tabla no existe, etc.), usar hardcoded
+  }
+
+  const systemPrompt = promptTemplate
     .replace('{family_context}', input.familyContext)
     .replace('{recent_messages}', input.recentMessages)
     .replace('{existing_events}', input.existingEvents || 'Ninguno')
