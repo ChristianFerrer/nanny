@@ -29,6 +29,8 @@ interface ConvProgress {
   status: 'pending' | 'running' | 'done' | 'error';
   score?: number;
   error?: string;
+  totalMessages?: number;
+  completedMessages?: number;
 }
 
 interface ConversationInfo {
@@ -36,6 +38,7 @@ interface ConversationInfo {
   id: string;
   name: string;
   messageCount: number;
+  messages: { sender: string; text: string }[];
 }
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
@@ -99,44 +102,73 @@ export default function TestingDashboard() {
       if (!listRes.ok) throw new Error(`Error listando conversaciones: HTTP ${listRes.status}`);
       const conversations: ConversationInfo[] = await listRes.json();
 
-      // 2. Initialize progress
+      // 2. Initialize progress with message counts
       setConvProgress(conversations.map(c => ({
         index: c.index,
         name: c.name,
         status: 'pending',
+        totalMessages: c.messageCount,
+        completedMessages: 0,
       })));
 
-      // 3. Run each conversation sequentially
+      // 3. Run each conversation message-by-message
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const results: any[] = [];
 
       for (let i = 0; i < conversations.length; i++) {
         if (abortRef.current) break;
 
-        // Mark as running
+        const conv = conversations[i];
+
+        // Mark conversation as running
         setConvProgress(prev => prev.map((c, idx) =>
-          idx === i ? { ...c, status: 'running' } : c
+          idx === i ? { ...c, status: 'running', completedMessages: 0 } : c
         ));
 
         try {
-          const res = await fetch('/api/eval/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conversationIndex: i }),
-          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let state: any = null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let finalResult: any = null;
 
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(errText);
+          for (let msgIdx = 0; msgIdx < conv.messageCount; msgIdx++) {
+            if (abortRef.current) break;
+
+            const res = await fetch('/api/eval/run', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversationIndex: i,
+                messageIndex: msgIdx,
+                state,
+              }),
+            });
+
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(errText);
+            }
+
+            const data = await res.json();
+
+            // Update message progress
+            setConvProgress(prev => prev.map((c, idx) =>
+              idx === i ? { ...c, completedMessages: msgIdx + 1 } : c
+            ));
+
+            if (data.done) {
+              finalResult = data.result;
+            } else {
+              state = data.state;
+            }
           }
 
-          const result = await res.json();
-          results.push(result);
-
-          // Mark as done with score
-          setConvProgress(prev => prev.map((c, idx) =>
-            idx === i ? { ...c, status: 'done', score: result.scores.overall } : c
-          ));
+          if (finalResult) {
+            results.push(finalResult);
+            setConvProgress(prev => prev.map((c, idx) =>
+              idx === i ? { ...c, status: 'done', score: finalResult.scores.overall } : c
+            ));
+          }
         } catch (e) {
           setConvProgress(prev => prev.map((c, idx) =>
             idx === i ? { ...c, status: 'error', error: e instanceof Error ? e.message : 'Error' } : c
@@ -276,7 +308,13 @@ export default function TestingDashboard() {
               <div key={conv.index} className="flex items-center gap-2 text-xs">
                 <span className="w-5 text-center shrink-0">
                   {conv.status === 'pending' && <span className="text-gray-600">-</span>}
-                  {conv.status === 'running' && <Loader2 size={12} className="animate-spin text-cyan-400" />}
+                  {conv.status === 'running' && (
+                    conv.totalMessages ? (
+                      <span className="text-cyan-400 text-[10px] font-mono">{conv.completedMessages}/{conv.totalMessages}</span>
+                    ) : (
+                      <Loader2 size={12} className="animate-spin text-cyan-400" />
+                    )
+                  )}
                   {conv.status === 'done' && (
                     <span>{(conv.score ?? 0) >= 0.9 ? '✅' : (conv.score ?? 0) >= 0.6 ? '⚠️' : '❌'}</span>
                   )}
