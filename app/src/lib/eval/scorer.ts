@@ -1,0 +1,369 @@
+/**
+ * Scorer: compara las respuestas del API contra el ground truth.
+ *
+ * Calcula precision, recall, ambiguity handling y behavior score.
+ */
+
+import type {
+  SyntheticConversation,
+  MessageResult,
+  DetectionMatch,
+  BehaviorMatch,
+  ExpectedDetection,
+} from './types';
+
+interface ScoreResult {
+  detectionMatches: DetectionMatch[];
+  behaviorMatches: BehaviorMatch[];
+  scores: {
+    precision: number;
+    recall: number;
+    ambiguityHandling: number;
+    behaviorScore: number;
+    overall: number;
+  };
+}
+
+/**
+ * Evalúa una conversación completa comparando respuestas vs ground truth.
+ */
+export function scoreConversation(
+  conversation: SyntheticConversation,
+  messageResults: MessageResult[]
+): ScoreResult {
+  const detectionMatches = scoreDetections(conversation, messageResults);
+  const behaviorMatches = scoreBehavior(conversation, messageResults);
+
+  // Calculate precision: of all confirmations emitted, how many match expected?
+  const allConfirmations = messageResults.filter(
+    mr => mr.response?.confirmation != null
+  );
+  const correctConfirmations = detectionMatches.filter(dm => dm.score >= 0.5);
+  const precision = allConfirmations.length > 0
+    ? correctConfirmations.length / Math.max(allConfirmations.length, conversation.expectedDetections.length)
+    : conversation.expectedDetections.length === 0 ? 1 : 0;
+
+  // Calculate recall: of all expected detections, how many were found?
+  const detectedCount = detectionMatches.filter(dm => dm.actual != null).length;
+  const recall = conversation.expectedDetections.length > 0
+    ? detectedCount / conversation.expectedDetections.length
+    : 1;
+
+  // Ambiguity handling: did Nanny handle ambiguous fields correctly?
+  const ambiguousMatches = detectionMatches.filter(dm => dm.ambiguousFields.length > 0);
+  const ambiguityHandling = ambiguousMatches.length > 0
+    ? ambiguousMatches.filter(dm => dm.score >= 0.5).length / ambiguousMatches.length
+    : 1;
+
+  // Behavior score
+  const behaviorPassed = behaviorMatches.filter(bm => bm.passed).length;
+  const behaviorScore = behaviorMatches.length > 0
+    ? behaviorPassed / behaviorMatches.length
+    : 1;
+
+  const overall = Math.round(
+    (precision * 0.3 + recall * 0.35 + ambiguityHandling * 0.15 + behaviorScore * 0.2) * 100
+  ) / 100;
+
+  return {
+    detectionMatches,
+    behaviorMatches,
+    scores: {
+      precision: Math.round(precision * 100) / 100,
+      recall: Math.round(recall * 100) / 100,
+      ambiguityHandling: Math.round(ambiguityHandling * 100) / 100,
+      behaviorScore: Math.round(behaviorScore * 100) / 100,
+      overall,
+    },
+  };
+}
+
+/**
+ * Compara detecciones esperadas contra confirmaciones reales.
+ */
+function scoreDetections(
+  conversation: SyntheticConversation,
+  messageResults: MessageResult[]
+): DetectionMatch[] {
+  // Collect all confirmations from responses
+  const actualDetections: { type: string; data: Record<string, unknown>; messageIndex: number }[] = [];
+
+  for (const mr of messageResults) {
+    if (mr.response?.confirmation) {
+      actualDetections.push({
+        type: mr.response.confirmation.type,
+        data: mr.response.confirmation.data,
+        messageIndex: mr.messageIndex,
+      });
+    }
+  }
+
+  // Also check pending_detections that were never completed (partial credit)
+  const lastPending = messageResults
+    .filter(mr => mr.response?.pending_detection != null)
+    .pop();
+
+  return conversation.expectedDetections.map(expected => {
+    // Find best matching actual detection
+    let bestMatch: { type: string; data: Record<string, unknown> } | null = null;
+    let bestScore = 0;
+    let bestCorrectFields: string[] = [];
+    let bestIncorrectFields: { field: string; expected: unknown; actual: unknown }[] = [];
+
+    for (const actual of actualDetections) {
+      if (actual.type !== expected.type) continue;
+
+      const { score, correctFields, incorrectFields } = compareDetection(expected, actual.data);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { type: actual.type, data: actual.data };
+        bestCorrectFields = correctFields;
+        bestIncorrectFields = incorrectFields;
+      }
+    }
+
+    // If no confirmation found, check if it was at least detected as pending
+    if (!bestMatch && lastPending?.response?.pending_detection) {
+      const pd = lastPending.response.pending_detection;
+      if (pd.type === expected.type) {
+        const { score, correctFields, incorrectFields } = compareDetection(
+          expected,
+          pd.partial_data
+        );
+        bestScore = score * 0.5; // Partial credit for pending
+        bestMatch = { type: pd.type, data: pd.partial_data };
+        bestCorrectFields = correctFields;
+        bestIncorrectFields = incorrectFields;
+      }
+    }
+
+    return {
+      expected,
+      actual: bestMatch,
+      score: Math.round(bestScore * 100) / 100,
+      correctFields: bestCorrectFields,
+      incorrectFields: bestIncorrectFields,
+      ambiguousFields: expected.ambiguousFields || [],
+    };
+  });
+}
+
+/**
+ * Compara una detección esperada contra datos reales campo por campo.
+ */
+function compareDetection(
+  expected: ExpectedDetection,
+  actualData: Record<string, unknown>
+): {
+  score: number;
+  correctFields: string[];
+  incorrectFields: { field: string; expected: unknown; actual: unknown }[];
+} {
+  const correctFields: string[] = [];
+  const incorrectFields: { field: string; expected: unknown; actual: unknown }[] = [];
+  const ambiguous = expected.ambiguousFields || [];
+
+  const fieldsToCheck = Object.keys(expected.data).filter(
+    k => !ambiguous.includes(k)
+  );
+
+  for (const field of fieldsToCheck) {
+    const expectedVal = expected.data[field];
+    const actualVal = actualData[field];
+
+    if (fieldMatches(field, expectedVal, actualVal)) {
+      correctFields.push(field);
+    } else {
+      incorrectFields.push({ field, expected: expectedVal, actual: actualVal });
+    }
+  }
+
+  const totalFields = fieldsToCheck.length;
+  const score = totalFields > 0 ? correctFields.length / totalFields : 0;
+
+  return { score, correctFields, incorrectFields };
+}
+
+/**
+ * Compara valores de un campo con lógica fuzzy.
+ */
+function fieldMatches(field: string, expected: unknown, actual: unknown): boolean {
+  if (expected === null || expected === undefined) return true; // No check needed
+  if (actual === null || actual === undefined) return false;
+
+  const expStr = String(expected).toLowerCase().trim();
+  const actStr = String(actual).toLowerCase().trim();
+
+  // Title matching: fuzzy - check if key words are present
+  if (field === 'title') {
+    const expWords = expStr.split(/\s+/).filter(w => w.length > 2);
+    const matchedWords = expWords.filter(w => actStr.includes(w));
+    return matchedWords.length >= Math.ceil(expWords.length * 0.5);
+  }
+
+  // Assigned_to: exact match
+  if (field === 'assigned_to') {
+    return expStr === actStr;
+  }
+
+  // Child: fuzzy name match
+  if (field === 'child') {
+    return actStr.includes(expStr) || expStr.includes(actStr);
+  }
+
+  // Location: fuzzy
+  if (field === 'location') {
+    const expWords = expStr.split(/\s+/).filter(w => w.length > 2);
+    const matchedWords = expWords.filter(w => actStr.includes(w));
+    return matchedWords.length >= Math.ceil(expWords.length * 0.4);
+  }
+
+  // Date/time: check key components
+  if (field === 'date_start' || field === 'due_date') {
+    // Extract hour if present
+    const expHour = expStr.match(/(\d{1,2}):?(\d{2})?/);
+    const actHour = actStr.match(/(\d{1,2}):?(\d{2})?/);
+    if (expHour && actHour) {
+      return expHour[1] === actHour[1]; // Same hour is close enough
+    }
+    // Day of week check
+    const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+    const expDay = days.find(d => expStr.includes(d));
+    const actDay = days.find(d => actStr.includes(d));
+    if (expDay && actDay) return expDay === actDay;
+    return expStr.includes('mañana') === actStr.includes('mañana');
+  }
+
+  // Event type
+  if (field === 'event_type') {
+    return expStr === actStr;
+  }
+
+  // Medication fields
+  if (field === 'medication_name') {
+    const expWords = expStr.split(/\s+/).filter(w => w.length > 2);
+    return expWords.some(w => actStr.includes(w));
+  }
+
+  if (field === 'duration_days') {
+    return Number(expected) === Number(actual);
+  }
+
+  if (field === 'frequency') {
+    return actStr.includes(expStr) || expStr.includes(actStr);
+  }
+
+  if (field === 'schedule_times') {
+    const expTimes = Array.isArray(expected) ? expected : [];
+    const actTimes = Array.isArray(actual) ? actual : [];
+    if (expTimes.length === 0) return true;
+    const matched = expTimes.filter((t: string) =>
+      actTimes.some((at: string) => at === t)
+    );
+    return matched.length >= Math.ceil(expTimes.length * 0.6);
+  }
+
+  // Default: substring match
+  return actStr.includes(expStr) || expStr.includes(actStr);
+}
+
+/**
+ * Evalúa el comportamiento general de Nanny en la conversación.
+ */
+function scoreBehavior(
+  conversation: SyntheticConversation,
+  messageResults: MessageResult[]
+): BehaviorMatch[] {
+  const matches: BehaviorMatch[] = [];
+  const behavior = conversation.expectedBehavior;
+
+  // Check should_stay_silent
+  if (behavior.shouldStaySilentAt && behavior.shouldStaySilentAt.length > 0) {
+    for (const idx of behavior.shouldStaySilentAt) {
+      const mr = messageResults[idx];
+      if (mr?.response) {
+        const wasSilent = !mr.response.should_respond ||
+          mr.response.intent === 'IGNORE' ||
+          mr.response.intent === 'CHAT';
+        matches.push({
+          check: `Silencio en mensaje ${idx}: "${mr.messageText.substring(0, 40)}..."`,
+          passed: wasSilent,
+          details: wasSilent
+            ? 'Nanny permaneció callada correctamente'
+            : `Nanny respondió con intent=${mr.response.intent}: "${mr.response.reply?.substring(0, 50)}"`,
+        });
+      }
+    }
+  }
+
+  // Check pending detection usage
+  if (behavior.shouldUsePendingDetection) {
+    const usedPending = messageResults.some(
+      mr => mr.response?.pending_detection != null
+    );
+    matches.push({
+      check: 'Uso de pending_detection para info incompleta',
+      passed: usedPending,
+      details: usedPending
+        ? 'Nanny usó pending_detection correctamente'
+        : 'Nanny nunca usó pending_detection (esperado que lo usara)',
+    });
+  }
+
+  // Check delegation detection
+  if (behavior.shouldDetectDelegation) {
+    const detectedDelegation = messageResults.some(mr => {
+      const conf = mr.response?.confirmation;
+      return conf?.data?.assigned_to != null;
+    });
+    matches.push({
+      check: 'Detección de delegación de responsabilidad',
+      passed: detectedDelegation,
+      details: detectedDelegation
+        ? 'Nanny detectó quién se hace responsable'
+        : 'Nanny no asignó responsable en ninguna detección',
+    });
+  }
+
+  // Check schedule change detection
+  if (behavior.shouldDetectScheduleChange) {
+    const detectedChange = messageResults.some(
+      mr => mr.response?.intent === 'SCHEDULE_CHANGE' ||
+        mr.response?.next_action === 'update_existing_event'
+    );
+    matches.push({
+      check: 'Detección de cambio de planes',
+      passed: detectedChange,
+      details: detectedChange
+        ? 'Nanny detectó el cambio de horario/plan'
+        : 'Nanny no detectó cambios de plan (SCHEDULE_CHANGE no emitido)',
+    });
+  }
+
+  // Check asking for missing info
+  if (behavior.shouldAskForMissing && behavior.shouldAskForMissing.length > 0) {
+    const askedForMissing = messageResults.some(
+      mr => mr.response?.next_action === 'ask_for_missing_time' ||
+        mr.response?.next_action === 'ask_for_missing_responsible_parent'
+    );
+    matches.push({
+      check: `Preguntó por info faltante: ${behavior.shouldAskForMissing.join(', ')}`,
+      passed: askedForMissing,
+      details: askedForMissing
+        ? 'Nanny preguntó por la información que faltaba'
+        : 'Nanny no preguntó por info faltante (debería haberlo hecho)',
+    });
+  }
+
+  // Check no errors
+  const hasErrors = messageResults.some(mr => mr.error != null);
+  matches.push({
+    check: 'Sin errores de API',
+    passed: !hasErrors,
+    details: hasErrors
+      ? `Errores: ${messageResults.filter(mr => mr.error).map(mr => mr.error).join(', ')}`
+      : 'Todas las llamadas exitosas',
+  });
+
+  return matches;
+}
