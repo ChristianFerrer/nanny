@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2 } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2, Square } from 'lucide-react';
 import Link from 'next/link';
 
 interface EvalRun {
@@ -24,10 +24,18 @@ interface EvalRun {
 }
 
 interface ConvProgress {
+  index: number;
   name: string;
   status: 'pending' | 'running' | 'done' | 'error';
   score?: number;
   error?: string;
+}
+
+interface ConversationInfo {
+  index: number;
+  id: string;
+  name: string;
+  messageCount: number;
 }
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
@@ -37,7 +45,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
     <div className="flex items-center gap-2 text-sm">
       <span className="w-28 text-gray-400">{label}</span>
       <div className="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-10 text-right font-mono text-xs">{pct}%</span>
     </div>
@@ -57,6 +65,7 @@ export default function TestingDashboard() {
     savedId: string | null;
     totalTimeMs: number;
   } | null>(null);
+  const abortRef = useRef(false);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -80,43 +89,102 @@ export default function TestingDashboard() {
     setRunResult(null);
     setConvProgress([]);
     setError(null);
+    abortRef.current = false;
+
+    const startTime = Date.now();
 
     try {
-      const res = await fetch('/api/eval/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      // 1. Get available conversations
+      const listRes = await fetch('/api/eval/run');
+      if (!listRes.ok) throw new Error(`Error listando conversaciones: HTTP ${listRes.status}`);
+      const conversations: ConversationInfo[] = await listRes.json();
 
-      if (!res.ok || !res.body) {
-        throw new Error(`HTTP ${res.status}`);
+      // 2. Initialize progress
+      setConvProgress(conversations.map(c => ({
+        index: c.index,
+        name: c.name,
+        status: 'pending',
+      })));
+
+      // 3. Run each conversation sequentially
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results: any[] = [];
+
+      for (let i = 0; i < conversations.length; i++) {
+        if (abortRef.current) break;
+
+        // Mark as running
+        setConvProgress(prev => prev.map((c, idx) =>
+          idx === i ? { ...c, status: 'running' } : c
+        ));
+
+        try {
+          const res = await fetch('/api/eval/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationIndex: i }),
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText);
+          }
+
+          const result = await res.json();
+          results.push(result);
+
+          // Mark as done with score
+          setConvProgress(prev => prev.map((c, idx) =>
+            idx === i ? { ...c, status: 'done', score: result.scores.overall } : c
+          ));
+        } catch (e) {
+          setConvProgress(prev => prev.map((c, idx) =>
+            idx === i ? { ...c, status: 'error', error: e instanceof Error ? e.message : 'Error' } : c
+          ));
+        }
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      if (abortRef.current) {
+        setError('Evaluación cancelada');
+        return;
+      }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      const totalTimeMs = Date.now() - startTime;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+      // 4. Finalize: save results to Supabase
+      if (results.length > 0) {
+        try {
+          const finalRes = await fetch('/api/eval/run/finalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ results, totalTimeMs }),
+          });
 
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7);
-          } else if (line.startsWith('data: ') && eventType) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              handleSSE(eventType, data);
-            } catch {
-              // ignore parse errors
-            }
-            eventType = '';
+          if (finalRes.ok) {
+            const finalData = await finalRes.json();
+            setRunResult({
+              aggregate: finalData.aggregate,
+              savedId: finalData.id,
+              totalTimeMs,
+            });
+          } else {
+            // Still show results even if save fails
+            const avg = (nums: number[]) =>
+              nums.length === 0 ? 0 : Math.round((nums.reduce((a: number, b: number) => a + b, 0) / nums.length) * 100) / 100;
+            setRunResult({
+              aggregate: {
+                precision: avg(results.map((r: { scores: { precision: number } }) => r.scores.precision)),
+                recall: avg(results.map((r: { scores: { recall: number } }) => r.scores.recall)),
+                ambiguityHandling: avg(results.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
+                behaviorScore: avg(results.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
+                overall: avg(results.map((r: { scores: { overall: number } }) => r.scores.overall)),
+              },
+              savedId: null,
+              totalTimeMs,
+            });
           }
+        } catch {
+          setError('Resultados obtenidos pero error al guardar');
         }
       }
     } catch (e) {
@@ -127,27 +195,8 @@ export default function TestingDashboard() {
     }
   }
 
-  function handleSSE(event: string, data: Record<string, unknown>) {
-    if (event === 'start') {
-      const names = data.names as string[];
-      setConvProgress(names.map(name => ({ name, status: 'pending' })));
-    } else if (event === 'progress') {
-      const index = data.index as number;
-      const status = data.status as ConvProgress['status'];
-      const score = data.score as number | undefined;
-      const err = data.error as string | undefined;
-      setConvProgress(prev => {
-        const updated = [...prev];
-        updated[index] = { ...updated[index], status, score, error: err };
-        return updated;
-      });
-    } else if (event === 'done') {
-      setRunResult({
-        aggregate: data.aggregate as EvalRun['aggregate_scores'],
-        savedId: data.savedId as string | null,
-        totalTimeMs: data.totalTimeMs as number,
-      });
-    }
+  function stopEvaluation() {
+    abortRef.current = true;
   }
 
   const latest = runs[0];
@@ -169,23 +218,23 @@ export default function TestingDashboard() {
           <h1 className="text-xl font-bold">🧪 Testing Nanny</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={startEvaluation}
-            disabled={running}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
-          >
-            {running ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Ejecutando...
-              </>
-            ) : (
-              <>
-                <Play size={14} />
-                Ejecutar
-              </>
-            )}
-          </button>
+          {running ? (
+            <button
+              onClick={stopEvaluation}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Square size={12} fill="currentColor" />
+              Detener
+            </button>
+          ) : (
+            <button
+              onClick={startEvaluation}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Play size={14} />
+              Ejecutar
+            </button>
+          )}
           <button
             onClick={loadRuns}
             disabled={running}
@@ -203,10 +252,12 @@ export default function TestingDashboard() {
       )}
 
       {/* Live evaluation progress */}
-      {(running || convProgress.length > 0) && !runResult && (
+      {convProgress.length > 0 && !runResult && (
         <div className="bg-gray-800 rounded-xl p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold">Evaluación en curso</p>
+            <p className="text-sm font-semibold">
+              {running ? 'Evaluación en curso' : 'Evaluación'}
+            </p>
             <span className="text-xs text-gray-400">
               {completedCount}/{convProgress.length}
             </span>
@@ -215,15 +266,15 @@ export default function TestingDashboard() {
           {/* Overall progress bar */}
           <div className="bg-gray-700 rounded-full h-2 overflow-hidden mb-3">
             <div
-              className="h-full rounded-full bg-cyan-500 transition-all duration-300"
+              className="h-full rounded-full bg-cyan-500 transition-all duration-500"
               style={{ width: `${convProgress.length > 0 ? (completedCount / convProgress.length) * 100 : 0}%` }}
             />
           </div>
 
           <div className="space-y-1.5">
-            {convProgress.map((conv, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <span className="w-5 text-center">
+            {convProgress.map((conv) => (
+              <div key={conv.index} className="flex items-center gap-2 text-xs">
+                <span className="w-5 text-center shrink-0">
                   {conv.status === 'pending' && <span className="text-gray-600">-</span>}
                   {conv.status === 'running' && <Loader2 size={12} className="animate-spin text-cyan-400" />}
                   {conv.status === 'done' && (
@@ -231,11 +282,11 @@ export default function TestingDashboard() {
                   )}
                   {conv.status === 'error' && '💥'}
                 </span>
-                <span className={`flex-1 ${conv.status === 'running' ? 'text-cyan-300' : conv.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
+                <span className={`flex-1 truncate ${conv.status === 'running' ? 'text-cyan-300' : conv.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
                   {conv.name}
                 </span>
                 {conv.score !== undefined && (
-                  <span className={`font-mono ${(conv.score) >= 0.8 ? 'text-green-400' : (conv.score) >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`font-mono shrink-0 ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
                     {Math.round(conv.score * 100)}%
                   </span>
                 )}
@@ -260,16 +311,14 @@ export default function TestingDashboard() {
             <ScoreBar value={runResult.aggregate.behaviorScore} label="Comportamiento" />
             <ScoreBar value={runResult.aggregate.overall} label="Overall" />
           </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="space-y-1">
-              {convProgress.map((conv, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span>{(conv.score ?? 0) >= 0.9 ? '✅' : (conv.score ?? 0) >= 0.6 ? '⚠️' : '❌'}</span>
-                  <span className="text-gray-400">{conv.name}</span>
-                  <span className="font-mono text-gray-300">{conv.score !== undefined ? `${Math.round(conv.score * 100)}%` : ''}</span>
-                </div>
-              ))}
-            </div>
+          <div className="text-xs space-y-1">
+            {convProgress.filter(c => c.score !== undefined).map((conv) => (
+              <div key={conv.index} className="flex items-center gap-2">
+                <span>{(conv.score ?? 0) >= 0.9 ? '✅' : (conv.score ?? 0) >= 0.6 ? '⚠️' : '❌'}</span>
+                <span className="text-gray-400 flex-1 truncate">{conv.name}</span>
+                <span className="font-mono text-gray-300">{Math.round((conv.score ?? 0) * 100)}%</span>
+              </div>
+            ))}
           </div>
           {runResult.savedId && (
             <Link
