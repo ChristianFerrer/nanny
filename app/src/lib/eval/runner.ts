@@ -12,12 +12,15 @@ import type {
 } from './types';
 import { profiles, buildFamilyContext } from './profiles';
 import { scoreConversation } from './scorer';
+import { processChat } from '@/lib/chat/processChat';
 
 interface RunnerConfig {
-  /** URL base del API (ej: http://localhost:3000 o URL de Vercel) */
-  baseUrl: string;
+  /** URL base del API - solo usado como fallback para fetch mode */
+  baseUrl?: string;
   /** Delay entre mensajes para no saturar el API (ms) */
   delayBetweenMessages?: number;
+  /** Si true, usa fetch HTTP en vez de llamada directa */
+  useFetch?: boolean;
 }
 
 /**
@@ -47,32 +50,48 @@ export async function runConversation(
     // Build recent messages string (last 15)
     const recentStr = recentMessages.slice(-15).join('\n') || 'Ninguno';
 
-    const requestBody = {
-      message: msg.text,
-      familyContext,
-      recentMessages: recentStr,
-      existingEvents: createdEvents.join('\n') || 'Ninguno',
-      existingTasks: createdTasks.join('\n') || 'Ninguna',
-      activeMedications: activeMedications.join('\n') || 'Ninguno',
-      senderName,
-      pendingDetection,
-    };
-
     const msgStart = Date.now();
     let response: MessageResult['response'] = null;
     let error: string | undefined;
 
     try {
-      const res = await fetch(`${config.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+      if (config.useFetch && config.baseUrl) {
+        // HTTP fetch mode (for CLI usage)
+        const requestBody = {
+          message: msg.text,
+          familyContext,
+          recentMessages: recentStr,
+          existingEvents: createdEvents.join('\n') || 'Ninguno',
+          existingTasks: createdTasks.join('\n') || 'Ninguna',
+          activeMedications: activeMedications.join('\n') || 'Ninguno',
+          senderName,
+          pendingDetection,
+        };
 
-      if (!res.ok) {
-        error = `HTTP ${res.status}: ${await res.text()}`;
+        const res = await fetch(`${config.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!res.ok) {
+          error = `HTTP ${res.status}: ${await res.text()}`;
+        } else {
+          response = await res.json();
+        }
       } else {
-        response = await res.json();
+        // Direct call mode (for server-side / eval API route)
+        const result = await processChat({
+          message: msg.text,
+          familyContext,
+          recentMessages: recentStr,
+          existingEvents: createdEvents.join('\n') || 'Ninguno',
+          existingTasks: createdTasks.join('\n') || 'Ninguna',
+          activeMedications: activeMedications.join('\n') || 'Ninguno',
+          senderName,
+          pendingDetection,
+        });
+        response = result;
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);

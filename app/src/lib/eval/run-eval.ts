@@ -104,6 +104,7 @@ async function main() {
   const { results, aggregate, totalTimeMs } = await runAllConversations(conversations, {
     baseUrl,
     delayBetweenMessages: 300,
+    useFetch: true,
   });
 
   // Print results
@@ -150,13 +151,13 @@ async function main() {
     console.log(colors.dim('  Analizando fallos con GPT-4o...'));
 
     try {
-      // Read the system prompt from the chat route
+      // Read the system prompt from the shared chat module
       const { readFileSync } = await import('fs');
-      const chatRoute = readFileSync(
-        new URL('../../app/api/chat/route.ts', import.meta.url),
+      const chatModule = readFileSync(
+        new URL('../chat/processChat.ts', import.meta.url),
         'utf-8'
       );
-      const promptMatch = chatRoute.match(/const SYSTEM_PROMPT = `([\s\S]*?)`;/);
+      const promptMatch = chatModule.match(/const SYSTEM_PROMPT = `([\s\S]*?)`;/);
       const systemPrompt = promptMatch?.[1] || 'No se pudo leer el prompt';
 
       const diagnosis = await diagnoseResults(results, systemPrompt);

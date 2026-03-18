@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { allConversations } from '@/lib/eval/conversations/index';
 import { runConversation } from '@/lib/eval/runner';
 import type { ConversationResult, EvaluationRun } from '@/lib/eval/types';
@@ -6,22 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 300; // 5 min max for Vercel
 
-export async function POST(req: NextRequest) {
-  const { conversationIndex } = await req.json().catch(() => ({}));
-
-  // Determine base URL for internal API calls
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const host = req.headers.get('host') || 'localhost:3000';
-  const baseUrl = `${proto}://${host}`;
-
-  // Select conversations
-  let conversations = allConversations;
-  if (conversationIndex !== undefined) {
-    const idx = Number(conversationIndex);
-    if (idx >= 0 && idx < allConversations.length) {
-      conversations = [allConversations[idx]];
-    }
-  }
+export async function POST() {
+  const conversations = allConversations;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -50,7 +36,6 @@ export async function POST(req: NextRequest) {
 
         try {
           const result = await runConversation(conv, {
-            baseUrl,
             delayBetweenMessages: 200,
           });
           results.push(result);
