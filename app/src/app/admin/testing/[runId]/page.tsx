@@ -273,7 +273,7 @@ function DiagnosisPanel({ runId }: { runId: string }) {
   const [diagnosis, setDiagnosis] = useState<DiagnosisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
+  const [appliedMap, setAppliedMap] = useState<Record<number, string>>({}); // index -> version
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
 
@@ -324,9 +324,7 @@ function DiagnosisPanel({ runId }: { runId: string }) {
       }
 
       const result = await res.json();
-      setAppliedIndexes(prev => new Set([...prev, index]));
-      setApplyError(null);
-      alert(`Ajuste aplicado. Nueva versión del prompt: ${result.version}`);
+      setAppliedMap(prev => ({ ...prev, [index]: result.version }));
     } catch (e) {
       setApplyError(e instanceof Error ? e.message : 'Error aplicando ajuste');
     } finally {
@@ -419,7 +417,8 @@ function DiagnosisPanel({ runId }: { runId: string }) {
               </h3>
               <div className="space-y-3">
                 {diagnosis.proposedAdjustments.map((adj, i) => {
-                  const isApplied = appliedIndexes.has(i);
+                  const appliedVersion = appliedMap[i];
+                  const isApplied = !!appliedVersion;
                   const isApplying = applyingIndex === i;
 
                   return (
@@ -429,9 +428,6 @@ function DiagnosisPanel({ runId }: { runId: string }) {
                           Riesgo {adj.riskLevel}
                         </span>
                         <span className="text-xs text-gray-400">{adj.pattern}</span>
-                        {isApplied && (
-                          <span className="text-[10px] text-green-400 ml-auto">Aplicado</span>
-                        )}
                       </div>
 
                       {adj.currentPromptSection && (
@@ -454,7 +450,11 @@ function DiagnosisPanel({ runId }: { runId: string }) {
                         Impacto esperado: {adj.expectedImpact}
                       </p>
 
-                      {!isApplied && (
+                      {isApplied ? (
+                        <div className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-green-900/30 border border-green-800 rounded-lg text-xs text-green-400">
+                          Aplicado ({appliedVersion})
+                        </div>
+                      ) : (
                         <button
                           onClick={() => applyAdjustment(adj, i)}
                           disabled={isApplying || applyingIndex !== null}
@@ -478,7 +478,7 @@ function DiagnosisPanel({ runId }: { runId: string }) {
           )}
 
           <button
-            onClick={() => { setDiagnosis(null); setAppliedIndexes(new Set()); }}
+            onClick={() => { setDiagnosis(null); setAppliedMap({}); }}
             className="w-full text-xs text-gray-500 hover:text-gray-400 py-2"
           >
             Cerrar diagnóstico
