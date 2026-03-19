@@ -1,7 +1,7 @@
 # Nanny - Contexto del Proyecto
 
 ## Deployment
-- **Vercel** está configurado para deployar desde la branch `claude/analyze-parenting-whatsapp-app-cYaTb` (NO desde main)
+- **Vercel** está configurado para deployar desde la branch `claude/continue-previous-session-OleqU` (NO desde main)
 - La production branch en Vercel YA apunta a esta branch
 - NO sugerir cambiar a main ni crear branch main
 
