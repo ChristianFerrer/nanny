@@ -529,6 +529,50 @@ export default function RunDetailPage() {
   const pct = Math.round((run.aggregate_scores?.overall || 0) * 100);
   const conversations = run.conversation_results || [];
 
+  // Aggregate all failures across conversations for the summary
+  const allFailedDetections: { conv: string; detection: DetectionMatch }[] = [];
+  const allIncorrectFields: { conv: string; detection: string; field: string; expected: unknown; actual: unknown }[] = [];
+  const allFailedBehaviors: { conv: string; check: string; details: string }[] = [];
+  const allAmbiguous: { conv: string; detection: string; fields: string[] }[] = [];
+
+  for (const cr of conversations) {
+    const convName = cr.conversationName || cr.conversationId;
+    if (cr.detectionMatches) {
+      for (const dm of cr.detectionMatches) {
+        if (!dm.actual) {
+          allFailedDetections.push({ conv: convName, detection: dm });
+        }
+        if (dm.incorrectFields && dm.incorrectFields.length > 0) {
+          for (const f of dm.incorrectFields) {
+            allIncorrectFields.push({
+              conv: convName,
+              detection: getDetectionLabel(dm),
+              field: f.field,
+              expected: f.expected,
+              actual: f.actual,
+            });
+          }
+        }
+        if (dm.ambiguousFields && dm.ambiguousFields.length > 0) {
+          allAmbiguous.push({
+            conv: convName,
+            detection: getDetectionLabel(dm),
+            fields: dm.ambiguousFields,
+          });
+        }
+      }
+    }
+    if (cr.behaviorMatches) {
+      for (const bm of cr.behaviorMatches) {
+        if (!bm.passed) {
+          allFailedBehaviors.push({ conv: convName, check: bm.check, details: bm.details });
+        }
+      }
+    }
+  }
+
+  const hasIssues = allFailedDetections.length > 0 || allIncorrectFields.length > 0 || allFailedBehaviors.length > 0 || allAmbiguous.length > 0;
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 max-w-2xl mx-auto">
       {/* Header */}
@@ -559,6 +603,118 @@ export default function RunDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Resumen detallado de cambios necesarios */}
+      {hasIssues && (
+        <div className="bg-gray-800 rounded-xl p-4 mb-4">
+          <h2 className="text-sm font-semibold text-orange-400 mb-3">
+            Resumen de cambios necesarios
+          </h2>
+
+          {/* Detecciones no encontradas */}
+          {allFailedDetections.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
+                <span>❌</span> Detecciones no encontradas ({allFailedDetections.length})
+              </h3>
+              <div className="space-y-1.5">
+                {allFailedDetections.map((fd, i) => (
+                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <span className="text-gray-300 font-medium">{fd.detection.expected?.intent}</span>
+                        {' — '}
+                        <span className="text-gray-400">{getDetectionLabel(fd.detection)}</span>
+                      </div>
+                      <span className="text-gray-600 shrink-0">{fd.conv}</span>
+                    </div>
+                    {fd.detection.expected?.data && (
+                      <p className="text-gray-600 mt-1 text-[10px] font-mono truncate">
+                        {JSON.stringify(fd.detection.expected.data)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campos incorrectos */}
+          {allIncorrectFields.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1.5">
+                <span>⚠️</span> Campos incorrectos ({allIncorrectFields.length})
+              </h3>
+              <div className="space-y-1.5">
+                {allIncorrectFields.map((f, i) => (
+                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex items-start gap-2">
+                    <div className="flex-1">
+                      <span className="text-gray-300 font-medium">{f.detection}</span>
+                      <span className="text-gray-600"> → </span>
+                      <span className="text-gray-400">{f.field}</span>
+                      <div className="mt-1 flex gap-3 text-[10px]">
+                        <span className="text-red-400">esperado: &quot;{String(f.expected ?? '')}&quot;</span>
+                        <span className="text-green-400">actual: &quot;{String(f.actual ?? '')}&quot;</span>
+                      </div>
+                    </div>
+                    <span className="text-gray-600 shrink-0 text-[10px]">{f.conv}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Comportamientos fallidos */}
+          {allFailedBehaviors.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
+                <span>🚫</span> Comportamientos fallidos ({allFailedBehaviors.length})
+              </h3>
+              <div className="space-y-1.5">
+                {allFailedBehaviors.map((fb, i) => (
+                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <p className="text-gray-300 font-medium">{fb.check}</p>
+                        <p className="text-gray-500 mt-0.5">{fb.details}</p>
+                      </div>
+                      <span className="text-gray-600 shrink-0">{fb.conv}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campos ambiguos */}
+          {allAmbiguous.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-blue-400 mb-2 flex items-center gap-1.5">
+                <span>🔵</span> Campos ambiguos ({allAmbiguous.length})
+              </h3>
+              <div className="space-y-1.5">
+                {allAmbiguous.map((a, i) => (
+                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex items-start gap-2">
+                    <div className="flex-1">
+                      <span className="text-gray-300 font-medium">{a.detection}</span>
+                      <span className="text-gray-600"> → </span>
+                      <span className="text-blue-300">{a.fields.join(', ')}</span>
+                    </div>
+                    <span className="text-gray-600 shrink-0">{a.conv}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Score 100% - no issues */}
+      {!hasIssues && conversations.length > 0 && (
+        <div className="bg-green-900/20 border border-green-800 rounded-xl p-4 mb-4 text-center">
+          <p className="text-sm text-green-300 font-medium">Todas las pruebas pasaron correctamente</p>
+        </div>
+      )}
 
       {/* Conversations */}
       <h2 className="text-sm font-semibold text-gray-400 mb-2">
