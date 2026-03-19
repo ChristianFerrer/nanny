@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2, Square } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2, Square, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 interface EvalRun {
@@ -69,6 +69,30 @@ export default function TestingDashboard() {
     totalTimeMs: number;
   } | null>(null);
   const abortRef = useRef(false);
+
+  // Autopilot state
+  const [autopilotRunning, setAutopilotRunning] = useState(false);
+  const [autopilotPhase, setAutopilotPhase] = useState<string>('');
+  const [autopilotMessage, setAutopilotMessage] = useState<string>('');
+  const [autopilotConvs, setAutopilotConvs] = useState<ConvProgress[]>([]);
+  const [autopilotDiagnosis, setAutopilotDiagnosis] = useState<{
+    summary: string;
+    failurePatterns: number;
+    proposedAdjustments: number;
+  } | null>(null);
+  const [autopilotAdjustments, setAutopilotAdjustments] = useState<{
+    index: number;
+    pattern: string;
+    status: 'pending' | 'applying' | 'done' | 'skipped' | 'error';
+    version?: string;
+    reason?: string;
+  }[]>([]);
+  const [autopilotResult, setAutopilotResult] = useState<{
+    runId: string | null;
+    aggregate: EvalRun['aggregate_scores'];
+    adjustmentsApplied: number;
+    diagnosisSummary?: string;
+  } | null>(null);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -231,6 +255,153 @@ export default function TestingDashboard() {
     abortRef.current = true;
   }
 
+  async function startAutopilot() {
+    setAutopilotRunning(true);
+    setAutopilotPhase('');
+    setAutopilotMessage('');
+    setAutopilotConvs([]);
+    setAutopilotDiagnosis(null);
+    setAutopilotAdjustments([]);
+    setAutopilotResult(null);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/eval/autopilot', { method: 'POST' });
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            handleAutopilotEvent(event);
+          } catch {
+            // skip parse errors
+          }
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error en autopilot');
+    } finally {
+      setAutopilotRunning(false);
+      loadRuns();
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function handleAutopilotEvent(event: any) {
+    switch (event.type) {
+      case 'phase':
+        setAutopilotPhase(event.phase);
+        setAutopilotMessage(event.message);
+        break;
+
+      case 'eval_start':
+        setAutopilotConvs(
+          Array.from({ length: event.totalConversations }, (_, i) => ({
+            index: i,
+            name: `Conversación ${i + 1}`,
+            status: 'pending' as const,
+          }))
+        );
+        break;
+
+      case 'conv_start':
+        setAutopilotConvs(prev => prev.map((c, idx) =>
+          idx === event.index ? { ...c, name: event.name, status: 'running', totalMessages: event.totalMessages, completedMessages: 0 } : c
+        ));
+        break;
+
+      case 'msg_done':
+        setAutopilotConvs(prev => prev.map((c, idx) =>
+          idx === event.index ? { ...c, completedMessages: event.msgIndex + 1 } : c
+        ));
+        break;
+
+      case 'conv_done':
+        setAutopilotConvs(prev => prev.map((c, idx) =>
+          idx === event.index ? { ...c, name: event.name, status: 'done', score: event.score } : c
+        ));
+        break;
+
+      case 'conv_error':
+        setAutopilotConvs(prev => prev.map((c, idx) =>
+          idx === event.index ? { ...c, name: event.name, status: 'error', error: event.error } : c
+        ));
+        break;
+
+      case 'diagnosis_done':
+        setAutopilotDiagnosis({
+          summary: event.summary,
+          failurePatterns: event.failurePatterns,
+          proposedAdjustments: event.proposedAdjustments,
+        });
+        setAutopilotAdjustments(
+          Array.from({ length: event.proposedAdjustments }, (_, i) => ({
+            index: i,
+            pattern: '',
+            status: 'pending' as const,
+          }))
+        );
+        break;
+
+      case 'adj_start':
+        setAutopilotAdjustments(prev => prev.map((a, idx) =>
+          idx === event.index ? { ...a, pattern: event.pattern, status: 'applying' } : a
+        ));
+        break;
+
+      case 'adj_done':
+        setAutopilotAdjustments(prev => prev.map((a, idx) =>
+          idx === event.index ? { ...a, pattern: event.pattern, status: 'done', version: event.version } : a
+        ));
+        break;
+
+      case 'adj_skip':
+        setAutopilotAdjustments(prev => prev.map((a, idx) =>
+          idx === event.index ? { ...a, pattern: event.pattern, status: 'skipped', reason: event.reason } : a
+        ));
+        break;
+
+      case 'adj_error':
+        setAutopilotAdjustments(prev => prev.map((a, idx) =>
+          idx === event.index ? { ...a, pattern: event.pattern, status: 'error', reason: event.error } : a
+        ));
+        break;
+
+      case 'done':
+        setAutopilotResult({
+          runId: event.runId,
+          aggregate: event.aggregate,
+          adjustmentsApplied: event.adjustmentsApplied,
+          diagnosisSummary: event.diagnosisSummary,
+        });
+        break;
+
+      case 'error':
+        setError(event.message);
+        break;
+
+      case 'warning':
+        // Just log, don't break the flow
+        console.warn('Autopilot warning:', event.message);
+        break;
+    }
+  }
+
   const latest = runs[0];
   const previous = runs[1];
   const trend = latest && previous
@@ -250,26 +421,36 @@ export default function TestingDashboard() {
           <h1 className="text-xl font-bold">🧪 Testing Nanny</h1>
         </div>
         <div className="flex items-center gap-2">
-          {running ? (
+          {(running || autopilotRunning) ? (
             <button
               onClick={stopEvaluation}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition-colors"
+              disabled={autopilotRunning}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
             >
               <Square size={12} fill="currentColor" />
               Detener
             </button>
           ) : (
-            <button
-              onClick={startEvaluation}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
-            >
-              <Play size={14} />
-              Ejecutar
-            </button>
+            <>
+              <button
+                onClick={startAutopilot}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Zap size={14} />
+                Autopilot
+              </button>
+              <button
+                onClick={startEvaluation}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Play size={14} />
+                Ejecutar
+              </button>
+            </>
           )}
           <button
             onClick={loadRuns}
-            disabled={running}
+            disabled={running || autopilotRunning}
             className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
@@ -280,6 +461,155 @@ export default function TestingDashboard() {
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-sm text-red-300">
           {error}
+        </div>
+      )}
+
+      {/* Autopilot progress */}
+      {(autopilotRunning || autopilotResult) && (
+        <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 mb-4">
+          {/* Phase indicator */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap size={14} className="text-purple-400" />
+              <p className="text-sm font-semibold text-purple-300">
+                {autopilotResult ? 'Autopilot completado' : 'Autopilot'}
+              </p>
+            </div>
+            {autopilotRunning && (
+              <span className="text-xs text-purple-400 flex items-center gap-1.5">
+                <Loader2 size={10} className="animate-spin" />
+                {autopilotMessage}
+              </span>
+            )}
+          </div>
+
+          {/* Phase steps */}
+          <div className="flex gap-1 mb-4">
+            {['evaluation', 'saving', 'diagnosis', 'applying', 'complete'].map((phase) => {
+              const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'complete'];
+              const currentIdx = phases.indexOf(autopilotPhase);
+              const phaseIdx = phases.indexOf(phase);
+              const isActive = phase === autopilotPhase;
+              const isDone = phaseIdx < currentIdx || autopilotPhase === 'complete';
+              return (
+                <div
+                  key={phase}
+                  className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                    isDone ? 'bg-purple-500' : isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-700'
+                  }`}
+                />
+              );
+            })}
+          </div>
+
+          {/* Evaluation conversations progress */}
+          {autopilotConvs.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Evaluación</p>
+              <div className="space-y-1">
+                {autopilotConvs.map((conv) => (
+                  <div key={conv.index} className="flex items-center gap-2 text-xs">
+                    <span className="w-5 text-center shrink-0">
+                      {conv.status === 'pending' && <span className="text-gray-600">-</span>}
+                      {conv.status === 'running' && (
+                        conv.totalMessages ? (
+                          <span className="text-purple-400 text-[10px] font-mono">{conv.completedMessages}/{conv.totalMessages}</span>
+                        ) : (
+                          <Loader2 size={10} className="animate-spin text-purple-400" />
+                        )
+                      )}
+                      {conv.status === 'done' && (
+                        <span>{(conv.score ?? 0) >= 0.9 ? '✅' : (conv.score ?? 0) >= 0.6 ? '⚠️' : '❌'}</span>
+                      )}
+                      {conv.status === 'error' && '💥'}
+                    </span>
+                    <span className={`flex-1 truncate ${conv.status === 'running' ? 'text-purple-300' : conv.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
+                      {conv.name}
+                    </span>
+                    {conv.score !== undefined && (
+                      <span className={`font-mono shrink-0 ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {Math.round(conv.score * 100)}%
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Diagnosis info */}
+          {autopilotDiagnosis && (
+            <div className="mb-4">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Diagnóstico</p>
+              <p className="text-xs text-gray-300 mb-1">{autopilotDiagnosis.summary}</p>
+              <div className="flex gap-3 text-[10px] text-gray-500">
+                <span>{autopilotDiagnosis.failurePatterns} patrones de fallo</span>
+                <span>{autopilotDiagnosis.proposedAdjustments} ajustes propuestos</span>
+              </div>
+            </div>
+          )}
+
+          {/* Adjustments progress */}
+          {autopilotAdjustments.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Ajustes al prompt</p>
+              <div className="space-y-1">
+                {autopilotAdjustments.map((adj) => (
+                  <div key={adj.index} className="flex items-center gap-2 text-xs">
+                    <span className="w-5 text-center shrink-0">
+                      {adj.status === 'pending' && <span className="text-gray-600">-</span>}
+                      {adj.status === 'applying' && <Loader2 size={10} className="animate-spin text-purple-400" />}
+                      {adj.status === 'done' && '✅'}
+                      {adj.status === 'skipped' && '⏭️'}
+                      {adj.status === 'error' && '❌'}
+                    </span>
+                    <span className={`flex-1 truncate ${adj.status === 'applying' ? 'text-purple-300' : adj.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
+                      {adj.pattern || `Ajuste ${adj.index + 1}`}
+                    </span>
+                    {adj.version && <span className="text-green-400 text-[10px] font-mono">{adj.version}</span>}
+                    {adj.status === 'skipped' && <span className="text-gray-600 text-[10px] truncate max-w-[100px]">{adj.reason}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Final result */}
+          {autopilotResult && (
+            <div className="border-t border-purple-800 pt-3">
+              <div className="space-y-1.5 mb-3">
+                <ScoreBar value={autopilotResult.aggregate.precision} label="Precision" />
+                <ScoreBar value={autopilotResult.aggregate.recall} label="Recall" />
+                <ScoreBar value={autopilotResult.aggregate.ambiguityHandling} label="Ambiguedad" />
+                <ScoreBar value={autopilotResult.aggregate.behaviorScore} label="Comportamiento" />
+                <ScoreBar value={autopilotResult.aggregate.overall} label="Overall" />
+              </div>
+              <p className="text-xs text-purple-300 text-center mb-2">
+                {autopilotResult.adjustmentsApplied} ajustes aplicados al prompt
+              </p>
+              {autopilotResult.runId && (
+                <Link
+                  href={`/admin/testing/${autopilotResult.runId}`}
+                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mb-2"
+                >
+                  Ver detalle completo →
+                </Link>
+              )}
+              <button
+                onClick={() => {
+                  setAutopilotResult(null);
+                  setAutopilotConvs([]);
+                  setAutopilotDiagnosis(null);
+                  setAutopilotAdjustments([]);
+                  setAutopilotPhase('');
+                  setAutopilotMessage('');
+                }}
+                className="w-full text-xs text-gray-500 hover:text-gray-400"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
         </div>
       )}
 
