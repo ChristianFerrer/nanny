@@ -39,14 +39,18 @@ export async function GET() {
 /**
  * POST: aplica un ajuste al prompt activo, creando una nueva versión.
  * Body: { currentSection: string, proposedChange: string, description: string }
+ *
+ * Estrategia de aplicación:
+ * 1. Si currentSection se encuentra exacto en el prompt → reemplaza
+ * 2. Si no → agrega proposedChange al final del prompt como regla adicional
  */
 export async function POST(req: NextRequest) {
   try {
     const { currentSection, proposedChange, description } = await req.json();
 
-    if (!currentSection || !proposedChange) {
+    if (!proposedChange) {
       return NextResponse.json(
-        { error: 'currentSection y proposedChange son requeridos' },
+        { error: 'proposedChange es requerido' },
         { status: 400 }
       );
     }
@@ -64,19 +68,27 @@ export async function POST(req: NextRequest) {
     const parentId = activePrompt?.id || null;
 
     let newContent: string;
+    let matchType: 'exact' | 'appended';
 
-    if (currentContent.includes(currentSection)) {
-      // Match exacto encontrado
+    if (currentSection && currentContent.includes(currentSection)) {
+      // Match exacto: reemplazar la sección
       newContent = currentContent.replace(currentSection, proposedChange);
+      matchType = 'exact';
     } else {
-      // Fuzzy matching: buscar la sección más similar en el prompt
-      const matchedSection = findBestMatch(currentContent, currentSection);
-      if (matchedSection) {
-        newContent = currentContent.replace(matchedSection, proposedChange);
+      // Sin match exacto: agregar como regla adicional al final
+      // Insertar antes del bloque de JSON de respuesta si existe, o al final
+      const jsonBlockMarker = '## FORMATO DE RESPUESTA';
+      const jsonBlockIdx = currentContent.indexOf(jsonBlockMarker);
+
+      if (jsonBlockIdx > 0) {
+        // Insertar la nueva regla justo antes del formato de respuesta
+        newContent = currentContent.slice(0, jsonBlockIdx)
+          + '\n' + proposedChange + '\n\n'
+          + currentContent.slice(jsonBlockIdx);
       } else {
-        // Si no hay match, agregar el cambio al final del prompt como nueva sección
         newContent = currentContent + '\n\n' + proposedChange;
       }
+      matchType = 'appended';
     }
 
     // Generar label de versión
@@ -121,7 +133,7 @@ export async function POST(req: NextRequest) {
       success: true,
       version: newPrompt.version_label,
       id: newPrompt.id,
-      matchType: currentContent.includes(currentSection) ? 'exact' : 'fuzzy',
+      matchType,
     });
   } catch (e) {
     return NextResponse.json(
@@ -129,53 +141,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * Busca la sección más similar en el contenido del prompt.
- * Compara líneas normalizadas para tolerar diferencias de espacios/puntuación.
- */
-function findBestMatch(content: string, searchSection: string): string | null {
-  // Normalizar para comparación: lowercase, quitar espacios extra
-  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-  const normalizedSearch = normalize(searchSection);
-
-  // Si la sección normalizada está contenida en el contenido normalizado
-  const normalizedContent = normalize(content);
-  if (normalizedContent.includes(normalizedSearch)) {
-    // Encontrar la posición en el original
-    const searchWords = normalizedSearch.split(' ').slice(0, 5).join(' ');
-    const contentWords = normalizedContent.split(' ');
-    const searchWordsArr = searchWords.split(' ');
-
-    for (let i = 0; i < contentWords.length; i++) {
-      if (contentWords.slice(i, i + searchWordsArr.length).join(' ') === searchWordsArr.join(' ')) {
-        // Encontramos el inicio aproximado, extraer del original
-        const lines = content.split('\n');
-        const searchLines = searchSection.split('\n').length;
-        const normalizedLines = lines.map(l => normalize(l));
-        const firstSearchLine = normalize(searchSection.split('\n')[0]);
-
-        for (let j = 0; j < normalizedLines.length; j++) {
-          if (normalizedLines[j].includes(firstSearchLine.substring(0, 30))) {
-            return lines.slice(j, j + searchLines).join('\n');
-          }
-        }
-      }
-    }
-  }
-
-  // Fallback: buscar por primera línea significativa
-  const searchFirstLine = normalize(searchSection.split('\n').find(l => l.trim().length > 10) || '');
-  if (searchFirstLine.length > 10) {
-    const lines = content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (normalize(lines[i]).includes(searchFirstLine.substring(0, Math.min(40, searchFirstLine.length)))) {
-        const searchLineCount = searchSection.split('\n').length;
-        return lines.slice(i, i + searchLineCount).join('\n');
-      }
-    }
-  }
-
-  return null;
 }

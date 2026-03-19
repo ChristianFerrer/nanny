@@ -43,33 +43,39 @@ export async function diagnoseResults(
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
-    max_tokens: 3000,
+    max_tokens: 4000,
     temperature: 0.2,
     messages: [
       {
         role: 'system',
-        content: `Eres un experto en ingeniería de prompts para LLMs. Analizas fallos en un sistema de detección de intents para una app de coordinación familiar.
+        content: `Eres un experto en ingeniería de prompts para LLMs. Analizas fallos en un sistema de detección de intents para una app de coordinación familiar llamada "Nanny".
 
 Tu trabajo:
 1. Identificar PATRONES en los fallos (no listar cada fallo individual)
-2. Proponer CAMBIOS ESPECÍFICOS al system prompt que resuelvan esos patrones
-3. Evaluar el RIESGO de cada cambio (puede causar regresión en otros casos?)
+2. Proponer INSTRUCCIONES ADICIONALES concretas que se agregarán al system prompt para resolver esos patrones
+3. Evaluar el RIESGO de cada cambio
 
-Responde SIEMPRE en JSON con esta estructura:
+IMPORTANTE sobre los ajustes propuestos:
+- El campo "proposedChange" debe ser una INSTRUCCIÓN NUEVA completa y auto-contenida que se agregará al prompt
+- Escríbela como una regla clara que Nanny debe seguir, por ejemplo: "REGLA: Cuando un padre menciona una fecha futura con actividad, SIEMPRE detectar como evento aunque no use palabras como 'cita' o 'evento'"
+- NO intentes citar o referenciar secciones existentes del prompt - solo propón texto nuevo a agregar
+- El campo "currentPromptSection" debe ser una descripción corta de QUÉ ÁREA del prompt está relacionada (ej: "detección de eventos", "manejo de ambigüedad")
+
+Responde SIEMPRE en JSON válido con esta estructura:
 {
   "patterns": [
     {
-      "category": "categoría del patrón",
-      "description": "descripción clara",
+      "category": "nombre descriptivo del patrón",
+      "description": "descripción clara del problema",
       "failureCount": número,
       "affectedConversations": ["id1", "id2"]
     }
   ],
   "adjustments": [
     {
-      "pattern": "qué patrón resuelve",
-      "currentPromptSection": "sección actual del prompt relevante (cita textual corta)",
-      "proposedChange": "el cambio propuesto (texto nuevo)",
+      "pattern": "nombre descriptivo del patrón que resuelve",
+      "currentPromptSection": "área del prompt relacionada (descripción corta)",
+      "proposedChange": "REGLA NUEVA COMPLETA a agregar al prompt. Debe ser auto-contenida y clara.",
       "riskLevel": "bajo|medio|alto",
       "expectedImpact": "qué mejora esperamos"
     }

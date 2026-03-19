@@ -522,9 +522,9 @@ export default function TestingDashboard() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const adj = adjustments[i] as any;
 
-        if (!adj.currentPromptSection || !adj.proposedChange) {
+        if (!adj.proposedChange) {
           setAutopilotAdjustments(prev => prev.map((a, idx) =>
-            idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: 'skipped', reason: 'Sin sección/cambio' } : a
+            idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: 'skipped', reason: 'Sin cambio propuesto' } : a
           ));
           continue;
         }
@@ -535,11 +535,11 @@ export default function TestingDashboard() {
         setAutopilotMessage(`Aplicando ajuste ${i + 1}/${adjustments.length}: ${adj.pattern}`);
 
         try {
-          const adjRes = await fetch('/api/eval/prompt', {
+          const adjRes = await fetchWithRetry('/api/eval/prompt', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              currentSection: adj.currentPromptSection,
+              currentSection: adj.currentPromptSection || '',
               proposedChange: adj.proposedChange,
               description: `Autopilot: ${adj.pattern} - ${adj.expectedImpact || ''}`,
             }),
@@ -756,7 +756,9 @@ export default function TestingDashboard() {
                       {adj.pattern || `Ajuste ${adj.index + 1}`}
                     </span>
                     {adj.version && <span className="text-green-400 text-[10px] font-mono">{adj.version}</span>}
-                    {adj.status === 'skipped' && <span className="text-gray-600 text-[10px] truncate max-w-[100px]">{adj.reason}</span>}
+                    {(adj.status === 'skipped' || adj.status === 'error') && adj.reason && (
+                      <span className={`text-[10px] truncate max-w-[140px] ${adj.status === 'error' ? 'text-red-500' : 'text-gray-600'}`}>{adj.reason}</span>
+                    )}
                   </div>
                 ))}
               </div>
