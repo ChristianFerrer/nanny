@@ -275,6 +275,7 @@ function DiagnosisPanel({ runId }: { runId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [appliedMap, setAppliedMap] = useState<Record<number, string>>({}); // index -> version
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
+  const [applyingAll, setApplyingAll] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
   async function runDiagnosis() {
@@ -330,6 +331,45 @@ function DiagnosisPanel({ runId }: { runId: string }) {
     } finally {
       setApplyingIndex(null);
     }
+  }
+
+  async function applyAllAdjustments() {
+    if (!diagnosis) return;
+    setApplyingAll(true);
+    setApplyError(null);
+
+    const unapplied = diagnosis.proposedAdjustments
+      .map((adj, i) => ({ adj, i }))
+      .filter(({ adj, i }) => !appliedMap[i] && adj.currentPromptSection && adj.proposedChange);
+
+    for (const { adj, i } of unapplied) {
+      setApplyingIndex(i);
+      try {
+        const res = await fetch('/api/eval/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentSection: adj.currentPromptSection,
+            proposedChange: adj.proposedChange,
+            description: `${adj.pattern}: ${adj.expectedImpact}`,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        const result = await res.json();
+        setAppliedMap(prev => ({ ...prev, [i]: result.version }));
+      } catch (e) {
+        setApplyError(`Error en ajuste "${adj.pattern}": ${e instanceof Error ? e.message : 'Error'}`);
+        break;
+      }
+    }
+
+    setApplyingIndex(null);
+    setApplyingAll(false);
   }
 
   const riskColors = {
@@ -412,9 +452,37 @@ function DiagnosisPanel({ runId }: { runId: string }) {
           {/* Proposed adjustments */}
           {diagnosis.proposedAdjustments.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold text-gray-400 mb-2">
-                Ajustes propuestos al prompt ({diagnosis.proposedAdjustments.length})
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-gray-400">
+                  Ajustes propuestos al prompt ({diagnosis.proposedAdjustments.length})
+                </h3>
+                {(() => {
+                  const unappliedCount = diagnosis.proposedAdjustments.filter(
+                    (_, i) => !appliedMap[i]
+                  ).length;
+                  const allApplied = unappliedCount === 0;
+                  return allApplied ? (
+                    <span className="text-xs text-green-400 flex items-center gap-1">
+                      Todos aplicados
+                    </span>
+                  ) : (
+                    <button
+                      onClick={applyAllAdjustments}
+                      disabled={applyingAll || applyingIndex !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-xs font-medium transition-colors"
+                    >
+                      {applyingAll ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Aplicando {Object.keys(appliedMap).length + 1}/{diagnosis.proposedAdjustments.length}...
+                        </>
+                      ) : (
+                        `Aplicar todos (${unappliedCount})`
+                      )}
+                    </button>
+                  );
+                })()}
+              </div>
               <div className="space-y-3">
                 {diagnosis.proposedAdjustments.map((adj, i) => {
                   const appliedVersion = appliedMap[i];
