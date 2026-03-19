@@ -100,11 +100,11 @@ async function main() {
   console.log(colors.dim(`  Conversaciones: ${conversations.length}`));
   console.log('');
 
-  // Run evaluation
+  // Run evaluation (direct calls to processChat, no HTTP server needed)
   const { results, aggregate, totalTimeMs } = await runAllConversations(conversations, {
     baseUrl,
     delayBetweenMessages: 300,
-    useFetch: true,
+    useFetch: false,
   });
 
   // Print results
