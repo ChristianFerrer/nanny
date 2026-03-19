@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Baby, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { Bot, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 type Mode = 'login' | 'register';
@@ -116,8 +116,8 @@ function LoginContent() {
     <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-xs animate-fade-in">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-24 h-24 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-5">
-            <Baby size={48} className="text-[var(--nanny-purple)]" />
+          <div className="w-24 h-24 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mb-5">
+            <Bot size={48} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold">Bienvenido a Nanny</h1>
           <p className="text-sm text-[var(--nanny-gray)] mt-2 text-center max-w-[250px]">

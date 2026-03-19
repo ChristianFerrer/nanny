@@ -695,7 +695,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-20">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-32">
         {messages.map((msg) => {
           const isNanny = msg.sender_type === 'nanny';
           const isCurrentParent = msg.sender_id === currentParent;
@@ -850,7 +850,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t px-3 py-2">
+      <div className="chat-input-bar">
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}

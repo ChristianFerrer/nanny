@@ -29,14 +29,14 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
+              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                 active
                   ? 'text-[var(--nanny-purple)]'
                   : 'text-[var(--nanny-gray)] hover:text-[var(--nanny-purple-light)]'
               }`}
             >
-              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
-              <span className={`text-[10px] ${active ? 'font-semibold' : 'font-normal'}`}>
+              <Icon size={24} strokeWidth={active ? 2.5 : 1.5} />
+              <span className={`text-[11px] ${active ? 'font-semibold' : 'font-normal'}`}>
                 {label}
               </span>
             </Link>

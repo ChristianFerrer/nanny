@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, Plus, X, Copy, Share2, Check, MessageCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Plus, X, Copy, Share2, Check, MessageCircle, Bot } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 type Step = 'family' | 'children' | 'invite' | 'wow';
@@ -343,8 +343,8 @@ export default function OnboardingPage() {
       {/* STEP 4: WOW moment */}
       {step === 'wow' && (
         <div className="flex flex-col items-center justify-center min-h-[80dvh] px-6 text-center animate-fade-in">
-          <div className="w-20 h-20 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-5">
-            <span className="text-4xl">🤖</span>
+          <div className="w-20 h-20 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mb-5">
+            <Bot size={40} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold mb-3">Hola, soy Nanny</h1>
           <p className="text-sm text-[var(--nanny-gray)] mb-6 max-w-[280px] leading-relaxed">
