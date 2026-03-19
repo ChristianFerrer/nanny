@@ -294,6 +294,34 @@ export default function TestingDashboard() {
     setError(null);
     abortRef.current = false;
 
+    // Helper: fetch con reintentos
+    async function fetchWithRetry(url: string, options?: RequestInit, retries = 3): Promise<Response> {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch(url, options);
+          if (res.ok) return res;
+          // Si es 429 (rate limit) o 5xx, reintentar
+          if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+            const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          return res; // Devolver aunque no sea ok (para manejo de error)
+        } catch (e) {
+          if (attempt < retries) {
+            const delay = Math.pow(2, attempt + 1) * 1000;
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          throw e;
+        }
+      }
+      throw new Error('Max retries exceeded');
+    }
+
+    // Helper: pausa entre operaciones para evitar rate limiting
+    const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
+
     try {
       // ═══════════════════════════════════════════
       // FASE 1: Evaluación (reutiliza las mismas APIs)
@@ -333,12 +361,18 @@ export default function TestingDashboard() {
 
           for (let msgIdx = 0; msgIdx < conv.messageCount; msgIdx++) {
             if (abortRef.current) break;
-            const res = await fetch('/api/eval/run', {
+
+            const res = await fetchWithRetry('/api/eval/run', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ conversationIndex: i, messageIndex: msgIdx, state }),
             });
-            if (!res.ok) throw new Error(await res.text());
+
+            if (!res.ok) {
+              const errText = await res.text().catch(() => `HTTP ${res.status}`);
+              throw new Error(errText);
+            }
+
             const data = await res.json();
 
             setAutopilotConvs(prev => prev.map((c, idx) =>
@@ -350,6 +384,9 @@ export default function TestingDashboard() {
             } else {
               state = data.state;
             }
+
+            // Pequeña pausa entre mensajes para no saturar
+            await pause(300);
           }
 
           if (finalResult) {
@@ -362,6 +399,11 @@ export default function TestingDashboard() {
           setAutopilotConvs(prev => prev.map((c, idx) =>
             idx === i ? { ...c, status: 'error', error: e instanceof Error ? e.message : 'Error' } : c
           ));
+        }
+
+        // Pausa entre conversaciones para evitar rate limiting
+        if (i < conversations.length - 1) {
+          await pause(1000);
         }
       }
 

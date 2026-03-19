@@ -63,16 +63,21 @@ export async function POST(req: NextRequest) {
     const currentContent = activePrompt?.content || SYSTEM_PROMPT;
     const parentId = activePrompt?.id || null;
 
-    // Verificar que la sección existe en el prompt actual
-    if (!currentContent.includes(currentSection)) {
-      return NextResponse.json(
-        { error: 'La sección indicada no se encontró en el prompt actual. Puede que ya haya sido modificada.' },
-        { status: 400 }
-      );
-    }
+    let newContent: string;
 
-    // Aplicar el cambio
-    const newContent = currentContent.replace(currentSection, proposedChange);
+    if (currentContent.includes(currentSection)) {
+      // Match exacto encontrado
+      newContent = currentContent.replace(currentSection, proposedChange);
+    } else {
+      // Fuzzy matching: buscar la sección más similar en el prompt
+      const matchedSection = findBestMatch(currentContent, currentSection);
+      if (matchedSection) {
+        newContent = currentContent.replace(matchedSection, proposedChange);
+      } else {
+        // Si no hay match, agregar el cambio al final del prompt como nueva sección
+        newContent = currentContent + '\n\n' + proposedChange;
+      }
+    }
 
     // Generar label de versión
     const versionNum = activePrompt?.version_label
@@ -116,6 +121,7 @@ export async function POST(req: NextRequest) {
       success: true,
       version: newPrompt.version_label,
       id: newPrompt.id,
+      matchType: currentContent.includes(currentSection) ? 'exact' : 'fuzzy',
     });
   } catch (e) {
     return NextResponse.json(
@@ -123,4 +129,53 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Busca la sección más similar en el contenido del prompt.
+ * Compara líneas normalizadas para tolerar diferencias de espacios/puntuación.
+ */
+function findBestMatch(content: string, searchSection: string): string | null {
+  // Normalizar para comparación: lowercase, quitar espacios extra
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normalizedSearch = normalize(searchSection);
+
+  // Si la sección normalizada está contenida en el contenido normalizado
+  const normalizedContent = normalize(content);
+  if (normalizedContent.includes(normalizedSearch)) {
+    // Encontrar la posición en el original
+    const searchWords = normalizedSearch.split(' ').slice(0, 5).join(' ');
+    const contentWords = normalizedContent.split(' ');
+    const searchWordsArr = searchWords.split(' ');
+
+    for (let i = 0; i < contentWords.length; i++) {
+      if (contentWords.slice(i, i + searchWordsArr.length).join(' ') === searchWordsArr.join(' ')) {
+        // Encontramos el inicio aproximado, extraer del original
+        const lines = content.split('\n');
+        const searchLines = searchSection.split('\n').length;
+        const normalizedLines = lines.map(l => normalize(l));
+        const firstSearchLine = normalize(searchSection.split('\n')[0]);
+
+        for (let j = 0; j < normalizedLines.length; j++) {
+          if (normalizedLines[j].includes(firstSearchLine.substring(0, 30))) {
+            return lines.slice(j, j + searchLines).join('\n');
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: buscar por primera línea significativa
+  const searchFirstLine = normalize(searchSection.split('\n').find(l => l.trim().length > 10) || '');
+  if (searchFirstLine.length > 10) {
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (normalize(lines[i]).includes(searchFirstLine.substring(0, Math.min(40, searchFirstLine.length)))) {
+        const searchLineCount = searchSection.split('\n').length;
+        return lines.slice(i, i + searchLineCount).join('\n');
+      }
+    }
+  }
+
+  return null;
 }
