@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2, Square, Zap } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ChevronRight, TrendingUp, TrendingDown, Play, Loader2, Square, Zap, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 interface EvalRun {
@@ -39,6 +39,23 @@ interface ConversationInfo {
   name: string;
   messageCount: number;
   messages: { sender: string; text: string }[];
+}
+
+/** Link que se bloquea cuando hay un proceso en ejecución */
+function SafeLink({ href, locked, className, children }: {
+  href: string;
+  locked: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (locked) {
+    return (
+      <span className={`${className || ''} opacity-50 cursor-not-allowed`} title="Proceso en ejecución, espera a que termine">
+        {children}
+      </span>
+    );
+  }
+  return <Link href={href} className={className}>{children}</Link>;
 }
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
@@ -110,6 +127,17 @@ export default function TestingDashboard() {
   }, []);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  // Bloquear navegación del browser mientras hay proceso en ejecución
+  const processRunning = running || autopilotRunning;
+  useEffect(() => {
+    if (!processRunning) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [processRunning]);
 
   async function startEvaluation() {
     setRunning(true);
@@ -527,9 +555,9 @@ export default function TestingDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/chat" className="text-gray-400 hover:text-white">
+          <SafeLink href="/chat" locked={processRunning} className="text-gray-400 hover:text-white">
             <ArrowLeft size={20} />
-          </Link>
+          </SafeLink>
           <h1 className="text-xl font-bold">🧪 Testing Nanny</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -569,6 +597,13 @@ export default function TestingDashboard() {
           </button>
         </div>
       </div>
+
+      {processRunning && (
+        <div className="bg-purple-900/30 border border-purple-700 rounded-lg p-2 mb-4 text-xs text-purple-300 flex items-center gap-2">
+          <Lock size={12} />
+          Proceso en ejecución. La navegación está bloqueada hasta que termine.
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-sm text-red-300">
@@ -700,12 +735,13 @@ export default function TestingDashboard() {
                 {autopilotResult.adjustmentsApplied} ajustes aplicados al prompt
               </p>
               {autopilotResult.runId && (
-                <Link
+                <SafeLink
                   href={`/admin/testing/${autopilotResult.runId}`}
+                  locked={processRunning}
                   className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mb-2"
                 >
                   Ver detalle completo →
-                </Link>
+                </SafeLink>
               )}
               <button
                 onClick={() => {
@@ -801,12 +837,13 @@ export default function TestingDashboard() {
             ))}
           </div>
           {runResult.savedId && (
-            <Link
+            <SafeLink
               href={`/admin/testing/${runResult.savedId}`}
+              locked={processRunning}
               className="mt-3 block text-center text-xs text-cyan-400 hover:text-cyan-300"
             >
               Ver detalle completo →
-            </Link>
+            </SafeLink>
           )}
           <button
             onClick={() => { setRunResult(null); setConvProgress([]); }}
@@ -869,9 +906,10 @@ export default function TestingDashboard() {
             : null;
 
           return (
-            <Link
+            <SafeLink
               key={run.id}
               href={`/admin/testing/${run.id}`}
+              locked={processRunning}
               className="flex items-center justify-between bg-gray-800 rounded-lg p-3 hover:bg-gray-750 transition-colors"
             >
               <div className="flex-1">
@@ -901,9 +939,12 @@ export default function TestingDashboard() {
                     </p>
                   )}
                 </div>
-                <ChevronRight size={16} className="text-gray-600" />
+                {processRunning
+                  ? <Lock size={14} className="text-purple-500" />
+                  : <ChevronRight size={16} className="text-gray-600" />
+                }
               </div>
-            </Link>
+            </SafeLink>
           );
         })}
 
