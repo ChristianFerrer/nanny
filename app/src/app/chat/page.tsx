@@ -621,28 +621,12 @@ export default function ChatPage() {
             <button
               onClick={runCatchup}
               disabled={catchingUp || messages.length === 0}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[var(--nanny-gray-light)] text-xs font-medium text-[var(--nanny-gray)] disabled:opacity-40 transition-opacity"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[var(--nanny-purple)] text-xs font-medium text-white disabled:opacity-40 transition-opacity"
               title="Nanny re-lee todo el chat"
             >
               <RefreshCw size={13} className={catchingUp ? 'animate-spin' : ''} />
               <span className="hidden min-[380px]:inline">Re-leer</span>
             </button>
-            {/* Current parent indicator + switcher */}
-            {parents.length > 1 ? (
-              <button
-                onClick={() => setCurrentParent(otherParent?.id || currentParent)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]"
-                title="Cambiar quién escribe"
-              >
-                <span className="text-base">{currentParentObj?.avatar_emoji}</span>
-                Yo
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nanny-purple-bg)] text-xs font-medium text-[var(--nanny-purple)]">
-                <span className="text-base">{currentParentObj?.avatar_emoji}</span>
-                Yo
-              </div>
-            )}
           </div>
         </div>
         {/* Children strip */}
@@ -695,7 +679,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-32">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36">
         {messages.map((msg) => {
           const isNanny = msg.sender_type === 'nanny';
           const isCurrentParent = msg.sender_id === currentParent;
