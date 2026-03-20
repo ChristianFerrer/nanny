@@ -67,8 +67,13 @@ export async function DELETE(req: NextRequest) {
       restoredId: restored.id,
     });
   } catch (e) {
+    const message = e instanceof Error
+      ? e.message
+      : (e && typeof e === 'object' && 'message' in e)
+        ? String((e as { message: unknown }).message)
+        : String(e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error en rollback' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -169,12 +174,19 @@ export async function POST(req: NextRequest) {
       : 1;
     const versionLabel = `v${versionNum}`;
 
-    // Desactivar el prompt actual
+    // Desactivar el prompt actual (verificar que tuvo éxito)
     if (activePrompt?.id) {
-      await supabase
+      const { error: deactivateError } = await supabase
         .from('system_prompts')
         .update({ is_active: false })
         .eq('id', activePrompt.id);
+
+      if (deactivateError) {
+        return NextResponse.json(
+          { error: `Error desactivando prompt anterior: ${deactivateError.message}` },
+          { status: 500 }
+        );
+      }
     }
 
     // Crear nueva versión activa
@@ -198,7 +210,10 @@ export async function POST(req: NextRequest) {
           .update({ is_active: true })
           .eq('id', activePrompt.id);
       }
-      throw error;
+      return NextResponse.json(
+        { error: `Error creando nueva versión: ${error.message}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -208,8 +223,13 @@ export async function POST(req: NextRequest) {
       matchType,
     });
   } catch (e) {
+    const message = e instanceof Error
+      ? e.message
+      : (e && typeof e === 'object' && 'message' in e)
+        ? String((e as { message: unknown }).message)
+        : String(e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error aplicando ajuste' },
+      { error: message },
       { status: 500 }
     );
   }
