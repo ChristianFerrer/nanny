@@ -43,7 +43,7 @@ export function scoreConversation(
   );
   const correctConfirmations = detectionMatches.filter(dm => dm.score >= 0.5);
   const precision = allConfirmations.length > 0
-    ? correctConfirmations.length / Math.max(allConfirmations.length, conversation.expectedDetections.length)
+    ? correctConfirmations.length / allConfirmations.length
     : conversation.expectedDetections.length === 0 ? 1 : 0;
 
   // Calculate recall: of all expected detections, how many were found?
@@ -241,18 +241,73 @@ function fieldMatches(field: string, expected: unknown, actual: unknown): boolea
 
   // Date/time: check key components
   if (field === 'date_start' || field === 'due_date') {
-    // Extract hour if present
-    const expHour = expStr.match(/(\d{1,2}):?(\d{2})?/);
-    const actHour = actStr.match(/(\d{1,2}):?(\d{2})?/);
-    if (expHour && actHour) {
-      return expHour[1] === actHour[1]; // Same hour is close enough
+    // Extract time from ISO format (after 'T') or from natural language (HH:MM pattern)
+    const extractTime = (s: string): string | null => {
+      // ISO format: look for T followed by time
+      const isoMatch = s.match(/t(\d{2}):(\d{2})/);
+      if (isoMatch) return `${isoMatch[1]}:${isoMatch[2]}`;
+      // Natural language: look for HH:MM but not inside a date like 2026-03
+      const timeMatch = s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?:\s|$)/);
+      if (timeMatch) return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+      // Just hour: "a las 11", "18:00" already covered, standalone number
+      const hourMatch = s.match(/(?:^|\s)(\d{1,2})(?::00)?(?:\s|$)/);
+      if (hourMatch) {
+        const h = parseInt(hourMatch[1]);
+        if (h >= 0 && h <= 23) return `${String(h).padStart(2, '0')}:00`;
+      }
+      return null;
+    };
+
+    // Map ISO date to day of week
+    const getDayOfWeek = (s: string): string | null => {
+      const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      // Check if already contains a day name
+      const namedDay = days.find(d => s.includes(d));
+      if (namedDay) return namedDay;
+      // Try parsing as ISO date
+      const isoMatch = s.match(/(\d{4}-\d{2}-\d{2})/);
+      if (isoMatch) {
+        const date = new Date(isoMatch[1] + 'T12:00:00');
+        if (!isNaN(date.getTime())) return days[date.getDay()];
+      }
+      return null;
+    };
+
+    // Check "mañana" - if expected says "mañana", check if actual date is tomorrow
+    const isMañana = expStr.includes('mañana');
+    if (isMañana) {
+      const isoMatch = actStr.match(/(\d{4}-\d{2}-\d{2})/);
+      if (isoMatch) {
+        // Accept if it's within a day or two (mañana is relative to eval time)
+        // Just check that time matches if both have time
+        const expTime = extractTime(expStr);
+        const actTime = extractTime(actStr);
+        if (expTime && actTime) {
+          return expTime.split(':')[0] === actTime.split(':')[0]; // Same hour
+        }
+        return true; // "mañana" matched to a date, accept if no time to compare
+      }
+      return actStr.includes('mañana');
     }
-    // Day of week check
-    const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
-    const expDay = days.find(d => expStr.includes(d));
-    const actDay = days.find(d => actStr.includes(d));
-    if (expDay && actDay) return expDay === actDay;
-    return expStr.includes('mañana') === actStr.includes('mañana');
+
+    // Compare times
+    const expTime = extractTime(expStr);
+    const actTime = extractTime(actStr);
+    const expDow = getDayOfWeek(expStr);
+    const actDow = getDayOfWeek(actStr);
+
+    // If both have day of week AND time, both must match
+    if (expDow && actDow && expTime && actTime) {
+      return expDow === actDow && expTime.split(':')[0] === actTime.split(':')[0];
+    }
+    // If both have day of week, compare
+    if (expDow && actDow) return expDow === actDow;
+    // If both have time, compare hours
+    if (expTime && actTime) {
+      return expTime.split(':')[0] === actTime.split(':')[0];
+    }
+    // Fallback: substring
+    return actStr.includes(expStr) || expStr.includes(actStr);
   }
 
   // Event type
