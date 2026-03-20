@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
 export default function ChatPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [parents, setParents] = useState<Parent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -19,6 +21,8 @@ export default function ChatPage() {
   const [currentParent, setCurrentParent] = useState<string>('');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
+  const [toast, setToast] = useState<{ text: string; href: string } | null>(null);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [pendingMedConfirm, setPendingMedConfirm] = useState<{
     messageId: string;
     data: Record<string, unknown>;
@@ -112,6 +116,12 @@ export default function ChatPage() {
   const currentParentObj = parents.find(p => p.id === currentParent);
   const otherParent = parents.find(p => p.id !== currentParent);
 
+  // Toast helper — auto-dismiss after 4s
+  const showToast = (text: string, href: string) => {
+    setToast({ text, href });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   // Process Nanny AI response in background (doesn't block input)
   const processNannyResponse = useCallback(async (text: string, parentMsg: Message) => {
     setNannyThinking(true);
@@ -188,6 +198,7 @@ export default function ChatPage() {
                 status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
               });
               setEvents(prev => [...prev, newEvent]);
+              showToast(`Evento creado: ${confData.title}`, '/hoy');
             } else if (type === 'task') {
               const newTask = await addTask({
                 family_id: familyId, child_id: null,
@@ -198,6 +209,7 @@ export default function ChatPage() {
                 auto_detected: true, created_by: currentParent, completed_at: null,
               });
               setTasks(prev => [...prev, newTask]);
+              showToast(`Tarea creada: ${confData.title}`, '/hoy');
             }
           } catch {
             console.error('Failed to auto-create event/task');
@@ -601,11 +613,25 @@ export default function ChatPage() {
     // Skip the standalone badge for MEDICATION when pending confirm is active (buttons shown separately)
     if (intent === 'MEDICATION' && hasPendingMed) return null;
 
+    // Determine navigation target based on intent
+    const intentNav: Record<string, string> = {
+      EVENT_SCHOOL: '/hoy', EVENT_ACTIVITY: '/hoy', EVENT_MEDICAL: '/hoy', MILESTONE: '/hoy',
+      TASK_SHOPPING: '/hoy', TASK_PAYMENT: '/hoy', SUPPLY_LOW: '/hoy',
+      MEDICATION: '/hoy', LOGISTICS_PICKUP: '/semana', LOGISTICS_TRANSPORT: '/semana',
+      SCHEDULE_CHANGE: '/semana', HEALTH_LOG: '/hijo',
+      EVENT: '/hoy', TASK: '/hoy',
+    };
+    const navTarget = intentNav[intent];
+
     return (
-      <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${config.borderColor}`}>
+      <button
+        onClick={() => navTarget && router.push(navTarget)}
+        className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${config.borderColor} w-full hover:opacity-80 transition-opacity`}
+      >
         <span className={config.color}>{config.icon}</span>
         <span className={`text-[11px] font-medium ${config.color}`}>{config.label}</span>
-      </div>
+        {navTarget && <ChevronRight size={12} className={`ml-auto ${config.color} opacity-50`} />}
+      </button>
     );
   };
 
@@ -639,17 +665,25 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Catch-up button */}
+          <div className="flex items-center gap-2 relative">
             <button
-              onClick={runCatchup}
-              disabled={catchingUp || messages.length === 0}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[var(--nanny-purple)] text-xs font-medium text-white disabled:opacity-40 transition-opacity"
-              title="Nanny re-lee todo el chat"
+              onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+              className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)] transition-colors"
             >
-              <RefreshCw size={13} className={catchingUp ? 'animate-spin' : ''} />
-              <span className="hidden min-[380px]:inline">Re-leer</span>
+              <MoreVertical size={18} className="text-[var(--nanny-gray)]" />
             </button>
+            {showHeaderMenu && (
+              <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-[180px] animate-fade-in">
+                <button
+                  onClick={() => { setShowHeaderMenu(false); runCatchup(); }}
+                  disabled={catchingUp || messages.length === 0}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] disabled:opacity-40 text-left"
+                >
+                  <RefreshCw size={15} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
+                  Ponte al d&iacute;a
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {/* Children strip */}
@@ -662,19 +696,37 @@ export default function ChatPage() {
             ))}
           </div>
         )}
-        {/* Pending detection indicator */}
+        {/* Pending detection — interactive card */}
         {pendingDetection && (
-          <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] text-amber-700 font-medium">
-              Escuchando: {pendingDetection.summary}
-            </span>
-            <button
-              onClick={() => setPendingDetection(null)}
-              className="ml-auto text-amber-400 hover:text-amber-600"
-            >
-              <X size={12} />
-            </button>
+          <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 animate-slide-up">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse mt-1.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-amber-800">{pendingDetection.summary}</p>
+                {pendingDetection.missing.length > 0 && (
+                  <p className="text-[11px] text-amber-600 mt-1">
+                    Falta: {pendingDetection.missing.join(', ')}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setPendingDetection(null)}
+                className="text-amber-400 hover:text-amber-600 shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {pendingDetection.missing.length > 0 && (
+              <button
+                onClick={() => {
+                  setInput(`${pendingDetection.missing[0]}: `);
+                  inputRef.current?.focus();
+                }}
+                className="mt-2 w-full text-center text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg py-1.5 hover:bg-amber-200 transition-colors"
+              >
+                Responder
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -701,19 +753,88 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Toast de confirmación */}
+      {toast && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up"
+          style={{ maxWidth: '400px', width: '90%' }}
+        >
+          <button
+            onClick={() => { setToast(null); router.push(toast.href); }}
+            className="w-full flex items-center gap-2 bg-[var(--nanny-purple)] text-white rounded-xl px-4 py-3 shadow-lg"
+          >
+            <CheckSquare size={16} />
+            <span className="text-sm font-medium flex-1 text-left">{toast.text}</span>
+            <span className="text-xs opacity-80">Ver &rarr;</span>
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36">
-        {messages.map((msg) => {
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+        {/* Empty state con sugerencias tappables */}
+        {messages.length === 0 && !nannyThinking && (
+          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-4">
+              <Bot size={32} className="text-[var(--nanny-purple)]" />
+            </div>
+            <p className="text-sm text-[var(--nanny-gray)] mb-1 text-center">Escr&iacute;bele a Nanny como le hablar&iacute;as a tu pareja</p>
+            <p className="text-xs text-[var(--nanny-gray)] mb-6 opacity-60">Prueba con alguna de estas:</p>
+            <div className="space-y-2 w-full max-w-[300px]">
+              {[
+                children.length > 0
+                  ? `${children[0].name} tiene dentista mañana a las 4`
+                  : 'Lucas tiene dentista mañana a las 4',
+                'Hay que comprar pañales y leche',
+                children.length > 0
+                  ? `El doctor le recetó ibuprofeno a ${children[0].name} por 5 días`
+                  : 'El doctor le recetó ibuprofeno por 5 días',
+              ].map((suggestion, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
+                  className="w-full text-left px-4 py-3 bg-[var(--nanny-gray-light)] rounded-xl text-sm text-[var(--nanny-gray)] hover:bg-[var(--nanny-purple-bg)] hover:text-[var(--nanny-purple)] transition-colors"
+                >
+                  &ldquo;{suggestion}&rdquo;
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg, idx) => {
           const isNanny = msg.sender_type === 'nanny';
           const isCurrentParent = msg.sender_id === currentParent;
           const senderParent = parents.find(p => p.id === msg.sender_id);
+          const isOtherParent = !isNanny && !isCurrentParent;
+
+          // Date separator — show if first message or different day from previous
+          const msgDate = new Date(msg.created_at).toDateString();
+          const prevDate = idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null;
+          const showDateSep = idx === 0 || msgDate !== prevDate;
+          const today = new Date().toDateString();
+          const yesterday = new Date(Date.now() - 86400000).toDateString();
+          const dateLabel = msgDate === today ? 'Hoy'
+            : msgDate === yesterday ? 'Ayer'
+            : new Date(msg.created_at).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
 
           return (
-            <div
-              key={msg.id}
-              className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}
-            >
-              <div className="max-w-[85%]">
+            <div key={msg.id}>
+              {showDateSep && (
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-[10px] text-[var(--nanny-gray)] font-medium uppercase">{dateLabel}</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              )}
+              <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
+              {/* Avatar circle for other parent */}
+              {isOtherParent && (
+                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-sm mr-2 mt-5 shrink-0">
+                  {senderParent?.avatar_emoji || '👤'}
+                </div>
+              )}
+              <div className="max-w-[80%]">
                 {/* Sender label */}
                 <p className={`text-[10px] text-[var(--nanny-gray)] mb-1 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                   {isNanny ? '🤖 Nanny' : `${senderParent?.avatar_emoji || currentParentObj?.avatar_emoji} ${senderParent?.name || currentParentObj?.name}`}
@@ -836,6 +957,7 @@ export default function ChatPage() {
                   </p>
                 )}
               </div>
+            </div>
             </div>
           );
         })}

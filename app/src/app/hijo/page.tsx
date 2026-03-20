@@ -2,14 +2,23 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { getChildren } from '@/lib/store';
-import type { Child } from '@/lib/types';
+import { getChildren, getTodayEvents, getTasks, getMedications } from '@/lib/store';
+import type { Child, FamilyEvent, Task, Medication } from '@/lib/types';
 
 export default function HijosPage() {
   const [children, setChildren] = useState<Child[]>([]);
+  const [todayEvents, setTodayEvents] = useState<FamilyEvent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
 
   const loadData = useCallback(async () => {
-    setChildren(await getChildren());
+    const [c, te, t, m] = await Promise.all([
+      getChildren(), getTodayEvents(), getTasks(), getMedications(),
+    ]);
+    setChildren(c);
+    setTodayEvents(te);
+    setTasks(t);
+    setMedications(m);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -24,6 +33,11 @@ export default function HijosPage() {
       <div className="px-4 space-y-3 pb-20">
         {children.map(child => {
           const age = child.birth_date ? calcAge(child.birth_date) : null;
+          const childEvents = todayEvents.filter(e => e.child_id === child.id).length;
+          const childTasks = tasks.filter(t => t.child_id === child.id && t.status !== 'done').length;
+          const childMeds = medications.filter(m => m.child_id === child.id && m.status === 'active').length;
+          const hasActivity = childEvents > 0 || childTasks > 0 || childMeds > 0;
+
           return (
             <Link
               key={child.id}
@@ -37,13 +51,33 @@ export default function HijosPage() {
                 <div className="flex-1">
                   <h2 className="font-semibold text-lg">{child.name}</h2>
                   {age !== null && (
-                    <p className="text-sm text-[var(--nanny-gray)]">{age} años</p>
+                    <p className="text-sm text-[var(--nanny-gray)]">{age} a&ntilde;os</p>
                   )}
                   {child.school && (
                     <p className="text-xs text-[var(--nanny-gray)] mt-0.5">🏫 {child.school}</p>
                   )}
+                  {/* Mini resumen de actividad */}
+                  {hasActivity && (
+                    <div className="flex gap-2 mt-1.5 flex-wrap">
+                      {childEvents > 0 && (
+                        <span className="text-[10px] bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] px-2 py-0.5 rounded-full font-medium">
+                          📅 {childEvents} evento{childEvents > 1 ? 's' : ''} hoy
+                        </span>
+                      )}
+                      {childTasks > 0 && (
+                        <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                          ✅ {childTasks} tarea{childTasks > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {childMeds > 0 && (
+                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                          💊 Tratamiento activo
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="text-[var(--nanny-gray)]">›</div>
+                <div className="text-[var(--nanny-gray)]">&rsaquo;</div>
               </div>
             </Link>
           );

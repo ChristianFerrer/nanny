@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, Plus, X, Copy, Share2, Check, MessageCircle, Bot } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Plus, X, Bot } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
-type Step = 'family' | 'children' | 'invite' | 'wow';
+type Step = 'children' | 'family' | 'wow';
 
 interface ChildForm {
   name: string;
@@ -17,7 +17,7 @@ const CHILD_EMOJIS = ['👦', '👧', '👶', '🧒', '👦🏽', '👧🏻', '�
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('family');
+  const [step, setStep] = useState<Step>('children');
   const [familyName, setFamilyName] = useState('');
   const [children, setChildren] = useState<ChildForm[]>([
     { name: '', age: '', emoji: '👦' },
@@ -27,15 +27,13 @@ export default function OnboardingPage() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [authUserName, setAuthUserName] = useState('');
   const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
-  const [copied, setCopied] = useState(false);
   const [createdChildren, setCreatedChildren] = useState<{ name: string; emoji: string; age: string }[]>([]);
-  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [demoStep, setDemoStep] = useState(0);
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setAuthUserId(user.id);
-        // Extract name from email as fallback
         const emailName = user.email?.split('@')[0] || '';
         setAuthUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
       }
@@ -63,7 +61,6 @@ export default function OnboardingPage() {
     try {
       const validChildren = children.filter(c => c.name.trim());
 
-      // Calculate birth_date from age
       const childrenWithDates = validChildren.map(c => {
         const age = parseInt(c.age);
         let birth_date = null;
@@ -83,11 +80,13 @@ export default function OnboardingPage() {
         };
       });
 
+      const computedFamilyName = familyName || `Familia ${authUserName}`;
+
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          familyName: familyName || `Familia ${authUserName}`,
+          familyName: computedFamilyName,
           parents: [{ name: authUserName, role: parentRole, avatar_emoji: parentRole === 'mama' ? '👩' : '👨' }],
           children: childrenWithDates,
           authUserId,
@@ -98,55 +97,39 @@ export default function OnboardingPage() {
         throw new Error(result.error || 'Error al guardar');
       }
 
-      // Save family ID for invite links
-      if (result.family_id) {
-        setFamilyId(result.family_id);
-      }
-
-      // Save children info for the wow screen
       setCreatedChildren(validChildren.map(c => ({
         name: c.name,
         emoji: c.emoji,
         age: c.age,
       })));
-      setStep('invite');
+      setStep('wow');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al guardar. Verifica tu conexión.');
     }
     setSaving(false);
   };
 
-  const inviteLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/login${familyId ? `?invite=${familyId}` : ''}`;
-  const inviteMessage = `Estoy probando una app que organiza las cosas de los niños automáticamente.\n\nÚnete aquí: ${inviteLink}`;
+  // Mini demo interactivo
+  const demoChildName = children.find(c => c.name.trim())?.name || 'Lucas';
+  const demoMessage = `${demoChildName} tiene dentista mañana a las 4`;
+  const demoSteps = [
+    { sender: 'parent', text: demoMessage },
+    { sender: 'nanny', text: `📅 Listo! Registré la cita del dentista de ${demoChildName} para mañana a las 16:00. Les avisaré antes.` },
+  ];
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleShareWhatsApp = () => {
-    const url = `https://wa.me/?text=${encodeURIComponent(inviteMessage)}`;
-    window.open(url, '_blank');
-  };
-
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: inviteMessage });
-      } catch {
-        // User cancelled
-      }
-    } else {
-      handleCopyLink();
+  // Auto-advance demo
+  useEffect(() => {
+    if (step === 'wow' && demoStep < demoSteps.length) {
+      const timer = setTimeout(() => setDemoStep(prev => prev + 1), demoStep === 0 ? 800 : 1500);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [step, demoStep, demoSteps.length]);
 
   return (
     <div className="min-h-[100dvh] bg-white">
       {/* Progress dots */}
       <div className="flex justify-center gap-2 pt-14 pb-2">
-        {(['family', 'children', 'invite', 'wow'] as Step[]).map((s) => (
+        {(['children', 'family', 'wow'] as Step[]).map((s) => (
           <div
             key={s}
             className={`h-1.5 rounded-full transition-all ${
@@ -156,71 +139,14 @@ export default function OnboardingPage() {
         ))}
       </div>
 
-      {/* STEP 1: Family name */}
-      {step === 'family' && (
-        <div className="flex flex-col items-center justify-center px-6 pt-12 animate-fade-in">
-          <div className="text-5xl mb-6">👨‍👩‍👧‍👦</div>
-          <h1 className="text-2xl font-bold mb-2 text-center">¿Cómo se llama tu familia?</h1>
-          <p className="text-sm text-[var(--nanny-gray)] mb-8 text-center">
-            Así identificaremos tu grupo familiar
-          </p>
-
-          <div className="w-full max-w-xs mb-6">
-            <input
-              type="text"
-              value={familyName}
-              onChange={(e) => setFamilyName(e.target.value)}
-              placeholder="Ej: Familia Ferrer"
-              className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-base text-center focus:ring-2 focus:ring-[var(--nanny-purple-light)] outline-none"
-              autoFocus
-            />
-          </div>
-
-          <div className="w-full max-w-xs mb-8">
-            <p className="text-sm text-[var(--nanny-gray)] mb-3 text-center">¿Cuál es tu rol?</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setParentRole('mama')}
-                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
-                  parentRole === 'mama'
-                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
-                    : 'border-gray-200'
-                }`}
-              >
-                <span className="text-2xl">👩</span>
-                <span className="text-sm font-medium">Mamá</span>
-              </button>
-              <button
-                onClick={() => setParentRole('papa')}
-                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
-                  parentRole === 'papa'
-                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
-                    : 'border-gray-200'
-                }`}
-              >
-                <span className="text-2xl">👨</span>
-                <span className="text-sm font-medium">Papá</span>
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setStep('children')}
-            className="w-full max-w-xs flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm"
-          >
-            Siguiente <ArrowRight size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* STEP 2: Add children — minimal: name + age */}
+      {/* STEP 1: Add children first — emotionally closer */}
       {step === 'children' && (
         <div className="px-5 pt-8 pb-8 animate-fade-in">
-          <button onClick={() => setStep('family')} className="mb-6 text-[var(--nanny-gray)]">
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-bold mb-1">Añade a tus hijos</h1>
-          <p className="text-sm text-[var(--nanny-gray)] mb-6">Solo necesitamos nombre y edad</p>
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">👶</div>
+            <h1 className="text-2xl font-bold mb-1">&iquest;C&oacute;mo se llaman tus hijos?</h1>
+            <p className="text-sm text-[var(--nanny-gray)]">Nanny los va a cuidar bien</p>
+          </div>
 
           {children.map((child, i) => (
             <div key={i} className="mb-4 bg-[var(--nanny-gray-light)] rounded-2xl p-4 relative">
@@ -274,8 +200,68 @@ export default function OnboardingPage() {
             onClick={addChild}
             className="w-full flex items-center justify-center gap-1 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-[var(--nanny-gray)] mb-6"
           >
-            <Plus size={16} /> Añadir otro hijo
+            <Plus size={16} /> A&ntilde;adir otro hijo
           </button>
+
+          <button
+            onClick={() => setStep('family')}
+            disabled={!children.some(c => c.name.trim())}
+            className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40"
+          >
+            Siguiente <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* STEP 2: Family name + role (simplified) */}
+      {step === 'family' && (
+        <div className="flex flex-col items-center justify-center px-6 pt-8 animate-fade-in">
+          <button onClick={() => setStep('children')} className="self-start mb-4 text-[var(--nanny-gray)]">
+            <ArrowLeft size={20} />
+          </button>
+
+          <h1 className="text-2xl font-bold mb-2 text-center">Casi listo</h1>
+          <p className="text-sm text-[var(--nanny-gray)] mb-6 text-center">
+            &iquest;C&oacute;mo se llama tu familia?
+          </p>
+
+          <div className="w-full max-w-xs mb-6">
+            <input
+              type="text"
+              value={familyName}
+              onChange={(e) => setFamilyName(e.target.value)}
+              placeholder={`Familia ${authUserName}`}
+              className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-base text-center focus:ring-2 focus:ring-[var(--nanny-purple-light)] outline-none"
+            />
+          </div>
+
+          <div className="w-full max-w-xs mb-8">
+            <p className="text-sm text-[var(--nanny-gray)] mb-3 text-center">&iquest;Cu&aacute;l es tu rol?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setParentRole('mama')}
+                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
+                  parentRole === 'mama'
+                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                    : 'border-gray-200'
+                }`}
+              >
+                <span className="text-2xl">👩</span>
+                <span className="text-sm font-medium">Mam&aacute;</span>
+              </button>
+              <button
+                onClick={() => setParentRole('papa')}
+                className={`flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-xl border-2 transition-all ${
+                  parentRole === 'papa'
+                    ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
+                    : 'border-gray-200'
+                }`}
+              >
+                <span className="text-2xl">👨</span>
+                <span className="text-sm font-medium">Pap&aacute;</span>
+              </button>
+            </div>
+          </div>
 
           {error && (
             <p className="text-sm text-[var(--nanny-red)] text-center mb-3">{error}</p>
@@ -283,96 +269,61 @@ export default function OnboardingPage() {
 
           <button
             onClick={handleSave}
-            disabled={!children.some(c => c.name.trim()) || saving}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40"
+            disabled={saving}
+            className="w-full max-w-xs flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40"
           >
-            {saving ? 'Creando familia...' : 'Siguiente'} {!saving && <ArrowRight size={16} />}
+            {saving ? 'Creando familia...' : 'Crear familia'} {!saving && <ArrowRight size={16} />}
           </button>
         </div>
       )}
 
-      {/* STEP 3: Invite partner */}
-      {step === 'invite' && (
-        <div className="px-5 pt-8 pb-8 animate-fade-in">
-          <h1 className="text-2xl font-bold mb-1">Invita a tu pareja</h1>
-          <p className="text-sm text-[var(--nanny-gray)] mb-8">
-            Para organizar todo juntos
-          </p>
-
-          <div className="bg-[var(--nanny-gray-light)] rounded-2xl p-4 mb-6">
-            <p className="text-sm text-[var(--nanny-gray)] italic leading-relaxed">
-              &quot;Estoy probando una app que organiza las cosas de los niños automáticamente. Únete aquí.&quot;
-            </p>
-          </div>
-
-          <div className="space-y-3 mb-8">
-            <button
-              onClick={handleShareWhatsApp}
-              className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-[#25D366] text-white font-medium text-sm"
-            >
-              <MessageCircle size={18} />
-              Compartir por WhatsApp
-            </button>
-
-            <button
-              onClick={handleCopyLink}
-              className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-sm font-medium"
-            >
-              {copied ? <Check size={18} className="text-[var(--nanny-green)]" /> : <Copy size={18} />}
-              {copied ? 'Enlace copiado' : 'Copiar enlace'}
-            </button>
-
-            <button
-              onClick={handleShare}
-              className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-gray-200 text-sm font-medium"
-            >
-              <Share2 size={18} />
-              Enviar invitación
-            </button>
-          </div>
-
-          <button
-            onClick={() => setStep('wow')}
-            className="w-full text-center text-sm text-[var(--nanny-gray)] py-3"
-          >
-            Saltar por ahora →
-          </button>
-        </div>
-      )}
-
-      {/* STEP 4: WOW moment */}
+      {/* STEP 3: WOW moment — mini demo interactivo */}
       {step === 'wow' && (
-        <div className="flex flex-col items-center justify-center min-h-[80dvh] px-6 text-center animate-fade-in">
-          <div className="w-20 h-20 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mb-5">
-            <Bot size={40} className="text-white" />
+        <div className="flex flex-col items-center px-6 pt-8 animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mb-4">
+            <Bot size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold mb-3">Hola, soy Nanny</h1>
-          <p className="text-sm text-[var(--nanny-gray)] mb-6 max-w-[280px] leading-relaxed">
-            Puedo ayudarte a recordar:
+          <h1 className="text-2xl font-bold mb-2">Hola, soy Nanny</h1>
+          <p className="text-xs text-[var(--nanny-gray)] mb-6 max-w-[280px] text-center">
+            Mira c&oacute;mo funciono &mdash; escr&iacute;beme como le hablar&iacute;as a tu pareja:
           </p>
 
-          <div className="w-full max-w-xs space-y-2.5 mb-8 text-left">
-            <div className="flex items-center gap-3 bg-[var(--nanny-gray-light)] rounded-xl px-4 py-3">
-              <span className="text-lg">📅</span>
-              <span className="text-sm">Actividades de los niños</span>
-            </div>
-            <div className="flex items-center gap-3 bg-[var(--nanny-gray-light)] rounded-xl px-4 py-3">
-              <span className="text-lg">🏥</span>
-              <span className="text-sm">Citas médicas</span>
-            </div>
-            <div className="flex items-center gap-3 bg-[var(--nanny-gray-light)] rounded-xl px-4 py-3">
-              <span className="text-lg">✅</span>
-              <span className="text-sm">Tareas familiares</span>
+          {/* Mini chat demo */}
+          <div className="w-full max-w-xs bg-[var(--nanny-gray-light)] rounded-2xl p-4 mb-6 min-h-[140px]">
+            <div className="space-y-3">
+              {demoSteps.slice(0, demoStep).map((d, i) => (
+                <div key={i} className={`flex ${d.sender === 'parent' ? 'justify-end' : 'justify-start'} animate-slide-up`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                    d.sender === 'parent'
+                      ? 'bg-[var(--nanny-purple)] text-white rounded-br-md'
+                      : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+                  }`}>
+                    {d.text}
+                  </div>
+                </div>
+              ))}
+              {demoStep < demoSteps.length && demoStep > 0 && (
+                <div className="flex justify-start animate-fade-in">
+                  <div className="bg-white rounded-2xl px-3.5 py-2.5 shadow-sm rounded-bl-md">
+                    <div className="flex gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Children created */}
           {createdChildren.length > 0 && (
             <div className="bg-[var(--nanny-purple-bg)] rounded-2xl p-4 mb-6 w-full max-w-xs">
               <p className="text-sm text-[var(--nanny-purple)] font-medium mb-2">Ya conozco a:</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {createdChildren.map((c, i) => (
                   <span key={i} className="bg-white rounded-full px-3 py-1.5 text-sm">
-                    {c.emoji} {c.name} — {c.age} años
+                    {c.emoji} {c.name} &mdash; {c.age} a&ntilde;os
                   </span>
                 ))}
               </div>
@@ -380,9 +331,7 @@ export default function OnboardingPage() {
           )}
 
           <button
-            onClick={() => {
-              window.location.href = '/chat';
-            }}
+            onClick={() => { window.location.href = '/chat'; }}
             className="w-full max-w-xs flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm"
           >
             Ir al chat <ArrowRight size={16} />

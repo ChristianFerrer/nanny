@@ -130,6 +130,11 @@ export async function completeTask(taskId: string): Promise<void> {
   notify();
 }
 
+export async function uncompleteTask(taskId: string): Promise<void> {
+  await writeData('tasks', 'update', { status: 'pending', completed_at: null }, taskId);
+  notify();
+}
+
 export async function getMessages(): Promise<Message[]> {
   const data = await fetchFamilyData(['messages']);
   return (data.messages as Message[]) || [];

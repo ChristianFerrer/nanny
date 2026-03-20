@@ -39,8 +39,8 @@ export default function HijoDetailPage() {
   const age = child.birth_date ? calcAge(child.birth_date) : null;
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'identidad', label: 'Identidad', icon: <Heart size={14} /> },
-    { id: 'operativo', label: 'Operativo', icon: <Activity size={14} /> },
+    { id: 'identidad', label: 'Info', icon: <Heart size={14} /> },
+    { id: 'operativo', label: 'Agenda', icon: <Activity size={14} /> },
     { id: 'rutinas', label: 'Rutinas', icon: <Clock size={14} /> },
   ];
 

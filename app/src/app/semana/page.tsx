@@ -103,7 +103,7 @@ export default function SemanaPage() {
                   // Toggle: deselect if already selected, otherwise select
                   setSelectedDayIdx(prev => prev === i ? null : i);
                 }}
-                className={`flex flex-col items-center gap-1 py-1.5 px-2.5 rounded-xl transition-all ${
+                className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all min-w-[44px] ${
                   isSelected
                     ? 'bg-[var(--nanny-purple)] text-white scale-105'
                     : isToday
@@ -116,7 +116,7 @@ export default function SemanaPage() {
                 }`}>
                   {dayNames[i]}
                 </span>
-                <span className="text-sm font-semibold">
+                <span className="text-base font-bold">
                   {day.getDate()}
                 </span>
                 {(() => {

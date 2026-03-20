@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare } from 'lucide-react';
-import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2 } from 'lucide-react';
+import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
 type ModalType = null | 'event' | 'task';
@@ -36,6 +36,7 @@ export default function HoyPage() {
   const [taskDescription, setTaskDescription] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [undoToast, setUndoToast] = useState<{ taskId: string; title: string } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -61,8 +62,22 @@ export default function HoyPage() {
   const getParent = (id: string | null) => parents.find(p => p.id === id);
 
   const handleComplete = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
     await completeTask(taskId);
     setTasks(prev => prev.filter(t => t.id !== taskId));
+    if (task) {
+      setUndoToast({ taskId, title: task.title });
+      setTimeout(() => setUndoToast(prev => prev?.taskId === taskId ? null : prev), 5000);
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!undoToast) return;
+    try {
+      await uncompleteTask(undoToast.taskId);
+      await loadData();
+    } catch { /* ignore */ }
+    setUndoToast(null);
   };
 
   const openEventModal = () => {
@@ -437,6 +452,19 @@ export default function HoyPage() {
         )}
       </div>
 
+      {/* Undo toast */}
+      {undoToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-slide-up" style={{ maxWidth: '380px', width: '90%' }}>
+          <div className="flex items-center gap-2 bg-gray-800 text-white rounded-xl px-4 py-3 shadow-lg">
+            <CheckCircle2 size={16} className="text-green-400 shrink-0" />
+            <span className="text-sm flex-1 truncate">{undoToast.title} completada</span>
+            <button onClick={handleUndo} className="flex items-center gap-1 text-sm font-medium text-[var(--nanny-purple-light)] shrink-0">
+              <Undo2 size={14} /> Deshacer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* FAB */}
       <div className="fixed bottom-20 right-4 z-30" style={{ maxWidth: '430px' }}>
         {showFab && (
@@ -504,7 +532,8 @@ function TaskCard({ task, child, parent, onComplete }: {
 
   const handleClick = async () => {
     setCompleting(true);
-    await onComplete(task.id);
+    // Small delay for visual satisfaction before removing
+    setTimeout(() => onComplete(task.id), 600);
   };
 
   const dueStr = task.due_date
@@ -514,7 +543,7 @@ function TaskCard({ task, child, parent, onComplete }: {
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
 
   return (
-    <div className={`bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm transition-opacity ${completing ? 'opacity-30' : ''}`}>
+    <div className={`bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm transition-all duration-500 ${completing ? 'opacity-30 scale-95' : ''}`}>
       <button onClick={handleClick} className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors">
         {completing ? <CheckCircle2 size={20} className="text-[var(--nanny-green)]" /> : <Circle size={20} />}
       </button>
