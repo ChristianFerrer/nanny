@@ -127,7 +127,7 @@ select {
   max-width: 430px;
   background: white;
   border-top: 1px solid #E5E7EB;
-  padding: 8px 12px;
+  padding: 12px;
   z-index: 40;
 }
 
