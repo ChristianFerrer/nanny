@@ -37,6 +37,7 @@ export default function ChatPage() {
   } | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -64,6 +65,7 @@ export default function ChatPage() {
         const matchedParent = myParentId && prts.find(p => p.id === myParentId);
         setCurrentParent(matchedParent ? matchedParent.id : prts[0].id);
       }
+      setDataLoaded(true);
     } catch {
       window.location.href = '/login';
     }
@@ -774,7 +776,7 @@ export default function ChatPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
         {/* Empty state con sugerencias tappables */}
-        {messages.length === 0 && !nannyThinking && (
+        {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-4">
               <Bot size={32} className="text-[var(--nanny-purple)]" />
