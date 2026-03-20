@@ -1,0 +1,145 @@
+/**
+ * Paso 3 del pipeline: Post-procesamiento en código.
+ *
+ * 1. Corregir assigned_to (mapear de sender a mama/papa)
+ * 2. Validar contra falsos positivos
+ * 3. Deduplicar contra eventos/tareas existentes
+ */
+
+import type { ChatResponse } from './processChat';
+
+interface PostProcessInput {
+  response: ChatResponse;
+  senderRole: 'mama' | 'papa';
+  existingEvents: string;
+  existingTasks: string;
+  activeMedications: string;
+}
+
+/**
+ * Post-procesa la respuesta del LLM para corregir errores comunes.
+ */
+export function postProcessResponse(input: PostProcessInput): ChatResponse {
+  let response = { ...input.response };
+
+  // 1. Fix assigned_to
+  response = fixAssignedTo(response, input.senderRole);
+
+  // 2. Validate against false positives
+  response = validateConfirmation(response, input);
+
+  return response;
+}
+
+/**
+ * Corrige assigned_to para que sea "mama" o "papa".
+ * El LLM a veces pone el nombre del padre, "sender", "other", etc.
+ */
+function fixAssignedTo(response: ChatResponse, senderRole: 'mama' | 'papa'): ChatResponse {
+  if (!response.confirmation?.data) return response;
+
+  const data = { ...response.confirmation.data };
+  const assignedTo = data.assigned_to;
+
+  if (assignedTo === undefined || assignedTo === null) return response;
+
+  const assignedStr = String(assignedTo).toLowerCase().trim();
+  const otherRole = senderRole === 'mama' ? 'papa' : 'mama';
+
+  // Si ya es correcto, no hacer nada
+  if (assignedStr === 'mama' || assignedStr === 'papa') {
+    return response;
+  }
+
+  // Mapear variaciones comunes
+  if (['sender', 'yo', 'quien escribe', 'el que escribe', 'la que escribe'].includes(assignedStr)) {
+    data.assigned_to = senderRole;
+  } else if (['other', 'otro', 'otra', 'el otro', 'la otra', 'otro padre', 'otra madre'].includes(assignedStr)) {
+    data.assigned_to = otherRole;
+  } else if (['mamá', 'mama', 'madre', 'mami', 'mom', 'mother'].some(v => assignedStr.includes(v))) {
+    data.assigned_to = 'mama';
+  } else if (['papá', 'papa', 'padre', 'papi', 'dad', 'father'].some(v => assignedStr.includes(v))) {
+    data.assigned_to = 'papa';
+  } else {
+    // Si no podemos determinar, dejarlo como null mejor que algo incorrecto
+    data.assigned_to = null;
+  }
+
+  return {
+    ...response,
+    confirmation: {
+      ...response.confirmation,
+      data,
+    },
+  };
+}
+
+/**
+ * Valida que la confirmation no sea un falso positivo.
+ * Retorna la response con confirmation=null si detecta FP.
+ */
+function validateConfirmation(response: ChatResponse, input: PostProcessInput): ChatResponse {
+  if (!response.confirmation) return response;
+
+  const conf = response.confirmation;
+  const data = conf.data;
+
+  // FP 1: Confirmation sin título
+  if (conf.type === 'event' || conf.type === 'task') {
+    if (!data.title || String(data.title).trim().length < 3) {
+      return { ...response, confirmation: null };
+    }
+  }
+
+  // FP 2: Medication sin nombre
+  if (conf.type === 'medication') {
+    if (!data.medication_name || String(data.medication_name).trim().length < 2) {
+      return { ...response, confirmation: null };
+    }
+  }
+
+  // FP 3: Event sin fecha
+  if (conf.type === 'event') {
+    if (!data.date_start) {
+      // Convertir a pending_detection en vez de descartar
+      return {
+        ...response,
+        confirmation: null,
+        pending_detection: response.pending_detection || {
+          type: 'event',
+          partial_data: data,
+          missing: ['date_start'],
+          summary: String(data.title || 'Evento sin fecha'),
+        },
+      };
+    }
+  }
+
+  // FP 4: Duplicado de evento existente
+  if (conf.type === 'event' && data.title && input.existingEvents) {
+    const titleWords = String(data.title).toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const existingLower = input.existingEvents.toLowerCase();
+    const matchedWords = titleWords.filter(w => existingLower.includes(w));
+    if (matchedWords.length >= Math.ceil(titleWords.length * 0.6)) {
+      // Probably a duplicate
+      return { ...response, confirmation: null, next_action: 'update_existing_event' };
+    }
+  }
+
+  // FP 5: Duplicado de tarea existente
+  if (conf.type === 'task' && data.title && input.existingTasks) {
+    const titleWords = String(data.title).toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const existingLower = input.existingTasks.toLowerCase();
+    const matchedWords = titleWords.filter(w => existingLower.includes(w));
+    if (matchedWords.length >= Math.ceil(titleWords.length * 0.6)) {
+      return { ...response, confirmation: null, next_action: 'update_existing_task' };
+    }
+  }
+
+  // FP 6: HEALTH_LOG no debe tener confirmation
+  if (response.intent === 'HEALTH_LOG') {
+    return { ...response, confirmation: null };
+  }
+
+  return response;
+}

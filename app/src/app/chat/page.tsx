@@ -36,6 +36,11 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Buffer: agrupa mensajes consecutivos del mismo sender antes de procesar
+  const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bufferedTextsRef = useRef<string[]>([]);
+  const lastParentMsgRef = useRef<Message | null>(null);
+
   const loadData = useCallback(async () => {
     try {
       const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
@@ -260,8 +265,26 @@ export default function ChatPage() {
       currentParent
     );
 
-    // Process Nanny AI in background — input stays free
-    processNannyResponse(text, parentMsg);
+    // Buffer: acumular mensajes del mismo sender por 3 segundos
+    // Esto evita procesar cada mensaje por separado cuando el padre envía varios seguidos
+    bufferedTextsRef.current.push(text);
+    lastParentMsgRef.current = parentMsg;
+
+    if (bufferTimerRef.current) {
+      clearTimeout(bufferTimerRef.current);
+    }
+
+    bufferTimerRef.current = setTimeout(() => {
+      const combinedText = bufferedTextsRef.current.join('\n');
+      const lastMsg = lastParentMsgRef.current;
+      bufferedTextsRef.current = [];
+      lastParentMsgRef.current = null;
+      bufferTimerRef.current = null;
+
+      if (lastMsg) {
+        processNannyResponse(combinedText, lastMsg);
+      }
+    }, 3000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

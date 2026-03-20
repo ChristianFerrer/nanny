@@ -452,10 +452,21 @@ export interface ChatResponse {
 }
 
 /**
- * Procesa un mensaje de chat con la IA directamente (sin HTTP).
+ * Procesa un mensaje de chat con la IA usando el pipeline multi-paso.
  * Usado tanto por la API route como por el runner de evaluación.
+ *
+ * Pipeline: classify → extract/respond → postprocess
  */
 export async function processChat(input: ChatInput): Promise<ChatResponse> {
+  // Usar el nuevo pipeline multi-paso
+  const { processChatPipeline } = await import('./pipeline');
+  return processChatPipeline(input);
+}
+
+/**
+ * Versión legacy que usa el prompt monolítico (para comparación/fallback).
+ */
+export async function processChatLegacy(input: ChatInput): Promise<ChatResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY no está configurada en el servidor.');
