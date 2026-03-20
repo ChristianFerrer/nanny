@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Stethoscope } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Stethoscope, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -54,6 +54,12 @@ interface ConversationResult {
     recall: number;
     ambiguityHandling: number;
     behaviorScore: number;
+    falsePositiveRate?: number;
+    fieldAccuracy?: {
+      dateAccuracy: number;
+      ownerAccuracy: number;
+      typeAccuracy: number;
+    };
     overall: number;
   };
   totalTimeMs: number;
@@ -70,6 +76,12 @@ interface RunData {
     recall: number;
     ambiguityHandling: number;
     behaviorScore: number;
+    falsePositiveRate?: number;
+    fieldAccuracy?: {
+      dateAccuracy: number;
+      ownerAccuracy: number;
+      typeAccuracy: number;
+    };
     overall: number;
   };
 }
@@ -122,6 +134,12 @@ function ConversationCard({ result }: { result: ConversationResult }) {
   const pct = Math.round((result.scores?.overall || 0) * 100);
   const icon = pct >= 90 ? '✅' : pct >= 60 ? '⚠️' : '❌';
 
+  // Count issues for the collapsed view
+  const failedDetections = result.detectionMatches?.filter(dm => !dm.actual).length || 0;
+  const incorrectFields = result.detectionMatches?.reduce((sum, dm) => sum + (dm.incorrectFields?.length || 0), 0) || 0;
+  const failedBehaviors = result.behaviorMatches?.filter(bm => !bm.passed).length || 0;
+  const totalIssues = failedDetections + incorrectFields + failedBehaviors;
+
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
       <button
@@ -132,7 +150,12 @@ function ConversationCard({ result }: { result: ConversationResult }) {
           <span className="text-lg">{icon}</span>
           <div className="text-left">
             <p className="text-sm font-medium">{result.conversationName || result.conversationId}</p>
-            <p className="text-xs text-gray-500">{result.profileId}</p>
+            <p className="text-xs text-gray-500">
+              {result.profileId}
+              {totalIssues > 0 && (
+                <span className="text-orange-400 ml-2">{totalIssues} problema{totalIssues > 1 ? 's' : ''}</span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -152,6 +175,21 @@ function ConversationCard({ result }: { result: ConversationResult }) {
               <ScoreBar value={result.scores.recall} label="Recall" />
               <ScoreBar value={result.scores.ambiguityHandling} label="Ambigüedad" />
               <ScoreBar value={result.scores.behaviorScore} label="Comportam." />
+              {result.scores.falsePositiveRate !== undefined && (
+                <ScoreBar value={1 - result.scores.falsePositiveRate} label="Sin FPs" />
+              )}
+            </div>
+          )}
+
+          {/* Field accuracy */}
+          {result.scores?.fieldAccuracy && (
+            <div className="mb-4 bg-gray-900 rounded-lg p-2.5">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Precisión por campo</p>
+              <div className="space-y-1">
+                <ScoreBar value={result.scores.fieldAccuracy.dateAccuracy} label="Fecha/hora" />
+                <ScoreBar value={result.scores.fieldAccuracy.ownerAccuracy} label="Responsable" />
+                <ScoreBar value={result.scores.fieldAccuracy.typeAccuracy} label="Tipo evento" />
+              </div>
             </div>
           )}
 
@@ -269,18 +307,27 @@ function ConversationCard({ result }: { result: ConversationResult }) {
   );
 }
 
-function DiagnosisPanel({ runId }: { runId: string }) {
+function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolean }) {
   const [diagnosis, setDiagnosis] = useState<DiagnosisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [appliedMap, setAppliedMap] = useState<Record<number, string>>({}); // index -> version
+  const [appliedMap, setAppliedMap] = useState<Record<number, string>>({});
+  const [applyingPhase, setApplyingPhase] = useState<'idle' | 'diagnosing' | 'applying' | 'done'>('idle');
   const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
-  const [applyingAll, setApplyingAll] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const startedRef = useRef(false);
 
-  async function runDiagnosis() {
+  const runAutoDiagnosisAndApply = useCallback(async () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
     setLoading(true);
     setError(null);
+    setApplyingPhase('diagnosing');
+
+    // FASE 1: Diagnóstico automático
+    let diagnosisData: DiagnosisData;
     try {
       const res = await fetch('/api/eval/diagnose', {
         method: 'POST',
@@ -291,65 +338,38 @@ function DiagnosisPanel({ runId }: { runId: string }) {
         const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
-      setDiagnosis(data);
+      diagnosisData = await res.json();
+      setDiagnosis(diagnosisData);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error ejecutando diagnóstico');
-    } finally {
+      setApplyingPhase('idle');
       setLoading(false);
-    }
-  }
-
-  async function applyAdjustment(adj: DiagnosisData['proposedAdjustments'][0], index: number) {
-    if (!adj.currentPromptSection || !adj.proposedChange) {
-      setApplyError('Este ajuste no tiene sección actual o cambio propuesto definido.');
+      startedRef.current = false;
       return;
     }
 
-    setApplyingIndex(index);
-    setApplyError(null);
-    try {
-      const res = await fetch('/api/eval/prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentSection: adj.currentPromptSection,
-          proposedChange: adj.proposedChange,
-          description: `${adj.pattern}: ${adj.expectedImpact}`,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(errData.error || `HTTP ${res.status}`);
-      }
-
-      const result = await res.json();
-      setAppliedMap(prev => ({ ...prev, [index]: result.version }));
-    } catch (e) {
-      setApplyError(e instanceof Error ? e.message : 'Error aplicando ajuste');
-    } finally {
-      setApplyingIndex(null);
+    // FASE 2: Aplicar ajustes automáticamente
+    const adjustments = diagnosisData.proposedAdjustments || [];
+    if (adjustments.length === 0) {
+      setApplyingPhase('done');
+      setLoading(false);
+      return;
     }
-  }
 
-  async function applyAllAdjustments() {
-    if (!diagnosis) return;
-    setApplyingAll(true);
-    setApplyError(null);
+    setApplyingPhase('applying');
 
-    const unapplied = diagnosis.proposedAdjustments
+    const applicable = adjustments
       .map((adj, i) => ({ adj, i }))
-      .filter(({ adj, i }) => !appliedMap[i] && adj.currentPromptSection && adj.proposedChange);
+      .filter(({ adj }) => adj.proposedChange);
 
-    for (const { adj, i } of unapplied) {
+    for (const { adj, i } of applicable) {
       setApplyingIndex(i);
       try {
         const res = await fetch('/api/eval/prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            currentSection: adj.currentPromptSection,
+            currentSection: adj.currentPromptSection || '',
             proposedChange: adj.proposedChange,
             description: `${adj.pattern}: ${adj.expectedImpact}`,
           }),
@@ -369,8 +389,16 @@ function DiagnosisPanel({ runId }: { runId: string }) {
     }
 
     setApplyingIndex(null);
-    setApplyingAll(false);
-  }
+    setApplyingPhase('done');
+    setLoading(false);
+  }, [runId]);
+
+  // Auto-ejecutar diagnóstico y aplicación al montar si hay issues
+  useEffect(() => {
+    if (hasIssues) {
+      runAutoDiagnosisAndApply();
+    }
+  }, [hasIssues, runAutoDiagnosisAndApply]);
 
   const riskColors = {
     bajo: 'bg-green-900/30 text-green-400 border-green-800',
@@ -378,34 +406,23 @@ function DiagnosisPanel({ runId }: { runId: string }) {
     alto: 'bg-red-900/30 text-red-400 border-red-800',
   };
 
+  const appliedCount = Object.keys(appliedMap).length;
+  const totalAdjustments = diagnosis?.proposedAdjustments?.length || 0;
+
+  // Si no hay issues, no mostrar nada
+  if (!hasIssues) return null;
+
   return (
     <div className="mt-6 pb-8">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-400">Diagnóstico AI</h2>
-        {!diagnosis && (
-          <button
-            onClick={runDiagnosis}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-xs font-medium transition-colors"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={12} className="animate-spin" />
-                Analizando...
-              </>
-            ) : (
-              <>
-                <Stethoscope size={12} />
-                Diagnosticar
-              </>
-            )}
-          </button>
-        )}
-      </div>
-
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-3 text-xs text-red-300">
           {error}
+          <button
+            onClick={() => { startedRef.current = false; runAutoDiagnosisAndApply(); }}
+            className="ml-2 underline hover:text-red-200"
+          >
+            Reintentar
+          </button>
         </div>
       )}
 
@@ -415,142 +432,137 @@ function DiagnosisPanel({ runId }: { runId: string }) {
         </div>
       )}
 
-      {diagnosis && (
-        <div className="space-y-4">
-          {/* Summary */}
-          <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4">
-            <p className="text-sm text-purple-200">{diagnosis.summary}</p>
+      {/* Estado: Diagnosticando */}
+      {applyingPhase === 'diagnosing' && (
+        <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 flex items-center gap-3">
+          <Loader2 size={16} className="animate-spin text-purple-400" />
+          <div>
+            <p className="text-sm font-medium text-purple-300">Diagnosticando...</p>
+            <p className="text-xs text-gray-500">Analizando patrones de fallo con GPT-4o</p>
+          </div>
+        </div>
+      )}
+
+      {/* Estado: Aplicando */}
+      {applyingPhase === 'applying' && (
+        <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 flex items-center gap-3">
+          <Loader2 size={16} className="animate-spin text-purple-400" />
+          <div>
+            <p className="text-sm font-medium text-purple-300">
+              Aplicando ajustes al prompt ({applyingIndex !== null ? applyingIndex + 1 : 0}/{totalAdjustments})
+            </p>
+            <p className="text-xs text-gray-500">
+              {diagnosis?.proposedAdjustments[applyingIndex ?? 0]?.pattern || ''}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Estado: Completado */}
+      {applyingPhase === 'done' && diagnosis && (
+        <div className="space-y-3">
+          {/* Mensaje de éxito */}
+          <div className={`rounded-xl p-4 ${
+            appliedCount > 0
+              ? 'bg-green-900/20 border border-green-800'
+              : 'bg-purple-900/20 border border-purple-800'
+          }`}>
+            <div className="flex items-center gap-3 mb-2">
+              {appliedCount > 0 ? (
+                <CheckCircle size={16} className="text-green-400" />
+              ) : (
+                <Stethoscope size={16} className="text-purple-400" />
+              )}
+              <p className="text-sm font-medium text-gray-200">
+                {appliedCount > 0
+                  ? `Ajustes al prompt aplicados luego del diagnóstico (${appliedCount})`
+                  : 'Diagnóstico completado sin ajustes necesarios'
+                }
+              </p>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">{diagnosis.summary}</p>
+
+            {/* Toggle para ver detalle */}
+            <button
+              onClick={() => setShowDetail(!showDetail)}
+              className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            >
+              {showDetail ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {showDetail ? 'Ocultar detalle' : 'Ver detalle del diagnóstico'}
+            </button>
           </div>
 
-          {/* Failure patterns */}
-          {diagnosis.failurePatterns.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 mb-2">
-                Patrones de fallos ({diagnosis.failurePatterns.length})
-              </h3>
-              <div className="space-y-2">
-                {diagnosis.failurePatterns.map((fp, i) => (
-                  <div key={i} className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-medium text-orange-400">{fp.category}</p>
-                        <p className="text-xs text-gray-300 mt-1">{fp.description}</p>
+          {/* Detalle expandible */}
+          {showDetail && (
+            <div className="space-y-4">
+              {/* Patrones de fallo */}
+              {diagnosis.failurePatterns.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-400 mb-2">
+                    Patrones de fallos ({diagnosis.failurePatterns.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {diagnosis.failurePatterns.map((fp, i) => (
+                      <div key={i} className="bg-gray-800 rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-medium text-orange-400">{fp.category}</p>
+                            <p className="text-xs text-gray-300 mt-1">{fp.description}</p>
+                          </div>
+                          <span className="text-xs text-gray-500 shrink-0">{fp.failureCount} fallos</span>
+                        </div>
+                        {fp.affectedConversations.length > 0 && (
+                          <p className="text-[10px] text-gray-600 mt-1">
+                            Afecta: {fp.affectedConversations.join(', ')}
+                          </p>
+                        )}
                       </div>
-                      <span className="text-xs text-gray-500 shrink-0">{fp.failureCount} fallos</span>
-                    </div>
-                    {fp.affectedConversations.length > 0 && (
-                      <p className="text-[10px] text-gray-600 mt-1">
-                        Afecta: {fp.affectedConversations.join(', ')}
-                      </p>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* Ajustes aplicados */}
+              {diagnosis.proposedAdjustments.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-400 mb-2">
+                    Ajustes aplicados al prompt ({appliedCount}/{totalAdjustments})
+                  </h3>
+                  <div className="space-y-3">
+                    {diagnosis.proposedAdjustments.map((adj, i) => {
+                      const appliedVersion = appliedMap[i];
+                      const isApplied = !!appliedVersion;
+
+                      return (
+                        <div key={i} className={`bg-gray-800 rounded-lg p-3 ${isApplied ? 'border border-green-800' : ''}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskColors[adj.riskLevel]}`}>
+                              Riesgo {adj.riskLevel}
+                            </span>
+                            <span className="text-xs text-gray-400">{adj.pattern}</span>
+                            {isApplied && (
+                              <span className="text-[10px] text-green-400 ml-auto">Aplicado ({appliedVersion})</span>
+                            )}
+                          </div>
+
+                          <div className="mb-2">
+                            <p className="text-[10px] text-gray-500 mb-1">Cambio aplicado:</p>
+                            <pre className="text-[10px] text-green-300 bg-green-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
+                              {adj.proposedChange}
+                            </pre>
+                          </div>
+
+                          <p className="text-[10px] text-gray-400">
+                            Impacto esperado: {adj.expectedImpact}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
-          {/* Proposed adjustments */}
-          {diagnosis.proposedAdjustments.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold text-gray-400">
-                  Ajustes propuestos al prompt ({diagnosis.proposedAdjustments.length})
-                </h3>
-                {(() => {
-                  const unappliedCount = diagnosis.proposedAdjustments.filter(
-                    (_, i) => !appliedMap[i]
-                  ).length;
-                  const allApplied = unappliedCount === 0;
-                  return allApplied ? (
-                    <span className="text-xs text-green-400 flex items-center gap-1">
-                      Todos aplicados
-                    </span>
-                  ) : (
-                    <button
-                      onClick={applyAllAdjustments}
-                      disabled={applyingAll || applyingIndex !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-xs font-medium transition-colors"
-                    >
-                      {applyingAll ? (
-                        <>
-                          <Loader2 size={12} className="animate-spin" />
-                          Aplicando {Object.keys(appliedMap).length + 1}/{diagnosis.proposedAdjustments.length}...
-                        </>
-                      ) : (
-                        `Aplicar todos (${unappliedCount})`
-                      )}
-                    </button>
-                  );
-                })()}
-              </div>
-              <div className="space-y-3">
-                {diagnosis.proposedAdjustments.map((adj, i) => {
-                  const appliedVersion = appliedMap[i];
-                  const isApplied = !!appliedVersion;
-                  const isApplying = applyingIndex === i;
-
-                  return (
-                    <div key={i} className={`bg-gray-800 rounded-lg p-3 ${isApplied ? 'border border-green-800' : ''}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskColors[adj.riskLevel]}`}>
-                          Riesgo {adj.riskLevel}
-                        </span>
-                        <span className="text-xs text-gray-400">{adj.pattern}</span>
-                      </div>
-
-                      {adj.currentPromptSection && (
-                        <div className="mb-2">
-                          <p className="text-[10px] text-gray-500 mb-1">Sección actual:</p>
-                          <pre className="text-[10px] text-red-300 bg-red-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
-                            {adj.currentPromptSection}
-                          </pre>
-                        </div>
-                      )}
-
-                      <div className="mb-2">
-                        <p className="text-[10px] text-gray-500 mb-1">Cambio propuesto:</p>
-                        <pre className="text-[10px] text-green-300 bg-green-950/30 rounded p-2 whitespace-pre-wrap overflow-x-auto">
-                          {adj.proposedChange}
-                        </pre>
-                      </div>
-
-                      <p className="text-[10px] text-gray-400 mb-3">
-                        Impacto esperado: {adj.expectedImpact}
-                      </p>
-
-                      {isApplied ? (
-                        <div className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-green-900/30 border border-green-800 rounded-lg text-xs text-green-400">
-                          Aplicado ({appliedVersion})
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => applyAdjustment(adj, i)}
-                          disabled={isApplying || applyingIndex !== null}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-xs font-medium transition-colors"
-                        >
-                          {isApplying ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Aplicando...
-                            </>
-                          ) : (
-                            'Aplicar este ajuste al prompt'
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={() => { setDiagnosis(null); setAppliedMap({}); }}
-            className="w-full text-xs text-gray-500 hover:text-gray-400 py-2"
-          >
-            Cerrar diagnóstico
-          </button>
         </div>
       )}
     </div>
@@ -597,49 +609,18 @@ export default function RunDetailPage() {
   const pct = Math.round((run.aggregate_scores?.overall || 0) * 100);
   const conversations = run.conversation_results || [];
 
-  // Aggregate all failures across conversations for the summary
-  const allFailedDetections: { conv: string; detection: DetectionMatch }[] = [];
-  const allIncorrectFields: { conv: string; detection: string; field: string; expected: unknown; actual: unknown }[] = [];
-  const allFailedBehaviors: { conv: string; check: string; details: string }[] = [];
-  const allAmbiguous: { conv: string; detection: string; fields: string[] }[] = [];
-
+  // Check if there are any issues across conversations
+  let hasIssues = false;
   for (const cr of conversations) {
-    const convName = cr.conversationName || cr.conversationId;
-    if (cr.detectionMatches) {
-      for (const dm of cr.detectionMatches) {
-        if (!dm.actual) {
-          allFailedDetections.push({ conv: convName, detection: dm });
-        }
-        if (dm.incorrectFields && dm.incorrectFields.length > 0) {
-          for (const f of dm.incorrectFields) {
-            allIncorrectFields.push({
-              conv: convName,
-              detection: getDetectionLabel(dm),
-              field: f.field,
-              expected: f.expected,
-              actual: f.actual,
-            });
-          }
-        }
-        if (dm.ambiguousFields && dm.ambiguousFields.length > 0) {
-          allAmbiguous.push({
-            conv: convName,
-            detection: getDetectionLabel(dm),
-            fields: dm.ambiguousFields,
-          });
-        }
-      }
+    if (cr.detectionMatches?.some(dm => !dm.actual || (dm.incorrectFields && dm.incorrectFields.length > 0))) {
+      hasIssues = true;
+      break;
     }
-    if (cr.behaviorMatches) {
-      for (const bm of cr.behaviorMatches) {
-        if (!bm.passed) {
-          allFailedBehaviors.push({ conv: convName, check: bm.check, details: bm.details });
-        }
-      }
+    if (cr.behaviorMatches?.some(bm => !bm.passed)) {
+      hasIssues = true;
+      break;
     }
   }
-
-  const hasIssues = allFailedDetections.length > 0 || allIncorrectFields.length > 0 || allFailedBehaviors.length > 0 || allAmbiguous.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 max-w-2xl mx-auto">
@@ -668,114 +649,22 @@ export default function RunDetailPage() {
             <ScoreBar value={run.aggregate_scores.recall} label="Recall" />
             <ScoreBar value={run.aggregate_scores.ambiguityHandling} label="Ambigüedad" />
             <ScoreBar value={run.aggregate_scores.behaviorScore} label="Comportam." />
+            {run.aggregate_scores.falsePositiveRate !== undefined && (
+              <ScoreBar value={1 - run.aggregate_scores.falsePositiveRate} label="Sin FPs" />
+            )}
+          </div>
+        )}
+        {run.aggregate_scores?.fieldAccuracy && (
+          <div className="mt-3 pt-3 border-t border-gray-700">
+            <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Precisión por campo</p>
+            <div className="space-y-1">
+              <ScoreBar value={run.aggregate_scores.fieldAccuracy.dateAccuracy} label="Fecha/hora" />
+              <ScoreBar value={run.aggregate_scores.fieldAccuracy.ownerAccuracy} label="Responsable" />
+              <ScoreBar value={run.aggregate_scores.fieldAccuracy.typeAccuracy} label="Tipo evento" />
+            </div>
           </div>
         )}
       </div>
-
-      {/* Resumen detallado de cambios necesarios */}
-      {hasIssues && (
-        <div className="bg-gray-800 rounded-xl p-4 mb-4">
-          <h2 className="text-sm font-semibold text-orange-400 mb-3">
-            Resumen de cambios necesarios
-          </h2>
-
-          {/* Detecciones no encontradas */}
-          {allFailedDetections.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
-                <span>❌</span> Detecciones no encontradas ({allFailedDetections.length})
-              </h3>
-              <div className="space-y-1.5">
-                {allFailedDetections.map((fd, i) => (
-                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <span className="text-gray-300 font-medium">{fd.detection.expected?.intent}</span>
-                        {' — '}
-                        <span className="text-gray-400">{getDetectionLabel(fd.detection)}</span>
-                      </div>
-                      <span className="text-gray-600 shrink-0">{fd.conv}</span>
-                    </div>
-                    {fd.detection.expected?.data && (
-                      <p className="text-gray-600 mt-1 text-[10px] font-mono truncate">
-                        {JSON.stringify(fd.detection.expected.data)}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Campos incorrectos */}
-          {allIncorrectFields.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1.5">
-                <span>⚠️</span> Campos incorrectos ({allIncorrectFields.length})
-              </h3>
-              <div className="space-y-1.5">
-                {allIncorrectFields.map((f, i) => (
-                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex items-start gap-2">
-                    <div className="flex-1">
-                      <span className="text-gray-300 font-medium">{f.detection}</span>
-                      <span className="text-gray-600"> → </span>
-                      <span className="text-gray-400">{f.field}</span>
-                      <div className="mt-1 flex gap-3 text-[10px]">
-                        <span className="text-red-400">esperado: &quot;{String(f.expected ?? '')}&quot;</span>
-                        <span className="text-green-400">actual: &quot;{String(f.actual ?? '')}&quot;</span>
-                      </div>
-                    </div>
-                    <span className="text-gray-600 shrink-0 text-[10px]">{f.conv}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Comportamientos fallidos */}
-          {allFailedBehaviors.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
-                <span>🚫</span> Comportamientos fallidos ({allFailedBehaviors.length})
-              </h3>
-              <div className="space-y-1.5">
-                {allFailedBehaviors.map((fb, i) => (
-                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-gray-300 font-medium">{fb.check}</p>
-                        <p className="text-gray-500 mt-0.5">{fb.details}</p>
-                      </div>
-                      <span className="text-gray-600 shrink-0">{fb.conv}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Campos ambiguos */}
-          {allAmbiguous.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-blue-400 mb-2 flex items-center gap-1.5">
-                <span>🔵</span> Campos ambiguos ({allAmbiguous.length})
-              </h3>
-              <div className="space-y-1.5">
-                {allAmbiguous.map((a, i) => (
-                  <div key={i} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex items-start gap-2">
-                    <div className="flex-1">
-                      <span className="text-gray-300 font-medium">{a.detection}</span>
-                      <span className="text-gray-600"> → </span>
-                      <span className="text-blue-300">{a.fields.join(', ')}</span>
-                    </div>
-                    <span className="text-gray-600 shrink-0">{a.conv}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Score 100% - no issues */}
       {!hasIssues && conversations.length > 0 && (
@@ -784,18 +673,18 @@ export default function RunDetailPage() {
         </div>
       )}
 
+      {/* Diagnosis - automático */}
+      <DiagnosisPanel runId={runId} hasIssues={hasIssues} />
+
       {/* Conversations */}
-      <h2 className="text-sm font-semibold text-gray-400 mb-2">
+      <h2 className="text-sm font-semibold text-gray-400 mb-2 mt-6">
         Conversaciones ({conversations.length})
       </h2>
-      <div className="space-y-2">
+      <div className="space-y-2 pb-8">
         {conversations.map((cr, i) => (
           <ConversationCard key={cr.conversationId || i} result={cr} />
         ))}
       </div>
-
-      {/* Diagnosis */}
-      <DiagnosisPanel runId={runId} />
     </div>
   );
 }
