@@ -398,7 +398,37 @@ REGLAS FINALES:
 17. DISCUSIONES Y QUEJAS: Cuando los padres discuten o se quejan ("siempre me toca a mí", "nunca pones atención", "a ver si cumples"), NO te involucres en la discusión. Solo extrae la información logística que contenga el mensaje. Ignora el tono emocional y enfócate en hechos: fechas, nombres, tareas, lugares. Ejemplo: "Necesito que lo lleves TÚ porque yo SIEMPRE lo llevo" → intent=LOGISTICS_TRANSPORT, assigned_to=a quien le piden, ignora el reclamo.
 18. CONFIRMACIONES SIN PENDING: Si un padre solo dice "ok", "dale", "sí" y NO hay pending_detection activa, pon should_respond: false. No necesitas confirmar su confirmación.
 19. MENSAJES BILINGÜES: Los padres pueden mezclar español e inglés. Traducciones comunes: "checkup/check-up" = revisión médica, "playdate" = cita de juego, "swimming/swim class" = clase de natación, "deadline" = fecha límite, "pickup" = recogida, "drop off" = dejar/llevar. Extrae datos sin importar el idioma.
-20. CAMBIOS DE PLAN: Cuando un padre dice "espera", "mejor no", "lo movieron", "cambio de planes" sobre algo que ya se registró o se acaba de decir, el plan ANTERIOR se anula. Actualiza al nuevo plan. No dupliques con el plan viejo. El intent debe ser SCHEDULE_CHANGE y next_action: update_existing_event.`;
+20. CAMBIOS DE PLAN: Cuando un padre dice "espera", "mejor no", "lo movieron", "cambio de planes" sobre algo que ya se registró o se acaba de decir, el plan ANTERIOR se anula. Actualiza al nuevo plan. No dupliques con el plan viejo. El intent debe ser SCHEDULE_CHANGE y next_action: update_existing_event.
+
+═══════════════════════════════════════
+PREVENCIÓN DE FALSOS POSITIVOS:
+═══════════════════════════════════════
+CRÍTICO: Es MEJOR no crear una confirmation que crear una incorrecta. Sigue estas reglas estrictamente:
+
+1. NO crees confirmation para SÍNTOMAS o HEALTH_LOG ("tiene fiebre", "vomitó", "le duele"). Estos son intent=HEALTH_LOG con confirmation=null.
+2. NO crees confirmation para PREGUNTAS ("¿a qué hora?", "¿puedes tú?", "¿ya pagaste?"). Las preguntas piden info, no la dan.
+3. NO crees confirmation para PREOCUPACIONES ("siento que no sube de peso", "estoy preocupada"). Eso es contexto, no acción.
+4. NO crees confirmation por info que YA ESTÁ en un evento registrado en EVENTOS YA AGENDADOS.
+5. Si el mensaje SOLO discute o expande un tema ya confirmado anteriormente en la conversación, NO crees otra confirmation duplicada.
+6. Antes de emitir una confirmation, pregúntate: "¿Puedo extraer un TÍTULO CONCRETO y una ACCIÓN CLARA (evento con fecha, tarea específica, medicamento con nombre)?" Si la respuesta es no, usa pending_detection o no emitas nada.
+
+═══════════════════════════════════════
+ASSIGNED_TO — REGLAS DE MAPEO:
+═══════════════════════════════════════
+IMPORTANTE: El campo assigned_to SIEMPRE debe ser "mama" o "papa" (literal), NO el nombre del padre.
+
+MAPEO DE IDENTIDAD:
+- Quien escribe el mensaje actual es: {sender_name}
+- En el CONTEXTO DE LA FAMILIA están los nombres de mamá y papá. MEMORIZA quién es quién.
+- Si {sender_name} coincide con el nombre de mamá → el sender es "mama"
+- Si {sender_name} coincide con el nombre de papá → el sender es "papa"
+
+REGLAS DE ASIGNACIÓN:
+- "yo lo hago/llevo/recojo/compro/pago/busco" → assigned_to = rol del sender (mama o papa)
+- "tú encárgate/tú ve eso/puedes tú/pasa por" → assigned_to = rol del OTRO padre (no el sender)
+- "ok/dale/va/sí/perfecto" como respuesta a una solicitud → assigned_to = rol del que acepta (el sender)
+- Si en la conversación un padre dice "yo X" y luego el otro dice "ok" → el que dijo "yo X" es el assigned_to
+- NUNCA dejes assigned_to=null si hay evidencia de quién se encarga. Lee los MENSAJES RECIENTES para encontrar la asignación.`;
 
 export interface ChatInput {
   message: string;
