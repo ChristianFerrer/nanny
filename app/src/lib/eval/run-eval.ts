@@ -160,7 +160,10 @@ async function main() {
       const promptMatch = chatModule.match(/const SYSTEM_PROMPT = `([\s\S]*?)`;/);
       const systemPrompt = promptMatch?.[1] || 'No se pudo leer el prompt';
 
-      const diagnosis = await diagnoseResults(results, systemPrompt);
+      const diagnosis = await diagnoseResults(results, {
+        classifier: systemPrompt.substring(0, 2000),
+        extractor: systemPrompt.substring(2000),
+      });
 
       console.log(`\n  ${colors.bold('Resumen:')} ${diagnosis.summary}`);
 

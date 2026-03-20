@@ -540,14 +540,15 @@ export default function TestingDashboard() {
       setAutopilotPhase('applying');
       setAutopilotMessage(`Aplicando ${adjustments.length} ajustes al prompt...`);
 
-      // Guardar el ID del prompt ANTES de aplicar ajustes (para rollback)
-      let preAdjustmentPromptId: string | null = null;
+      // Guardar snapshot de reglas ANTES de aplicar ajustes (para rollback)
+      let canRollback = false;
       try {
-        const promptRes = await fetch('/api/eval/prompt');
-        if (promptRes.ok) {
-          const promptData = await promptRes.json();
-          preAdjustmentPromptId = promptData.id;
-        }
+        const snapRes = await fetch('/api/eval/prompt', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'snapshot' }),
+        });
+        canRollback = snapRes.ok;
       } catch {
         // Continue without rollback capability
       }
@@ -582,6 +583,7 @@ export default function TestingDashboard() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              target: adj.target || 'extractor',
               currentSection: adj.currentPromptSection || '',
               proposedChange: adj.proposedChange,
               description: `Autopilot: ${adj.pattern} - ${adj.expectedImpact || ''}`,
@@ -688,17 +690,15 @@ export default function TestingDashboard() {
               setAutopilotReeval({ status: 'rollback', preScore, postScore });
               setAutopilotMessage(`Score bajó de ${Math.round(preScore * 100)}% a ${Math.round(postScore * 100)}%. Revirtiendo...`);
 
-              if (preAdjustmentPromptId) {
+              if (canRollback) {
                 try {
                   await fetch('/api/eval/prompt', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ targetVersionId: preAdjustmentPromptId }),
                   });
                   rolledBack = true;
-                  setAutopilotMessage(`Rollback completado. Prompt restaurado a versión pre-ajustes.`);
+                  setAutopilotMessage(`Rollback completado. Reglas restauradas a versión pre-ajustes.`);
                 } catch {
-                  setAutopilotMessage('Rollback falló. El prompt ajustado sigue activo.');
+                  setAutopilotMessage('Rollback falló. Las reglas ajustadas siguen activas.');
                 }
               }
 

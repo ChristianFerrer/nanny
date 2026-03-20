@@ -1,108 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { SYSTEM_PROMPT } from '@/lib/chat/processChat';
+import {
+  addRule,
+  getAllRules,
+  saveSnapshot,
+  rollbackToSnapshot,
+  clearAllRules,
+  getStatus,
+  buildRulesText,
+} from '@/lib/chat/prompt-rules';
 
 /**
- * DELETE: rollback al prompt anterior (reactiva el parent version).
- * Body: { targetVersionId?: string }
- * Si targetVersionId se proporciona, reactiva esa versión específica.
- * Si no, reactiva el parent del prompt activo actual.
+ * DELETE: rollback al estado anterior de las reglas.
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { targetVersionId } = body as { targetVersionId?: string };
-
-    const supabase = getSupabaseAdmin();
-
-    // Obtener prompt activo actual
-    const { data: activePrompt } = await supabase
-      .from('system_prompts')
-      .select('*')
-      .eq('is_active', true)
-      .single();
-
-    if (!activePrompt) {
+    const restored = rollbackToSnapshot();
+    if (!restored) {
       return NextResponse.json(
-        { error: 'No hay prompt activo para hacer rollback' },
+        { error: 'No hay snapshot para hacer rollback' },
         { status: 400 }
       );
     }
 
-    const rollbackToId = targetVersionId || activePrompt.parent_version_id;
-    if (!rollbackToId) {
-      return NextResponse.json(
-        { error: 'No hay versión anterior para hacer rollback' },
-        { status: 400 }
-      );
-    }
-
-    // Desactivar el prompt actual
-    await supabase
-      .from('system_prompts')
-      .update({ is_active: false })
-      .eq('id', activePrompt.id);
-
-    // Reactivar la versión target
-    const { data: restored, error } = await supabase
-      .from('system_prompts')
-      .update({ is_active: true })
-      .eq('id', rollbackToId)
-      .select()
-      .single();
-
-    if (error) {
-      // Reactivar el actual si falló
-      await supabase
-        .from('system_prompts')
-        .update({ is_active: true })
-        .eq('id', activePrompt.id);
-      throw error;
-    }
-
+    const status = getStatus();
     return NextResponse.json({
       success: true,
-      rolledBackFrom: activePrompt.version_label,
-      restoredVersion: restored.version_label,
-      restoredId: restored.id,
+      message: 'Rollback completado',
+      rulesCount: status.totalRules,
     });
   } catch (e) {
-    const message = e instanceof Error
-      ? e.message
-      : (e && typeof e === 'object' && 'message' in e)
-        ? String((e as { message: unknown }).message)
-        : String(e);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 /**
- * GET: obtiene el prompt activo (o el hardcoded si no hay ninguno en DB).
+ * GET: obtiene el estado actual de los prompts del pipeline + reglas activas.
  */
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
+    const status = getStatus();
+    const rules = getAllRules();
+    const classifierExtra = buildRulesText('classifier');
+    const extractorExtra = buildRulesText('extractor');
 
-    const { data } = await supabase
-      .from('system_prompts')
-      .select('*')
-      .eq('is_active', true)
-      .single();
-
-    if (data) {
-      return NextResponse.json(data);
-    }
-
-    // No hay prompt en DB, devolver el hardcoded
     return NextResponse.json({
       id: null,
-      version_label: 'hardcoded',
-      content: SYSTEM_PROMPT,
+      version_label: `v${status.currentVersion}`,
       is_active: true,
-      change_description: 'Prompt original hardcoded en el código',
+      pipeline: true,
+      status,
+      rules,
+      classifierExtraRules: classifierExtra,
+      extractorExtraRules: extractorExtra,
+      change_description: `Pipeline con ${status.totalRules} reglas adicionales (${status.classifierRules} classifier, ${status.extractorRules} extractor)`,
       created_at: new Date().toISOString(),
     });
   } catch (e) {
@@ -114,123 +65,73 @@ export async function GET() {
 }
 
 /**
- * POST: aplica un ajuste al prompt activo, creando una nueva versión.
- * Body: { currentSection: string, proposedChange: string, description: string }
+ * POST: aplica un ajuste al pipeline agregando una regla.
+ * Body: { target: "classifier"|"extractor", proposedChange: string, description: string }
  *
- * Estrategia de aplicación:
- * 1. Si currentSection se encuentra exacto en el prompt → reemplaza
- * 2. Si no → agrega proposedChange al final del prompt como regla adicional
+ * Compatible con el formato anterior: si no hay target, asume "extractor".
  */
 export async function POST(req: NextRequest) {
   try {
-    const { currentSection, proposedChange, description } = await req.json();
+    const body = await req.json();
+    const {
+      target = 'extractor',
+      proposedChange,
+      currentSection,
+      description,
+    } = body;
 
-    if (!proposedChange) {
+    const ruleText = proposedChange || currentSection;
+    if (!ruleText) {
       return NextResponse.json(
         { error: 'proposedChange es requerido' },
         { status: 400 }
       );
     }
 
-    const supabase = getSupabaseAdmin();
-
-    // Obtener prompt activo actual
-    const { data: activePrompt } = await supabase
-      .from('system_prompts')
-      .select('*')
-      .eq('is_active', true)
-      .single();
-
-    const currentContent = activePrompt?.content || SYSTEM_PROMPT;
-    const parentId = activePrompt?.id || null;
-
-    let newContent: string;
-    let matchType: 'exact' | 'appended';
-
-    if (currentSection && currentContent.includes(currentSection)) {
-      // Match exacto: reemplazar la sección
-      newContent = currentContent.replace(currentSection, proposedChange);
-      matchType = 'exact';
-    } else {
-      // Sin match exacto: agregar como regla adicional al final
-      // Insertar antes del bloque de JSON de respuesta si existe, o al final
-      const jsonBlockMarker = '## FORMATO DE RESPUESTA';
-      const jsonBlockIdx = currentContent.indexOf(jsonBlockMarker);
-
-      if (jsonBlockIdx > 0) {
-        // Insertar la nueva regla justo antes del formato de respuesta
-        newContent = currentContent.slice(0, jsonBlockIdx)
-          + '\n' + proposedChange + '\n\n'
-          + currentContent.slice(jsonBlockIdx);
-      } else {
-        newContent = currentContent + '\n\n' + proposedChange;
-      }
-      matchType = 'appended';
-    }
-
-    // Generar label de versión
-    const versionNum = activePrompt?.version_label
-      ? parseInt(activePrompt.version_label.replace('v', '')) + 1
-      : 1;
-    const versionLabel = `v${versionNum}`;
-
-    // Desactivar el prompt actual (verificar que tuvo éxito)
-    if (activePrompt?.id) {
-      const { error: deactivateError } = await supabase
-        .from('system_prompts')
-        .update({ is_active: false })
-        .eq('id', activePrompt.id);
-
-      if (deactivateError) {
-        return NextResponse.json(
-          { error: `Error desactivando prompt anterior: ${deactivateError.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Crear nueva versión activa
-    const { data: newPrompt, error } = await supabase
-      .from('system_prompts')
-      .insert({
-        version_label: versionLabel,
-        content: newContent,
-        is_active: true,
-        parent_version_id: parentId,
-        change_description: description || `Ajuste aplicado desde diagnóstico`,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      // Reactivar el anterior si falló
-      if (activePrompt?.id) {
-        await supabase
-          .from('system_prompts')
-          .update({ is_active: true })
-          .eq('id', activePrompt.id);
-      }
-      return NextResponse.json(
-        { error: `Error creando nueva versión: ${error.message}` },
-        { status: 500 }
-      );
-    }
+    const validTarget = target === 'classifier' ? 'classifier' : 'extractor';
+    const rule = addRule(
+      validTarget as 'classifier' | 'extractor',
+      ruleText,
+      description || 'Ajuste desde diagnóstico'
+    );
 
     return NextResponse.json({
       success: true,
-      version: newPrompt.version_label,
-      id: newPrompt.id,
-      matchType,
+      version: `v${rule.version}`,
+      id: rule.id,
+      matchType: 'appended',
+      target: validTarget,
     });
   } catch (e) {
-    const message = e instanceof Error
-      ? e.message
-      : (e && typeof e === 'object' && 'message' in e)
-        ? String((e as { message: unknown }).message)
-        : String(e);
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * PUT: operaciones especiales (snapshot, clear).
+ * Body: { action: "snapshot" | "clear" }
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const { action } = await req.json();
+
+    if (action === 'snapshot') {
+      saveSnapshot();
+      return NextResponse.json({ success: true, message: 'Snapshot guardado' });
+    }
+
+    if (action === 'clear') {
+      clearAllRules();
+      return NextResponse.json({ success: true, message: 'Reglas limpiadas' });
+    }
+
     return NextResponse.json(
-      { error: message },
-      { status: 500 }
+      { error: `Acción desconocida: ${action}` },
+      { status: 400 }
     );
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@
  */
 
 import OpenAI from 'openai';
+import { buildRulesText } from './prompt-rules';
 
 export interface ClassifierInput {
   message: string;
@@ -91,7 +92,8 @@ export async function classifyMessage(
     ? `ACTIVA: ${JSON.stringify(input.pendingDetection)}`
     : 'Ninguna';
 
-  const prompt = CLASSIFIER_PROMPT
+  const extraRules = buildRulesText('classifier');
+  const prompt = (CLASSIFIER_PROMPT + extraRules)
     .replace('{sender_name}', input.senderName)
     .replace('{children_names}', input.childrenNames.join(', ') || 'No especificados')
     .replace('{recent_messages}', input.recentMessages || 'Ninguno')

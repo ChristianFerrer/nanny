@@ -190,6 +190,8 @@ export interface FailurePattern {
 
 export interface PromptAdjustment {
   pattern: string;
+  /** A cuál prompt del pipeline va dirigido el ajuste */
+  target: 'classifier' | 'extractor';
   currentPromptSection: string;
   proposedChange: string;
   riskLevel: 'bajo' | 'medio' | 'alto';

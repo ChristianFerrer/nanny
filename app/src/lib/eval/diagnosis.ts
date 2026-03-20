@@ -1,5 +1,6 @@
 /**
- * Diagnóstico AI: analiza los fallos de una evaluación y propone ajustes al prompt.
+ * Diagnóstico AI: analiza los fallos de una evaluación y propone ajustes
+ * a los prompts del pipeline (classifier y extractor).
  *
  * Usa GPT-4o (no mini) para mayor capacidad analítica.
  */
@@ -14,10 +15,11 @@ import type {
 
 /**
  * Analiza los resultados de una evaluación y genera diagnóstico + propuestas.
+ * Ahora recibe los prompts del pipeline (classifier + extractor) en vez del monolítico.
  */
 export async function diagnoseResults(
   results: ConversationResult[],
-  systemPromptSnippet: string,
+  pipelinePrompts: { classifier: string; extractor: string },
   options?: { apiKey?: string }
 ): Promise<DiagnosisResult> {
   const apiKey = options?.apiKey || process.env.OPENAI_API_KEY;
@@ -39,7 +41,7 @@ export async function diagnoseResults(
   }
 
   // Build diagnosis prompt
-  const diagnosisPrompt = buildDiagnosisPrompt(failures, systemPromptSnippet, results);
+  const diagnosisPrompt = buildDiagnosisPrompt(failures, pipelinePrompts, results);
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -48,18 +50,24 @@ export async function diagnoseResults(
     messages: [
       {
         role: 'system',
-        content: `Eres un experto en ingeniería de prompts para LLMs. Analizas fallos en un sistema de detección de intents para una app de coordinación familiar llamada "Nanny".
+        content: `Eres un experto en ingeniería de prompts para LLMs. Analizas fallos en un sistema de coordinación familiar llamado "Nanny".
 
-Tu trabajo:
-1. Identificar PATRONES en los fallos (no listar cada fallo individual)
-2. Proponer INSTRUCCIONES ADICIONALES concretas que se agregarán al system prompt para resolver esos patrones
-3. Evaluar el RIESGO de cada cambio
+ARQUITECTURA DE NANNY (pipeline multi-paso):
+1. CLASSIFIER (gpt-4o-mini): Clasifica cada mensaje — ¿es accionable? ¿qué tipo? ¿para Nanny?
+2. EXTRACTOR (gpt-4o-mini o gpt-4o): Extrae datos estructurados (título, fecha, assigned_to, etc.)
+3. POST-PROCESO (código): Corrige assigned_to, valida falsos positivos
+
+Los prompts del classifier y extractor se te proporcionan abajo. Tu trabajo:
+1. Identificar PATRONES en los fallos
+2. Proponer REGLAS ADICIONALES concretas para agregar al prompt del CLASSIFIER o del EXTRACTOR
+3. Cada ajuste debe indicar a cuál prompt va dirigido (target)
 
 IMPORTANTE sobre los ajustes propuestos:
-- El campo "proposedChange" debe ser una INSTRUCCIÓN NUEVA completa y auto-contenida que se agregará al prompt
-- Escríbela como una regla clara que Nanny debe seguir, por ejemplo: "REGLA: Cuando un padre menciona una fecha futura con actividad, SIEMPRE detectar como evento aunque no use palabras como 'cita' o 'evento'"
-- NO intentes citar o referenciar secciones existentes del prompt - solo propón texto nuevo a agregar
-- El campo "currentPromptSection" debe ser una descripción corta de QUÉ ÁREA del prompt está relacionada (ej: "detección de eventos", "manejo de ambigüedad")
+- El campo "proposedChange" debe ser una REGLA NUEVA completa y auto-contenida
+- El campo "target" debe ser "classifier" o "extractor" según a cuál prompt aplica:
+  - "classifier": si el problema es que Nanny NO DETECTA algo (falso negativo) o detecta de más (falso positivo en clasificación)
+  - "extractor": si el problema es que los CAMPOS EXTRAÍDOS son incorrectos (fecha, assigned_to, título, etc.)
+- Escríbela como regla clara, ej: "REGLA: Cuando se mencionan dos actividades en un mensaje, detected_items_count debe ser 2"
 
 Responde SIEMPRE en JSON válido con esta estructura:
 {
@@ -73,9 +81,10 @@ Responde SIEMPRE en JSON válido con esta estructura:
   ],
   "adjustments": [
     {
-      "pattern": "nombre descriptivo del patrón que resuelve",
+      "pattern": "nombre del patrón que resuelve",
+      "target": "classifier|extractor",
       "currentPromptSection": "área del prompt relacionada (descripción corta)",
-      "proposedChange": "REGLA NUEVA COMPLETA a agregar al prompt. Debe ser auto-contenida y clara.",
+      "proposedChange": "REGLA NUEVA COMPLETA a agregar al prompt.",
       "riskLevel": "bajo|medio|alto",
       "expectedImpact": "qué mejora esperamos"
     }
@@ -110,6 +119,7 @@ Responde SIEMPRE en JSON válido con esta estructura:
     const proposedAdjustments: PromptAdjustment[] = (parsed.adjustments || []).map(
       (a: Record<string, unknown>) => ({
         pattern: String(a.pattern || ''),
+        target: (['classifier', 'extractor'].includes(String(a.target)) ? a.target : 'extractor') as string,
         currentPromptSection: String(a.currentPromptSection || ''),
         proposedChange: String(a.proposedChange || ''),
         riskLevel: (['bajo', 'medio', 'alto'].includes(String(a.riskLevel))
@@ -196,7 +206,7 @@ function collectFailures(results: ConversationResult[]): Failure[] {
 
 function buildDiagnosisPrompt(
   failures: Failure[],
-  systemPromptSnippet: string,
+  pipelinePrompts: { classifier: string; extractor: string },
   results: ConversationResult[]
 ): string {
   const failuresByConversation = new Map<string, Failure[]>();
@@ -206,9 +216,14 @@ function buildDiagnosisPrompt(
     failuresByConversation.set(f.conversationId, existing);
   }
 
-  let prompt = `## SYSTEM PROMPT ACTUAL DE NANNY (primeras 200 líneas relevantes):
+  let prompt = `## PROMPT DEL CLASSIFIER (paso 1 — clasifica si es accionable):
 \`\`\`
-${systemPromptSnippet.substring(0, 4000)}
+${pipelinePrompts.classifier.substring(0, 2000)}
+\`\`\`
+
+## PROMPT DEL EXTRACTOR (paso 2 — extrae datos estructurados):
+\`\`\`
+${pipelinePrompts.extractor.substring(0, 3000)}
 \`\`\`
 
 ## RESULTADOS DE EVALUACIÓN:
@@ -228,11 +243,11 @@ Total fallos: ${failures.length}
   }
 
   prompt += `\n## CATEGORÍAS DE FALLOS:
-- detection_missed: ${failures.filter(f => f.type === 'detection_missed').length}
-- detection_incorrect: ${failures.filter(f => f.type === 'detection_incorrect').length}
-- behavior_failed: ${failures.filter(f => f.type === 'behavior_failed').length}
+- detection_missed: ${failures.filter(f => f.type === 'detection_missed').length} (→ ajustar CLASSIFIER para que detecte, o EXTRACTOR para que no descarte)
+- detection_incorrect: ${failures.filter(f => f.type === 'detection_incorrect').length} (→ ajustar EXTRACTOR para mejorar campos)
+- behavior_failed: ${failures.filter(f => f.type === 'behavior_failed').length} (→ ajustar CLASSIFIER para should_respond/pending)
 
-Analiza los patrones y propón ajustes específicos al system prompt.`;
+Para cada ajuste, indica si va al CLASSIFIER o al EXTRACTOR.`;
 
   return prompt;
 }

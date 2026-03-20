@@ -5,6 +5,7 @@
  */
 
 import OpenAI from 'openai';
+import { buildRulesText } from './prompt-rules';
 
 export interface ExtractorInput {
   message: string;
@@ -114,7 +115,8 @@ export async function extractData(
     ? `ACTIVA: ${JSON.stringify(input.pendingDetection)}\nSi el mensaje complementa esta detección, COMPLÉTALA.`
     : 'Ninguna';
 
-  const prompt = EXTRACTOR_PROMPT
+  const extraRules = buildRulesText('extractor');
+  const prompt = (EXTRACTOR_PROMPT + extraRules)
     .replace(/{sender_name}/g, input.senderName)
     .replace(/{sender_role}/g, input.senderRole)
     .replace('{current_date}', input.currentDate)
