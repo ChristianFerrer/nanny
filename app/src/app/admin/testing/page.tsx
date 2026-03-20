@@ -14,6 +14,12 @@ interface EvalRun {
     recall: number;
     ambiguityHandling: number;
     behaviorScore: number;
+    falsePositiveRate?: number;
+    fieldAccuracy?: {
+      dateAccuracy: number;
+      ownerAccuracy: number;
+      typeAccuracy: number;
+    };
     overall: number;
   };
   total_conversations: number;
@@ -104,11 +110,23 @@ export default function TestingDashboard() {
     version?: string;
     reason?: string;
   }[]>([]);
+  const [autopilotReeval, setAutopilotReeval] = useState<{
+    status: 'running' | 'improved' | 'regressed' | 'rollback';
+    preScore: number;
+    postScore?: number;
+    rolledBack?: boolean;
+  } | null>(null);
   const [autopilotResult, setAutopilotResult] = useState<{
     runId: string | null;
     aggregate: EvalRun['aggregate_scores'];
     adjustmentsApplied: number;
     diagnosisSummary?: string;
+    reeval?: {
+      preScore: number;
+      postScore: number;
+      improved: boolean;
+      rolledBack: boolean;
+    };
   } | null>(null);
 
   const loadRuns = useCallback(async () => {
@@ -261,6 +279,12 @@ export default function TestingDashboard() {
                 recall: avg(results.map((r: { scores: { recall: number } }) => r.scores.recall)),
                 ambiguityHandling: avg(results.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
                 behaviorScore: avg(results.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
+                falsePositiveRate: avg(results.map((r: { scores: { falsePositiveRate: number } }) => r.scores.falsePositiveRate)),
+                fieldAccuracy: {
+                  dateAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { dateAccuracy: number } } }) => r.scores.fieldAccuracy.dateAccuracy)),
+                  ownerAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { ownerAccuracy: number } } }) => r.scores.fieldAccuracy.ownerAccuracy)),
+                  typeAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { typeAccuracy: number } } }) => r.scores.fieldAccuracy.typeAccuracy)),
+                },
                 overall: avg(results.map((r: { scores: { overall: number } }) => r.scores.overall)),
               },
               savedId: null,
@@ -290,6 +314,7 @@ export default function TestingDashboard() {
     setAutopilotConvs([]);
     setAutopilotDiagnosis(null);
     setAutopilotAdjustments([]);
+    setAutopilotReeval(null);
     setAutopilotResult(null);
     setError(null);
     abortRef.current = false;
@@ -447,6 +472,12 @@ export default function TestingDashboard() {
           recall: avg(results.map((r: { scores: { recall: number } }) => r.scores.recall)),
           ambiguityHandling: avg(results.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
           behaviorScore: avg(results.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
+          falsePositiveRate: avg(results.map((r: { scores: { falsePositiveRate: number } }) => r.scores.falsePositiveRate)),
+          fieldAccuracy: {
+            dateAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { dateAccuracy: number } } }) => r.scores.fieldAccuracy.dateAccuracy)),
+            ownerAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { ownerAccuracy: number } } }) => r.scores.fieldAccuracy.ownerAccuracy)),
+            typeAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { typeAccuracy: number } } }) => r.scores.fieldAccuracy.typeAccuracy)),
+          },
           overall: avg(results.map((r: { scores: { overall: number } }) => r.scores.overall)),
         };
       }
@@ -509,6 +540,18 @@ export default function TestingDashboard() {
       setAutopilotPhase('applying');
       setAutopilotMessage(`Aplicando ${adjustments.length} ajustes al prompt...`);
 
+      // Guardar el ID del prompt ANTES de aplicar ajustes (para rollback)
+      let preAdjustmentPromptId: string | null = null;
+      try {
+        const promptRes = await fetch('/api/eval/prompt');
+        if (promptRes.ok) {
+          const promptData = await promptRes.json();
+          preAdjustmentPromptId = promptData.id;
+        }
+      } catch {
+        // Continue without rollback capability
+      }
+
       setAutopilotAdjustments(adjustments.map((_: unknown, i: number) => ({
         index: i,
         pattern: '',
@@ -557,7 +600,6 @@ export default function TestingDashboard() {
           ));
         } catch (e) {
           const errMsg = e instanceof Error ? e.message : 'Error';
-          // Si la sección no se encontró, es un skip (ya fue modificada)
           const isSkip = errMsg.includes('no se encontró');
           setAutopilotAdjustments(prev => prev.map((a, idx) =>
             idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: isSkip ? 'skipped' : 'error', reason: errMsg } : a
@@ -566,15 +608,148 @@ export default function TestingDashboard() {
       }
 
       // ═══════════════════════════════════════════
+      // FASE 5: Re-evaluación post-ajustes
+      // ═══════════════════════════════════════════
+      const preScore = aggregate.overall;
+      let postAggregate = aggregate;
+      let postRunId: string | null = null;
+      let rolledBack = false;
+
+      if (appliedCount > 0 && !abortRef.current) {
+        setAutopilotPhase('reeval');
+        setAutopilotMessage('Re-evaluando con prompt ajustado...');
+        setAutopilotReeval({ status: 'running', preScore });
+
+        // Re-run conversations with the updated prompt
+        const reListRes = await fetch('/api/eval/run');
+        if (reListRes.ok) {
+          const reConversations: ConversationInfo[] = await reListRes.json();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const reResults: any[] = [];
+
+          for (let i = 0; i < reConversations.length; i++) {
+            if (abortRef.current) break;
+            const conv = reConversations[i];
+            setAutopilotMessage(`Re-evaluando ${i + 1}/${reConversations.length}: ${conv.name}`);
+
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              let state: any = null;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              let finalResult: any = null;
+
+              for (let msgIdx = 0; msgIdx < conv.messageCount; msgIdx++) {
+                if (abortRef.current) break;
+
+                const res = await fetchWithRetry('/api/eval/run', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ conversationIndex: i, messageIndex: msgIdx, state }),
+                });
+
+                if (!res.ok) break;
+                const data = await res.json();
+
+                if (data.done) {
+                  finalResult = data.result;
+                } else {
+                  state = data.state;
+                }
+
+                await pause(300);
+              }
+
+              if (finalResult) reResults.push(finalResult);
+            } catch {
+              // Skip failed conversations in reeval
+            }
+
+            if (i < reConversations.length - 1) await pause(1000);
+          }
+
+          if (reResults.length > 0 && !abortRef.current) {
+            // Calculate post-adjustment scores
+            const reAvg = (nums: number[]) =>
+              nums.length === 0 ? 0 : Math.round((nums.reduce((a: number, b: number) => a + b, 0) / nums.length) * 100) / 100;
+
+            postAggregate = {
+              precision: reAvg(reResults.map((r: { scores: { precision: number } }) => r.scores.precision)),
+              recall: reAvg(reResults.map((r: { scores: { recall: number } }) => r.scores.recall)),
+              ambiguityHandling: reAvg(reResults.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
+              behaviorScore: reAvg(reResults.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
+              overall: reAvg(reResults.map((r: { scores: { overall: number } }) => r.scores.overall)),
+            };
+
+            const postScore = postAggregate.overall;
+
+            // DECISIÓN: ¿Mejoró o empeoró?
+            if (postScore < preScore) {
+              // EMPEORÓ → ROLLBACK
+              setAutopilotReeval({ status: 'rollback', preScore, postScore });
+              setAutopilotMessage(`Score bajó de ${Math.round(preScore * 100)}% a ${Math.round(postScore * 100)}%. Revirtiendo...`);
+
+              if (preAdjustmentPromptId) {
+                try {
+                  await fetch('/api/eval/prompt', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetVersionId: preAdjustmentPromptId }),
+                  });
+                  rolledBack = true;
+                  setAutopilotMessage(`Rollback completado. Prompt restaurado a versión pre-ajustes.`);
+                } catch {
+                  setAutopilotMessage('Rollback falló. El prompt ajustado sigue activo.');
+                }
+              }
+
+              // Restore pre-adjustment aggregate for result display
+              postAggregate = aggregate;
+            } else {
+              // MEJORÓ o igual → guardar el nuevo run
+              setAutopilotReeval({ status: 'improved', preScore, postScore });
+              setAutopilotMessage(`Score mejoró: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`);
+
+              // Save the re-evaluation run
+              try {
+                const reTotalTimeMs = reResults.reduce((sum: number, r: { totalTimeMs: number }) => sum + r.totalTimeMs, 0);
+                const reFinalRes = await fetch('/api/eval/run/finalize', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ results: reResults, totalTimeMs: reTotalTimeMs }),
+                });
+                if (reFinalRes.ok) {
+                  const reFinalData = await reFinalRes.json();
+                  postRunId = reFinalData.id;
+                }
+              } catch {
+                // Continue even if save fails
+              }
+            }
+          }
+        }
+      }
+
+      // ═══════════════════════════════════════════
       // COMPLETO
       // ═══════════════════════════════════════════
       setAutopilotPhase('complete');
-      setAutopilotMessage(`Pipeline completado. ${appliedCount} ajustes aplicados.`);
+      const postScore = postAggregate.overall;
+      setAutopilotMessage(
+        rolledBack
+          ? `Pipeline completado. ${appliedCount} ajustes revertidos (score bajó).`
+          : `Pipeline completado. ${appliedCount} ajustes aplicados.`
+      );
       setAutopilotResult({
-        runId: savedRunId,
-        aggregate,
-        adjustmentsApplied: appliedCount,
+        runId: postRunId || savedRunId,
+        aggregate: postAggregate,
+        adjustmentsApplied: rolledBack ? 0 : appliedCount,
         diagnosisSummary: diagnosis.summary,
+        reeval: appliedCount > 0 ? {
+          preScore,
+          postScore,
+          improved: postScore >= preScore,
+          rolledBack,
+        } : undefined,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error en autopilot');
@@ -674,8 +849,8 @@ export default function TestingDashboard() {
 
           {/* Phase steps */}
           <div className="flex gap-1 mb-4">
-            {['evaluation', 'saving', 'diagnosis', 'applying', 'complete'].map((phase) => {
-              const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'complete'];
+            {['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'].map((phase) => {
+              const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'];
               const currentIdx = phases.indexOf(autopilotPhase);
               const phaseIdx = phases.indexOf(phase);
               const isActive = phase === autopilotPhase;
@@ -765,6 +940,41 @@ export default function TestingDashboard() {
             </div>
           )}
 
+          {/* Re-evaluation status */}
+          {autopilotReeval && (
+            <div className="mb-4">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Re-evaluaci&oacute;n</p>
+              <div className={`rounded-lg p-2.5 text-xs ${
+                autopilotReeval.status === 'running' ? 'bg-blue-900/30 border border-blue-800 text-blue-300' :
+                autopilotReeval.status === 'improved' ? 'bg-green-900/30 border border-green-800 text-green-300' :
+                autopilotReeval.status === 'regressed' || autopilotReeval.status === 'rollback' ? 'bg-red-900/30 border border-red-800 text-red-300' :
+                'bg-gray-800 text-gray-300'
+              }`}>
+                {autopilotReeval.status === 'running' && (
+                  <div className="flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>Verificando si los ajustes mejoraron el score...</span>
+                  </div>
+                )}
+                {autopilotReeval.status === 'improved' && (
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={14} />
+                    <span>Score mejor&oacute;: {Math.round(autopilotReeval.preScore * 100)}% &rarr; {Math.round((autopilotReeval.postScore ?? 0) * 100)}% (+{Math.round(((autopilotReeval.postScore ?? 0) - autopilotReeval.preScore) * 100)}%)</span>
+                  </div>
+                )}
+                {autopilotReeval.status === 'rollback' && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingDown size={14} />
+                      <span>Score baj&oacute;: {Math.round(autopilotReeval.preScore * 100)}% &rarr; {Math.round((autopilotReeval.postScore ?? 0) * 100)}%</span>
+                    </div>
+                    <p className="text-[10px] text-red-400">Prompt revertido a versi&oacute;n anterior autom&aacute;ticamente.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Final result */}
           {autopilotResult && (
             <div className="border-t border-purple-800 pt-3">
@@ -773,8 +983,29 @@ export default function TestingDashboard() {
                 <ScoreBar value={autopilotResult.aggregate.recall} label="Recall" />
                 <ScoreBar value={autopilotResult.aggregate.ambiguityHandling} label="Ambiguedad" />
                 <ScoreBar value={autopilotResult.aggregate.behaviorScore} label="Comportamiento" />
+                <ScoreBar value={1 - (autopilotResult.aggregate.falsePositiveRate ?? 0)} label="Sin FPs" />
                 <ScoreBar value={autopilotResult.aggregate.overall} label="Overall" />
               </div>
+              {autopilotResult.aggregate.fieldAccuracy && (
+                <div className="mb-3 bg-gray-800/50 rounded-lg p-2.5">
+                  <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Precisi&oacute;n por campo</p>
+                  <div className="space-y-1">
+                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.dateAccuracy} label="Fecha/hora" />
+                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.ownerAccuracy} label="Responsable" />
+                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.typeAccuracy} label="Tipo evento" />
+                  </div>
+                </div>
+              )}
+              {autopilotResult.reeval && (
+                <div className={`text-xs text-center mb-2 py-1.5 rounded ${
+                  autopilotResult.reeval.rolledBack ? 'bg-red-900/30 text-red-300' : 'bg-green-900/30 text-green-300'
+                }`}>
+                  {autopilotResult.reeval.rolledBack
+                    ? `Ajustes revertidos: ${Math.round(autopilotResult.reeval.preScore * 100)}% → ${Math.round(autopilotResult.reeval.postScore * 100)}%`
+                    : `Validado: ${Math.round(autopilotResult.reeval.preScore * 100)}% → ${Math.round(autopilotResult.reeval.postScore * 100)}%`
+                  }
+                </div>
+              )}
               <p className="text-xs text-purple-300 text-center mb-2">
                 {autopilotResult.adjustmentsApplied} ajustes aplicados al prompt
               </p>
@@ -793,6 +1024,7 @@ export default function TestingDashboard() {
                   setAutopilotConvs([]);
                   setAutopilotDiagnosis(null);
                   setAutopilotAdjustments([]);
+                  setAutopilotReeval(null);
                   setAutopilotPhase('');
                   setAutopilotMessage('');
                 }}
@@ -869,8 +1101,19 @@ export default function TestingDashboard() {
             <ScoreBar value={runResult.aggregate.recall} label="Recall" />
             <ScoreBar value={runResult.aggregate.ambiguityHandling} label="Ambiguedad" />
             <ScoreBar value={runResult.aggregate.behaviorScore} label="Comportamiento" />
+            <ScoreBar value={1 - (runResult.aggregate.falsePositiveRate ?? 0)} label="Sin FPs" />
             <ScoreBar value={runResult.aggregate.overall} label="Overall" />
           </div>
+          {runResult.aggregate.fieldAccuracy && (
+            <div className="mb-3 bg-gray-700/50 rounded-lg p-2.5">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Precisi&oacute;n por campo</p>
+              <div className="space-y-1">
+                <ScoreBar value={runResult.aggregate.fieldAccuracy.dateAccuracy} label="Fecha/hora" />
+                <ScoreBar value={runResult.aggregate.fieldAccuracy.ownerAccuracy} label="Responsable" />
+                <ScoreBar value={runResult.aggregate.fieldAccuracy.typeAccuracy} label="Tipo evento" />
+              </div>
+            </div>
+          )}
           <div className="text-xs space-y-1">
             {convProgress.filter(c => c.score !== undefined).map((conv) => (
               <div key={conv.index} className="flex items-center gap-2">

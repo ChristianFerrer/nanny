@@ -3,6 +3,78 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { SYSTEM_PROMPT } from '@/lib/chat/processChat';
 
 /**
+ * DELETE: rollback al prompt anterior (reactiva el parent version).
+ * Body: { targetVersionId?: string }
+ * Si targetVersionId se proporciona, reactiva esa versión específica.
+ * Si no, reactiva el parent del prompt activo actual.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { targetVersionId } = body as { targetVersionId?: string };
+
+    const supabase = getSupabaseAdmin();
+
+    // Obtener prompt activo actual
+    const { data: activePrompt } = await supabase
+      .from('system_prompts')
+      .select('*')
+      .eq('is_active', true)
+      .single();
+
+    if (!activePrompt) {
+      return NextResponse.json(
+        { error: 'No hay prompt activo para hacer rollback' },
+        { status: 400 }
+      );
+    }
+
+    const rollbackToId = targetVersionId || activePrompt.parent_version_id;
+    if (!rollbackToId) {
+      return NextResponse.json(
+        { error: 'No hay versión anterior para hacer rollback' },
+        { status: 400 }
+      );
+    }
+
+    // Desactivar el prompt actual
+    await supabase
+      .from('system_prompts')
+      .update({ is_active: false })
+      .eq('id', activePrompt.id);
+
+    // Reactivar la versión target
+    const { data: restored, error } = await supabase
+      .from('system_prompts')
+      .update({ is_active: true })
+      .eq('id', rollbackToId)
+      .select()
+      .single();
+
+    if (error) {
+      // Reactivar el actual si falló
+      await supabase
+        .from('system_prompts')
+        .update({ is_active: true })
+        .eq('id', activePrompt.id);
+      throw error;
+    }
+
+    return NextResponse.json({
+      success: true,
+      rolledBackFrom: activePrompt.version_label,
+      restoredVersion: restored.version_label,
+      restoredId: restored.id,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error en rollback' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * GET: obtiene el prompt activo (o el hardcoded si no hay ninguno en DB).
  */
 export async function GET() {

@@ -115,6 +115,15 @@ export interface BehaviorMatch {
   details: string;
 }
 
+export interface FieldAccuracy {
+  /** Precisión en extracción de fecha/hora */
+  dateAccuracy: number;
+  /** Precisión en asignación de responsable */
+  ownerAccuracy: number;
+  /** Precisión en tipo de detección (event_type, intent) */
+  typeAccuracy: number;
+}
+
 export interface ConversationResult {
   conversationId: string;
   conversationName: string;
@@ -131,6 +140,10 @@ export interface ConversationResult {
     ambiguityHandling: number;
     /** Comportamiento general (should_respond, pending, etc.) */
     behaviorScore: number;
+    /** Tasa de falsos positivos (0 = ninguno, 1 = todos son falsos) */
+    falsePositiveRate: number;
+    /** Precisión por campo específico */
+    fieldAccuracy: FieldAccuracy;
     /** Score compuesto */
     overall: number;
   };
@@ -149,6 +162,8 @@ export interface EvaluationRun {
     recall: number;
     ambiguityHandling: number;
     behaviorScore: number;
+    falsePositiveRate: number;
+    fieldAccuracy: FieldAccuracy;
     overall: number;
   };
   totalConversations: number;

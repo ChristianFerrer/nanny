@@ -185,6 +185,12 @@ export async function runAllConversations(
     recall: avg(results.map(r => r.scores.recall)),
     ambiguityHandling: avg(results.map(r => r.scores.ambiguityHandling)),
     behaviorScore: avg(results.map(r => r.scores.behaviorScore)),
+    falsePositiveRate: avg(results.map(r => r.scores.falsePositiveRate)),
+    fieldAccuracy: {
+      dateAccuracy: avg(results.map(r => r.scores.fieldAccuracy.dateAccuracy)),
+      ownerAccuracy: avg(results.map(r => r.scores.fieldAccuracy.ownerAccuracy)),
+      typeAccuracy: avg(results.map(r => r.scores.fieldAccuracy.typeAccuracy)),
+    },
     overall: avg(results.map(r => r.scores.overall)),
   };
 
