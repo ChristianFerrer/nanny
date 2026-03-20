@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ArrowLeft, Plus, X, Bot } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Plus, X, Bot, User as UserIcon, Baby, Calendar } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
 type Step = 'children' | 'family' | 'wow';
@@ -10,24 +10,24 @@ type Step = 'children' | 'family' | 'wow';
 interface ChildForm {
   name: string;
   age: string;
-  emoji: string;
+  color: string;
 }
 
-const CHILD_EMOJIS = ['👦', '👧', '👶', '🧒', '👦🏽', '👧🏻', '🧒🏾', '👶🏻'];
+const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('children');
   const [familyName, setFamilyName] = useState('');
   const [children, setChildren] = useState<ChildForm[]>([
-    { name: '', age: '', emoji: '👦' },
+    { name: '', age: '', color: CHILD_COLORS[0] },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [authUserName, setAuthUserName] = useState('');
   const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
-  const [createdChildren, setCreatedChildren] = useState<{ name: string; emoji: string; age: string }[]>([]);
+  const [createdChildren, setCreatedChildren] = useState<{ name: string; color: string; age: string }[]>([]);
   const [demoStep, setDemoStep] = useState(0);
 
   useEffect(() => {
@@ -41,8 +41,8 @@ export default function OnboardingPage() {
   }, []);
 
   const addChild = () => {
-    const nextEmoji = CHILD_EMOJIS[children.length % CHILD_EMOJIS.length];
-    setChildren([...children, { name: '', age: '', emoji: nextEmoji }]);
+    const nextColor = CHILD_COLORS[children.length % CHILD_COLORS.length];
+    setChildren([...children, { name: '', age: '', color: nextColor }]);
   };
 
   const removeChild = (index: number) => {
@@ -72,7 +72,7 @@ export default function OnboardingPage() {
         return {
           name: c.name,
           birth_date,
-          emoji: c.emoji,
+          emoji: c.color,
           school: null,
           teacher: null,
           grade: null,
@@ -87,7 +87,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           familyName: computedFamilyName,
-          parents: [{ name: authUserName, role: parentRole, avatar_emoji: parentRole === 'mama' ? '👩' : '👨' }],
+          parents: [{ name: authUserName, role: parentRole, avatar_emoji: parentRole }],
           children: childrenWithDates,
           authUserId,
         }),
@@ -99,7 +99,7 @@ export default function OnboardingPage() {
 
       setCreatedChildren(validChildren.map(c => ({
         name: c.name,
-        emoji: c.emoji,
+        color: c.color,
         age: c.age,
       })));
       setStep('wow');
@@ -114,7 +114,7 @@ export default function OnboardingPage() {
   const demoMessage = `${demoChildName} tiene dentista mañana a las 4`;
   const demoSteps = [
     { sender: 'parent', text: demoMessage },
-    { sender: 'nanny', text: `📅 Listo! Registré la cita del dentista de ${demoChildName} para mañana a las 16:00. Les avisaré antes.` },
+    { sender: 'nanny', text: `Listo! Registré la cita del dentista de ${demoChildName} para mañana a las 16:00. Les avisaré antes.` },
   ];
 
   // Auto-advance demo
@@ -143,7 +143,9 @@ export default function OnboardingPage() {
       {step === 'children' && (
         <div className="px-5 pt-8 pb-8 animate-fade-in">
           <div className="text-center mb-6">
-            <div className="text-4xl mb-3">👶</div>
+            <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mx-auto mb-3">
+              <Baby size={32} className="text-[var(--nanny-purple)]" />
+            </div>
             <h1 className="text-2xl font-bold mb-1">&iquest;C&oacute;mo se llaman tus hijos?</h1>
             <p className="text-sm text-[var(--nanny-gray)]">Nanny los va a cuidar bien</p>
           </div>
@@ -159,17 +161,18 @@ export default function OnboardingPage() {
                 </button>
               )}
 
-              {/* Emoji selector */}
+              {/* Color selector */}
               <div className="flex gap-1.5 mb-3">
-                {CHILD_EMOJIS.slice(0, 6).map(emoji => (
+                {CHILD_COLORS.map(color => (
                   <button
-                    key={emoji}
-                    onClick={() => updateChild(i, 'emoji', emoji)}
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-lg ${
-                      child.emoji === emoji ? 'bg-[var(--nanny-purple)] ring-2 ring-[var(--nanny-purple)]' : 'bg-white'
+                    key={color}
+                    onClick={() => updateChild(i, 'color', color)}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                      child.color === color ? 'ring-2 ring-offset-2 ring-[var(--nanny-purple)]' : ''
                     }`}
+                    style={{ backgroundColor: color + '20' }}
                   >
-                    {emoji}
+                    <UserIcon size={16} style={{ color }} />
                   </button>
                 ))}
               </div>
@@ -246,7 +249,9 @@ export default function OnboardingPage() {
                     : 'border-gray-200'
                 }`}
               >
-                <span className="text-2xl">👩</span>
+                <span className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                  <UserIcon size={20} className="text-pink-600" />
+                </span>
                 <span className="text-sm font-medium">Mam&aacute;</span>
               </button>
               <button
@@ -257,7 +262,9 @@ export default function OnboardingPage() {
                     : 'border-gray-200'
                 }`}
               >
-                <span className="text-2xl">👨</span>
+                <span className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <UserIcon size={20} className="text-blue-600" />
+                </span>
                 <span className="text-sm font-medium">Pap&aacute;</span>
               </button>
             </div>
@@ -322,8 +329,9 @@ export default function OnboardingPage() {
               <p className="text-sm text-[var(--nanny-purple)] font-medium mb-2">Ya conozco a:</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {createdChildren.map((c, i) => (
-                  <span key={i} className="bg-white rounded-full px-3 py-1.5 text-sm">
-                    {c.emoji} {c.name} &mdash; {c.age} a&ntilde;os
+                  <span key={i} className="bg-white rounded-full px-3 py-1.5 text-sm inline-flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)]">{c.name.charAt(0)}</span>
+                    {c.name} &mdash; {c.age} a&ntilde;os
                   </span>
                 ))}
               </div>

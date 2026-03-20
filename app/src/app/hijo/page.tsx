@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { GraduationCap, CalendarDays as CalIcon, CheckSquare as TaskIcon, Pill } from 'lucide-react';
 import { getChildren, getTodayEvents, getTasks, getMedications } from '@/lib/store';
 import type { Child, FamilyEvent, Task, Medication } from '@/lib/types';
 
@@ -45,8 +46,8 @@ export default function HijosPage() {
               className="block bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-3xl">
-                  {child.emoji}
+                <div className="w-14 h-14 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-xl font-bold text-[var(--nanny-purple)]">
+                  {child.name.charAt(0)}
                 </div>
                 <div className="flex-1">
                   <h2 className="font-semibold text-lg">{child.name}</h2>
@@ -54,24 +55,24 @@ export default function HijosPage() {
                     <p className="text-sm text-[var(--nanny-gray)]">{age} a&ntilde;os</p>
                   )}
                   {child.school && (
-                    <p className="text-xs text-[var(--nanny-gray)] mt-0.5">🏫 {child.school}</p>
+                    <p className="text-xs text-[var(--nanny-gray)] mt-0.5 inline-flex items-center gap-1"><GraduationCap size={11} /> {child.school}</p>
                   )}
                   {/* Mini resumen de actividad */}
                   {hasActivity && (
                     <div className="flex gap-2 mt-1.5 flex-wrap">
                       {childEvents > 0 && (
-                        <span className="text-[10px] bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] px-2 py-0.5 rounded-full font-medium">
-                          📅 {childEvents} evento{childEvents > 1 ? 's' : ''} hoy
+                        <span className="text-[10px] bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
+                          <CalIcon size={10} /> {childEvents} evento{childEvents > 1 ? 's' : ''} hoy
                         </span>
                       )}
                       {childTasks > 0 && (
-                        <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                          ✅ {childTasks} tarea{childTasks > 1 ? 's' : ''}
+                        <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
+                          <TaskIcon size={10} /> {childTasks} tarea{childTasks > 1 ? 's' : ''}
                         </span>
                       )}
                       {childMeds > 0 && (
-                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                          💊 Tratamiento activo
+                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
+                          <Pill size={10} /> Tratamiento activo
                         </span>
                       )}
                     </div>

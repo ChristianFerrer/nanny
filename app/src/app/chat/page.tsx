@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -168,7 +168,7 @@ export default function ChatPage() {
           family_id: familyId,
           sender_id: null,
           sender_type: 'nanny',
-          content: `⚠️ ${rawData.error}`,
+          content: `Error:${rawData.error}`,
           message_type: 'text',
           metadata: {},
           created_at: new Date().toISOString(),
@@ -244,7 +244,7 @@ export default function ChatPage() {
     } catch {
       const errorMsg = await addMessage({
         family_id: familyId, sender_id: null, sender_type: 'nanny',
-        content: '⚠️ Ups, tuve un problema. Intenta de nuevo.',
+        content: 'Error:Ups, tuve un problema. Intenta de nuevo.',
         message_type: 'text', metadata: {},
       });
       setMessages(prev => [...prev, errorMsg]);
@@ -272,7 +272,7 @@ export default function ChatPage() {
 
     sendPushToFamily(
       familyId,
-      `${currentParentObj?.avatar_emoji} ${currentParentObj?.name}`,
+      `${currentParentObj?.name || 'Padre'}`,
       text,
       currentParent
     );
@@ -354,7 +354,7 @@ export default function ChatPage() {
             await addEvent({
               family_id: familyId,
               child_id: matchedChild?.id || null,
-              title: `💊 ${medName} - ${childName} en 10 min`,
+              title: `${medName} - ${childName} en 10 min`,
               description: `Toma de ${time} — ${medData.frequency || ''}`,
               event_type: 'doctor',
               date_start: reminderDate.toISOString(),
@@ -373,12 +373,12 @@ export default function ChatPage() {
           family_id: familyId,
           sender_id: null,
           sender_type: 'nanny',
-          content: `✅ Listo! Creé el tratamiento de ${medName} para ${childName}. Les avisaré 10 minutos antes de cada toma 📅`,
+          content: `Listo! Creé el tratamiento de ${medName} para ${childName}. Les avisaré 10 minutos antes de cada toma.`,
           message_type: 'text',
           metadata: { intent: 'MEDICATION', child: childName },
         });
         setMessages(prev => [...prev, confirmMsg]);
-        sendPushToFamily(familyId, '💊 Nanny', `Recordatorios de ${medName} para ${childName} activados. Les avisaré 10 min antes de cada toma.`);
+        sendPushToFamily(familyId, 'Nanny', `Recordatorios de ${medName} para ${childName} activados. Les avisaré 10 min antes de cada toma.`);
       } catch {
         console.error('Failed to create medication');
       }
@@ -455,7 +455,7 @@ export default function ChatPage() {
       if (data.error) {
         const errMsg = await addMessage({
           family_id: familyId, sender_id: null, sender_type: 'nanny',
-          content: `⚠️ ${data.error}`, message_type: 'text', metadata: {},
+          content: `Error:${data.error}`, message_type: 'text', metadata: {},
         });
         setMessages(prev => [...prev, errMsg]);
       } else {
@@ -552,7 +552,7 @@ export default function ChatPage() {
       setMessages(prev => prev.filter(m => m.id !== analyzingMsg.id));
       const errMsg = await addMessage({
         family_id: familyId, sender_id: null, sender_type: 'nanny',
-        content: '⚠️ Ups, tuve un problema al revisar el historial. Intenta de nuevo.',
+        content: 'Error:Ups, tuve un problema al revisar el historial. Intenta de nuevo.',
         message_type: 'text', metadata: {},
       });
       setMessages(prev => [...prev, errMsg]);
@@ -649,12 +649,12 @@ export default function ChatPage() {
               {parents.map((p, i) => (
                 <div
                   key={p.id}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-base ring-2 ring-white ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ring-2 ring-white ${
                     p.id === currentParent ? 'bg-[var(--nanny-purple-bg)]' : 'bg-[var(--nanny-gray-light)]'
                   }`}
                   style={{ zIndex: parents.length - i }}
                 >
-                  {p.avatar_emoji}
+                  <UserIcon size={14} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
                 </div>
               ))}
             </div>
@@ -690,8 +690,9 @@ export default function ChatPage() {
         {children.length > 0 && (
           <div className="flex gap-2 mt-2 overflow-x-auto">
             {children.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--nanny-gray-light)] rounded-full text-[10px] text-[var(--nanny-gray)] whitespace-nowrap">
-                {c.emoji} {c.name}
+              <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--nanny-gray-light)] rounded-full text-[11px] text-[var(--nanny-gray)] whitespace-nowrap">
+                <span className="w-4 h-4 rounded-full bg-[var(--nanny-purple-light)] flex items-center justify-center text-[8px] font-bold text-white">{c.name.charAt(0)}</span>
+                {c.name}
               </span>
             ))}
           </div>
@@ -830,14 +831,18 @@ export default function ChatPage() {
               <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
               {/* Avatar circle for other parent */}
               {isOtherParent && (
-                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-sm mr-2 mt-5 shrink-0">
-                  {senderParent?.avatar_emoji || '👤'}
+                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center mr-2 mt-5 shrink-0">
+                  <UserIcon size={14} className="text-blue-500" />
                 </div>
               )}
               <div className="max-w-[80%]">
                 {/* Sender label */}
                 <p className={`text-[10px] text-[var(--nanny-gray)] mb-1 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
-                  {isNanny ? '🤖 Nanny' : `${senderParent?.avatar_emoji || currentParentObj?.avatar_emoji} ${senderParent?.name || currentParentObj?.name}`}
+                  {isNanny ? (
+                    <span className="inline-flex items-center gap-1"><Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1"><UserIcon size={11} /> {senderParent?.name || currentParentObj?.name}</span>
+                  )}
                 </p>
                 <div className={
                   isNanny ? 'bubble-nanny' :
@@ -927,8 +932,8 @@ export default function ChatPage() {
                 {isNanny && (
                   <div className="flex gap-2 mt-1 ml-1">
                     {feedbackGiven[msg.id] ? (
-                      <span className="text-[10px] text-[var(--nanny-gray)]">
-                        {feedbackGiven[msg.id] === 'up' ? '👍 Gracias' : '👎 Anotado'}
+                      <span className="text-[11px] text-[var(--nanny-gray)] inline-flex items-center gap-1">
+                        {feedbackGiven[msg.id] === 'up' ? <><ThumbsUp size={10} /> Gracias</> : <><ThumbsDown size={10} /> Anotado</>}
                       </span>
                     ) : (
                       <>
@@ -946,13 +951,13 @@ export default function ChatPage() {
                         </button>
                       </>
                     )}
-                    <span className="text-[9px] text-[var(--nanny-gray)]">
+                    <span className="text-[11px] text-[var(--nanny-gray)]">
                       {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 )}
                 {!isNanny && (
-                  <p className={`text-[9px] text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
+                  <p className={`text-[11px] text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                     {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -964,7 +969,7 @@ export default function ChatPage() {
         {nannyThinking && (
           <div className="flex justify-start animate-fade-in">
             <div>
-              <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1">🤖 Nanny</p>
+              <p className="text-[11px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1"><Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny</p>
               <div className="bubble-nanny">
                 <div className="flex gap-1 py-1">
                   <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -988,12 +993,12 @@ export default function ChatPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje..."
-            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
+            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim()}
-            className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity"
+            className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
           >
             <Send size={18} className="text-white ml-0.5" />
           </button>

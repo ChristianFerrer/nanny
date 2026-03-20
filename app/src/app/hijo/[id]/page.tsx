@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock } from 'lucide-react';
+import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon } from 'lucide-react';
 import { getChild, getRoutines, getEvents, getTasks } from '@/lib/store';
 import type { Child, Routine, FamilyEvent, Task } from '@/lib/types';
 
@@ -52,14 +52,14 @@ export default function HijoDetailPage() {
           <ArrowLeft size={22} />
         </button>
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl">
-            {child.emoji}
+          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold text-white">
+            {child.name.charAt(0)}
           </div>
           <div>
             <h1 className="text-2xl font-bold">{child.name}</h1>
             {age !== null && <p className="text-sm opacity-80">{age} años</p>}
-            {child.school && <p className="text-xs opacity-70 mt-0.5">🏫 {child.school}</p>}
-            {child.grade && <p className="text-xs opacity-70">📚 {child.grade}</p>}
+            {child.school && <p className="text-xs opacity-70 mt-0.5 inline-flex items-center gap-1"><GraduationCap size={11} /> {child.school}</p>}
+            {child.grade && <p className="text-xs opacity-70 inline-flex items-center gap-1"><BookOpen size={11} /> {child.grade}</p>}
           </div>
         </div>
       </div>
@@ -101,7 +101,7 @@ function IdentidadTab({ child }: { child: Child }) {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Basic info */}
-      <Card title="📋 Información básica">
+      <Card title="Información básica" icon={<ClipboardList size={16} className="text-[var(--nanny-purple)]" />}>
         <InfoRow label="Nombre" value={child.name} />
         {child.birth_date && (
           <InfoRow label="Fecha de nacimiento" value={new Date(child.birth_date).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })} />
@@ -112,14 +112,14 @@ function IdentidadTab({ child }: { child: Child }) {
       </Card>
 
       {/* Medical */}
-      <Card title="🏥 Salud">
+      <Card title="Salud" icon={<Stethoscope size={16} className="text-red-500" />}>
         {child.allergies && child.allergies.length > 0 ? (
           <div>
             <p className="text-xs text-[var(--nanny-gray)] mb-1">Alergias</p>
             <div className="flex gap-1 flex-wrap">
               {child.allergies.map((a, i) => (
-                <span key={i} className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs">
-                  ⚠️ {a}
+                <span key={i} className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs inline-flex items-center gap-1">
+                  <AlertTriangle size={10} className="shrink-0" /> {a}
                 </span>
               ))}
             </div>
@@ -137,7 +137,7 @@ function IdentidadTab({ child }: { child: Child }) {
 
       {/* Personality */}
       {child.personality_notes && (
-        <Card title="✨ Personalidad">
+        <Card title="Personalidad" icon={<Sparkles size={16} className="text-amber-500" />}>
           <p className="text-sm">{child.personality_notes}</p>
         </Card>
       )}
@@ -146,38 +146,46 @@ function IdentidadTab({ child }: { child: Child }) {
 }
 
 function OperativoTab({ events, tasks }: { events: FamilyEvent[]; tasks: Task[] }) {
-  const typeEmoji: Record<string, string> = {
-    doctor: '🏥', school: '🏫', birthday: '🎂', activity: '⚽', travel: '✈️', other: '📌',
+  const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
+    doctor: { icon: <Stethoscope size={14} className="text-red-500" />, bg: 'bg-red-50' },
+    school: { icon: <GraduationCap size={14} className="text-blue-500" />, bg: 'bg-blue-50' },
+    birthday: { icon: <Cake size={14} className="text-pink-500" />, bg: 'bg-pink-50' },
+    activity: { icon: <Trophy size={14} className="text-green-500" />, bg: 'bg-green-50' },
+    travel: { icon: <Plane size={14} className="text-purple-500" />, bg: 'bg-purple-50' },
+    other: { icon: <MapPin size={14} className="text-gray-500" />, bg: 'bg-gray-50' },
   };
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <Card title={`📅 Eventos próximos (${events.length})`}>
+      <Card title={`Eventos próximos (${events.length})`} icon={<Calendar size={16} className="text-[var(--nanny-purple)]" />}>
         {events.length === 0 ? (
           <p className="text-sm text-[var(--nanny-gray)]">Sin eventos próximos</p>
         ) : (
           <div className="space-y-2">
-            {events.slice(0, 5).map(e => (
+            {events.slice(0, 5).map(e => {
+              const ti = typeIcons[e.event_type] || typeIcons.other;
+              return (
               <div key={e.id} className="flex items-center gap-2 py-1">
-                <span>{typeEmoji[e.event_type] || '📌'}</span>
+                <span className={`w-7 h-7 rounded-lg ${ti.bg} flex items-center justify-center shrink-0`}>{ti.icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{e.title}</p>
                   <p className="text-xs text-[var(--nanny-gray)]">
                     {new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
                   </p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                <span className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                   e.status === 'confirmed' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'
                 }`}>
-                  {e.status === 'confirmed' ? '✓' : '⏳'}
+                  {e.status === 'confirmed' ? <><CheckCircle2 size={10} /> Conf.</> : <><Clock size={10} /> Pend.</>}
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
 
-      <Card title={`📋 Tareas pendientes (${tasks.length})`}>
+      <Card title={`Tareas pendientes (${tasks.length})`} icon={<CheckSquare size={16} className="text-amber-500" />}>
         {tasks.length === 0 ? (
           <p className="text-sm text-[var(--nanny-gray)]">Sin tareas pendientes</p>
         ) : (
@@ -212,16 +220,16 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
   };
 
   const sections = [
-    { key: 'morning' as const, title: '🌅 Mañana', items: grouped.morning },
-    { key: 'afternoon' as const, title: '☀️ Tarde', items: grouped.afternoon },
-    { key: 'night' as const, title: '🌙 Noche', items: grouped.night },
+    { key: 'morning' as const, title: 'Mañana', icon: <Sunrise size={16} className="text-amber-500" />, items: grouped.morning },
+    { key: 'afternoon' as const, title: 'Tarde', icon: <Sun size={16} className="text-orange-500" />, items: grouped.afternoon },
+    { key: 'night' as const, title: 'Noche', icon: <Moon size={16} className="text-indigo-500" />, items: grouped.night },
   ];
 
   return (
     <div className="space-y-4 animate-fade-in">
       {sections.map(section => (
         section.items.length > 0 && (
-          <Card key={section.key} title={section.title}>
+          <Card key={section.key} title={section.title} icon={section.icon}>
             <div className="space-y-2">
               {section.items.map(routine => (
                 <div key={routine.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
@@ -251,10 +259,10 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm">
-      <h3 className="font-semibold text-sm mb-3">{title}</h3>
+      <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">{icon}{title}</h3>
       {children}
     </div>
   );

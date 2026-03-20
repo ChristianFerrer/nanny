@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2 } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon } from 'lucide-react';
 import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
@@ -187,17 +187,17 @@ export default function HoyPage() {
                   <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Tipo</label>
                   <div className="flex gap-1.5 flex-wrap">
                     {[
-                      { value: 'doctor', label: '🏥 Médico' },
-                      { value: 'school', label: '🏫 Escuela' },
-                      { value: 'birthday', label: '🎂 Cumple' },
-                      { value: 'activity', label: '⚽ Actividad' },
-                      { value: 'travel', label: '✈️ Viaje' },
-                      { value: 'other', label: '📌 Otro' },
+                      { value: 'doctor', label: 'M\u00e9dico', icon: <Stethoscope size={12} /> },
+                      { value: 'school', label: 'Escuela', icon: <GraduationCap size={12} /> },
+                      { value: 'birthday', label: 'Cumple', icon: <Cake size={12} /> },
+                      { value: 'activity', label: 'Actividad', icon: <Trophy size={12} /> },
+                      { value: 'travel', label: 'Viaje', icon: <Plane size={12} /> },
+                      { value: 'other', label: 'Otro', icon: <MapPinAlt size={12} /> },
                     ].map(t => (
                       <button key={t.value} onClick={() => setEventType(t.value)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
                           eventType === t.value ? 'bg-[var(--nanny-purple)] text-white' : 'bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)]'
-                        }`}>{t.label}</button>
+                        }`}>{t.icon} {t.label}</button>
                     ))}
                   </div>
                 </div>
@@ -222,7 +222,7 @@ export default function HoyPage() {
                     <select value={eventChildId} onChange={e => setEventChildId(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
                       <option value="">Todos</option>
-                      {children.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                      {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                 )}
@@ -272,7 +272,7 @@ export default function HoyPage() {
                     <select value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
                       <option value="">Sin asignar</option>
-                      {parents.map(p => <option key={p.id} value={p.id}>{p.avatar_emoji} {p.name}</option>)}
+                      {parents.map(p => <option key={p.id} value={p.id}>{p.name} ({p.role === 'mama' ? 'Mamá' : 'Papá'})</option>)}
                     </select>
                   </div>
                 )}
@@ -282,7 +282,7 @@ export default function HoyPage() {
                     <select value={taskChildId} onChange={e => setTaskChildId(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
                       <option value="">Ninguno</option>
-                      {children.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                      {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                 )}
@@ -309,8 +309,9 @@ export default function HoyPage() {
         <h1 className="text-2xl font-bold capitalize">{dateStr}</h1>
         <div className="flex gap-2 mt-3">
           {children.map(c => (
-            <span key={c.id} className="bg-white/20 px-3 py-1 rounded-full text-xs">
-              {c.emoji} {c.name}
+            <span key={c.id} className="bg-white/20 px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5">
+              <span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-[8px] font-bold">{c.name.charAt(0)}</span>
+              {c.name}
             </span>
           ))}
         </div>
@@ -362,7 +363,7 @@ export default function HoyPage() {
                   <div key={med.id} className="bg-white rounded-xl p-3 shadow-sm">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium text-sm">💊 {med.medication_name}</p>
+                        <p className="font-medium text-sm inline-flex items-center gap-1.5"><Pill size={14} className="text-[var(--nanny-purple)]" /> {med.medication_name}</p>
                         <p className="text-xs text-[var(--nanny-gray)] mt-0.5">{med.child_name} — {med.frequency || ''}</p>
                         {med.schedule_times?.length > 0 && (
                           <p className="text-xs text-[var(--nanny-gray)]">Horarios: {med.schedule_times.join(', ')}</p>
@@ -490,15 +491,22 @@ export default function HoyPage() {
   );
 }
 
+const EVENT_ICONS: Record<string, { icon: React.ReactNode; bg: string }> = {
+  doctor: { icon: <Stethoscope size={16} className="text-red-500" />, bg: 'bg-red-50' },
+  school: { icon: <GraduationCap size={16} className="text-blue-500" />, bg: 'bg-blue-50' },
+  birthday: { icon: <Cake size={16} className="text-pink-500" />, bg: 'bg-pink-50' },
+  activity: { icon: <Trophy size={16} className="text-green-500" />, bg: 'bg-green-50' },
+  travel: { icon: <Plane size={16} className="text-purple-500" />, bg: 'bg-purple-50' },
+  other: { icon: <MapPinAlt size={16} className="text-gray-500" />, bg: 'bg-gray-50' },
+};
+
 function EventCard({ event, child, showDate }: { event: FamilyEvent; child?: Child; showDate?: boolean }) {
   const time = new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-  const typeEmoji: Record<string, string> = {
-    doctor: '🏥', school: '🏫', birthday: '🎂', activity: '⚽', travel: '✈️', other: '📌',
-  };
+  const iconConfig = EVENT_ICONS[event.event_type] || EVENT_ICONS.other;
 
   return (
     <div className="bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm">
-      <div className="text-xl mt-0.5">{typeEmoji[event.event_type] || '📌'}</div>
+      <div className={`w-9 h-9 rounded-xl ${iconConfig.bg} flex items-center justify-center shrink-0`}>{iconConfig.icon}</div>
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{event.title}</p>
         <div className="flex items-center gap-2 mt-1 text-xs text-[var(--nanny-gray)]">
@@ -519,7 +527,7 @@ function EventCard({ event, child, showDate }: { event: FamilyEvent; child?: Chi
         </div>
       </div>
       {child && (
-        <span className="text-lg" title={child.name}>{child.emoji}</span>
+        <span className="w-6 h-6 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)] shrink-0" title={child.name}>{child.name.charAt(0)}</span>
       )}
     </div>
   );
@@ -551,8 +559,8 @@ function TaskCard({ task, child, parent, onComplete }: {
         <p className="font-medium text-sm">{task.title}</p>
         <div className="flex items-center gap-2 mt-1 text-xs text-[var(--nanny-gray)] flex-wrap">
           {parent && (
-            <span className="flex items-center gap-0.5">
-              {parent.avatar_emoji} {parent.name}
+            <span className="flex items-center gap-1">
+              <UserIcon size={11} className="text-[var(--nanny-gray)]" /> {parent.name}
             </span>
           )}
           {dueStr && (
@@ -565,7 +573,7 @@ function TaskCard({ task, child, parent, onComplete }: {
           </span>
         </div>
       </div>
-      {child && <span className="text-lg">{child.emoji}</span>}
+      {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
     </div>
   );
 }

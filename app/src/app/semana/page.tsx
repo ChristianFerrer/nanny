@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt } from 'lucide-react';
 import { getEvents, getChildren, getTasks, getMedications, completeTask } from '@/lib/store';
 import type { FamilyEvent, Child, Task, Medication } from '@/lib/types';
 
@@ -45,8 +45,13 @@ export default function SemanaPage() {
 
   const getChild = (id: string | null) => children.find(c => c.id === id);
 
-  const typeEmoji: Record<string, string> = {
-    doctor: '🏥', school: '🏫', birthday: '🎂', activity: '⚽', travel: '✈️', other: '📌',
+  const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
+    doctor: { icon: <Stethoscope size={14} className="text-red-500" />, bg: 'bg-red-50' },
+    school: { icon: <GraduationCap size={14} className="text-blue-500" />, bg: 'bg-blue-50' },
+    birthday: { icon: <Cake size={14} className="text-pink-500" />, bg: 'bg-pink-50' },
+    activity: { icon: <Trophy size={14} className="text-green-500" />, bg: 'bg-green-50' },
+    travel: { icon: <Plane size={14} className="text-purple-500" />, bg: 'bg-purple-50' },
+    other: { icon: <MapPinAlt size={14} className="text-gray-500" />, bg: 'bg-gray-50' },
   };
 
   const typeColor: Record<string, string> = {
@@ -162,7 +167,7 @@ export default function SemanaPage() {
               <h3 className={`text-xs font-semibold mb-2 ${
                 selectedDayIdx === i ? 'text-[var(--nanny-purple)]' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
               }`}>
-                {isToday ? '📍 HOY' : day.toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).toUpperCase()}
+                {isToday ? 'HOY' : day.toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).toUpperCase()}
               </h3>
               {hasNothing ? (
                 <div className="bg-white rounded-xl p-3 text-center text-sm text-[var(--nanny-gray)]">
@@ -181,7 +186,7 @@ export default function SemanaPage() {
                         className={`bg-white rounded-xl p-3 border-l-4 ${typeColor[event.event_type] || 'border-l-gray-400'} shadow-sm`}
                       >
                         <div className="flex items-start gap-2">
-                          <span className="text-lg">{typeEmoji[event.event_type] || '📌'}</span>
+                          <span className={`w-7 h-7 rounded-lg ${(typeIcons[event.event_type] || typeIcons.other).bg} flex items-center justify-center shrink-0`}>{(typeIcons[event.event_type] || typeIcons.other).icon}</span>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm">{event.title}</p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-[var(--nanny-gray)]">
@@ -195,7 +200,7 @@ export default function SemanaPage() {
                               )}
                             </div>
                           </div>
-                          {child && <span className="text-lg">{child.emoji}</span>}
+                          {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );
@@ -225,7 +230,7 @@ export default function SemanaPage() {
                               )}
                             </div>
                           </div>
-                          {child && <span className="text-lg">{child.emoji}</span>}
+                          {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );
@@ -239,7 +244,7 @@ export default function SemanaPage() {
         {tasks.filter(t => !t.due_date).length > 0 && (
           <div>
             <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-gray)]">
-              📋 TAREAS SIN FECHA
+              TAREAS SIN FECHA
             </h3>
             <div className="space-y-2">
               {tasks.filter(t => !t.due_date).map(task => {
@@ -259,7 +264,7 @@ export default function SemanaPage() {
                           {task.priority}
                         </span>
                       </div>
-                      {child && <span className="text-lg">{child.emoji}</span>}
+                      {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
                     </div>
                   </div>
                 );
@@ -272,12 +277,12 @@ export default function SemanaPage() {
         {medications.filter(m => m.status === 'active').length > 0 && (
           <div>
             <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-purple)]">
-              💊 TRATAMIENTOS ACTIVOS
+              TRATAMIENTOS ACTIVOS
             </h3>
             <div className="space-y-2">
               {medications.filter(m => m.status === 'active').map(med => (
                 <div key={med.id} className="bg-white rounded-xl p-3 border-l-4 border-l-purple-400 shadow-sm">
-                  <p className="font-medium text-sm">💊 {med.medication_name}</p>
+                  <p className="font-medium text-sm inline-flex items-center gap-1.5"><Pill size={14} className="text-[var(--nanny-purple)]" /> {med.medication_name}</p>
                   <p className="text-xs text-[var(--nanny-gray)] mt-0.5">
                     {med.child_name} — {med.frequency || ''} — {med.schedule_times?.join(', ') || ''}
                   </p>

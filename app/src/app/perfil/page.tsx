@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2 } from 'lucide-react';
+import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2, User as UserIcon } from 'lucide-react';
 import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, resetFamilyCache } from '@/lib/store';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
 
-const CHILD_EMOJIS = ['🧒', '👧', '👦', '👶', '🧒🏻', '👧🏽', '👦🏾', '👶🏻'];
+const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
 type EditSection = null | 'family' | 'parent' | 'child' | 'newChild';
 
@@ -27,11 +27,11 @@ export default function PerfilPage() {
   const [parentPhone, setParentPhone] = useState('');
   const [parentEmail, setParentEmail] = useState('');
   const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
-  const [parentAvatar, setParentAvatar] = useState('👩');
+  const [parentAvatar, setParentAvatar] = useState('mama');
 
   const [childName, setChildName] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
-  const [childEmoji, setChildEmoji] = useState('🧒');
+  const [childColor, setChildColor] = useState(CHILD_COLORS[0]);
   const [childSchool, setChildSchool] = useState('');
   const [childTeacher, setChildTeacher] = useState('');
   const [childGrade, setChildGrade] = useState('');
@@ -93,7 +93,7 @@ export default function PerfilPage() {
     setEditId(c.id);
     setChildName(c.name);
     setChildBirthDate(c.birth_date || '');
-    setChildEmoji(c.emoji);
+    setChildColor(CHILD_COLORS[children.indexOf(c) % CHILD_COLORS.length]);
     setChildSchool(c.school || '');
     setChildTeacher(c.teacher || '');
     setChildGrade(c.grade || '');
@@ -106,7 +106,7 @@ export default function PerfilPage() {
   const openAddChild = () => {
     setChildName('');
     setChildBirthDate('');
-    setChildEmoji('🧒');
+    setChildColor(CHILD_COLORS[children.length % CHILD_COLORS.length]);
     setChildSchool('');
     setChildTeacher('');
     setChildGrade('');
@@ -143,7 +143,7 @@ export default function PerfilPage() {
     const data = {
       name: childName,
       birth_date: childBirthDate || null,
-      emoji: childEmoji,
+      emoji: childColor,
       school: childSchool || null,
       teacher: childTeacher || null,
       grade: childGrade || null,
@@ -164,7 +164,7 @@ export default function PerfilPage() {
       family_id: family.id,
       name: childName,
       birth_date: childBirthDate || null,
-      emoji: childEmoji,
+      emoji: childColor,
       school: childSchool || null,
       teacher: childTeacher || null,
       grade: childGrade || null,
@@ -215,24 +215,24 @@ export default function PerfilPage() {
                   <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Rol</label>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { setParentRole('mama'); setParentAvatar('👩'); }}
+                      onClick={() => { setParentRole('mama'); setParentAvatar('mama'); }}
                       className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         parentRole === 'mama'
                           ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
                           : 'border-gray-200'
                       }`}
                     >
-                      <span className="text-lg">👩</span> Mamá
+                      <span className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center"><UserIcon size={16} className="text-pink-600" /></span> Mamá
                     </button>
                     <button
-                      onClick={() => { setParentRole('papa'); setParentAvatar('👨'); }}
+                      onClick={() => { setParentRole('papa'); setParentAvatar('papa'); }}
                       className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
                         parentRole === 'papa'
                           ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
                           : 'border-gray-200'
                       }`}
                     >
-                      <span className="text-lg">👨</span> Papá
+                      <span className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"><UserIcon size={16} className="text-blue-600" /></span> Papá
                     </button>
                   </div>
                 </div>
@@ -268,12 +268,13 @@ export default function PerfilPage() {
               </h1>
               <div className="space-y-3">
                 <div className="flex gap-1.5 mb-1">
-                  {CHILD_EMOJIS.slice(0, 6).map(emoji => (
-                    <button key={emoji} onClick={() => setChildEmoji(emoji)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center text-lg ${
-                        childEmoji === emoji ? 'bg-[var(--nanny-purple)] ring-2 ring-[var(--nanny-purple)]' : 'bg-[var(--nanny-gray-light)]'
-                      }`}>
-                      {emoji}
+                  {CHILD_COLORS.map(color => (
+                    <button key={color} onClick={() => setChildColor(color)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                        childColor === color ? 'ring-2 ring-offset-2 ring-[var(--nanny-purple)]' : ''
+                      }`}
+                      style={{ backgroundColor: color + '20' }}>
+                      <UserIcon size={16} style={{ color }} />
                     </button>
                   ))}
                 </div>
@@ -355,10 +356,12 @@ export default function PerfilPage() {
             <button key={p.id} onClick={() => openEditParent(p)}
               className="w-full flex items-center justify-between py-3 border-b border-gray-50 last:border-0 text-left">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{p.avatar_emoji}</span>
+                <span className={`w-10 h-10 rounded-full flex items-center justify-center ${p.role === 'mama' ? 'bg-pink-100' : 'bg-blue-100'}`}>
+                  <UserIcon size={18} className={p.role === 'mama' ? 'text-pink-600' : 'text-blue-600'} />
+                </span>
                 <div>
                   <p className="font-medium text-sm">{p.name}</p>
-                  <p className="text-xs text-[var(--nanny-gray)] capitalize">{p.role}</p>
+                  <p className="text-xs text-[var(--nanny-gray)] capitalize">{p.role === 'mama' ? 'Mamá' : 'Papá'}</p>
                 </div>
               </div>
               <ChevronRight size={16} className="text-[var(--nanny-gray)]" />
@@ -383,7 +386,9 @@ export default function PerfilPage() {
               <button key={c.id} onClick={() => openEditChild(c)}
                 className="w-full flex items-center justify-between py-3 border-b border-gray-50 last:border-0 text-left">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{c.emoji}</span>
+                  <span className="w-10 h-10 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-sm font-bold text-[var(--nanny-purple)]">
+                    {c.name.charAt(0)}
+                  </span>
                   <div>
                     <p className="font-medium text-sm">{c.name}</p>
                     <p className="text-xs text-[var(--nanny-gray)]">
