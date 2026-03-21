@@ -310,10 +310,10 @@ export default function SemanaPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setDetail(null)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
-            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up"
+            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up pb-20"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-white px-5 pt-4 pb-2 flex items-center justify-between border-b border-gray-100">
+            <div className="sticky top-0 bg-white px-5 pt-4 pb-2 flex items-center justify-between border-b border-gray-100 z-10">
               <h2 className="font-semibold text-lg">
                 {detail.type === 'event' ? 'Detalle del evento' : 'Detalle de la tarea'}
               </h2>

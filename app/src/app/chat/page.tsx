@@ -139,6 +139,22 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Adjust container height when virtual keyboard opens/closes
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      if (containerRef.current) {
+        const bottomNav = 64 + 20; // bottom nav height + gap
+        const h = vv.height - bottomNav;
+        containerRef.current.style.height = `${h}px`;
+      }
+    };
+    vv.addEventListener('resize', update);
+    return () => vv.removeEventListener('resize', update);
+  }, []);
 
   // Buffer: agrupa mensajes consecutivos del mismo sender antes de procesar
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -993,7 +1009,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100dvh - 64px - env(safe-area-inset-bottom, 12px) - 20px)' }}>
+    <div ref={containerRef} className="flex flex-col" style={{ height: 'calc(100dvh - 64px - env(safe-area-inset-bottom, 12px) - 20px)' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
