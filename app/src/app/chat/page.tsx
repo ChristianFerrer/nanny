@@ -141,15 +141,20 @@ export default function ChatPage() {
   const initialScrollDone = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Adjust container height when virtual keyboard opens/closes
+  // Adjust container height when virtual keyboard opens/closes on mobile
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    const fullHeight = vv.height; // initial height without keyboard
     const update = () => {
-      if (containerRef.current) {
-        const bottomNav = 64 + 20; // bottom nav height + gap
-        const h = vv.height - bottomNav;
-        containerRef.current.style.height = `${h}px`;
+      if (!containerRef.current) return;
+      const keyboardOpen = vv.height < fullHeight * 0.85;
+      if (keyboardOpen) {
+        // Keyboard open: use full visual viewport (bottom nav is behind keyboard)
+        containerRef.current.style.height = `${vv.height}px`;
+      } else {
+        // Keyboard closed: subtract bottom nav space
+        containerRef.current.style.height = '';
       }
     };
     vv.addEventListener('resize', update);
