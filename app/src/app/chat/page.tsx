@@ -138,6 +138,7 @@ export default function ChatPage() {
   const onboardingInitiated = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const initialScrollDone = useRef(false);
 
   // Buffer: agrupa mensajes consecutivos del mismo sender antes de procesar
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,7 +193,13 @@ export default function ChatPage() {
   }, [loadData]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!initialScrollDone.current) {
+      // First render: scroll instantly (no animation) to avoid visible scroll
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      if (messages.length > 0) initialScrollDone.current = true;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // --- Onboarding: start conversation ---

@@ -39,7 +39,7 @@ export function subscribe(fn: () => void) {
 }
 
 // Tables that change too frequently to cache
-const NO_CACHE_TABLES = new Set(['messages']);
+const NO_CACHE_TABLES = new Set<string>();
 
 // Fetch family data from server API (bypasses RLS)
 async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown>> {
@@ -129,6 +129,7 @@ export function getCachedSnapshot(): {
   const evts = getCached('events') as Record<string, unknown> | null;
   const tsks = getCached('tasks') as Record<string, unknown> | null;
   const meds = getCached('medications') as Record<string, unknown> | null;
+  const msgs = getCached('messages') as Record<string, unknown> | null;
   if (!fam) return null;
   return {
     family: (fam.family as Family) || null,
@@ -137,7 +138,7 @@ export function getCachedSnapshot(): {
     events: (evts?.events as FamilyEvent[]) || [],
     tasks: (tsks?.tasks as Task[]) || [],
     medications: (meds?.medications as Medication[]) || [],
-    messages: [], // messages are not cached
+    messages: (msgs?.messages as Message[]) || [],
     currentParentId: _currentParentId,
   };
 }
