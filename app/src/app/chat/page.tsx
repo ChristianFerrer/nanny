@@ -981,7 +981,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh]">
+    <div className="flex flex-col" style={{ height: 'calc(100dvh - 64px - env(safe-area-inset-bottom, 12px) - 20px)' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
@@ -1111,7 +1111,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-4" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
@@ -1346,7 +1346,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="chat-input-bar">
+      <div className="shrink-0 bg-white border-t border-gray-200 px-3 py-2">
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
