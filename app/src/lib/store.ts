@@ -7,6 +7,28 @@ let _currentFamilyId: string | null = null;
 let _currentParentId: string | null = null;
 let _listeners: (() => void)[] = [];
 
+// --- In-memory cache to avoid refetching on every page change ---
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 30_000; // 30 seconds — data stays fresh across tab switches
+
+function getCached(key: string): unknown | null {
+  const entry = _cache[key];
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function setCache(key: string, data: unknown) {
+  _cache[key] = { data, ts: Date.now() };
+}
+
+function invalidateCache(table?: string) {
+  if (table) {
+    delete _cache[table];
+  } else {
+    Object.keys(_cache).forEach(k => delete _cache[k]);
+  }
+}
+
 function notify() {
   _listeners.forEach(fn => fn());
 }
@@ -18,11 +40,22 @@ export function subscribe(fn: () => void) {
 
 // Fetch family data from server API (bypasses RLS)
 async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown>> {
+  // Check cache for single-table requests
+  if (tables.length === 1) {
+    const cached = getCached(tables[0]);
+    if (cached) return cached as Record<string, unknown>;
+  }
+
   const res = await fetch(`/api/family-data?tables=${tables.join(',')}`);
   if (!res.ok) throw new Error('Failed to load family data');
   const data = await res.json();
   if (data.familyId) _currentFamilyId = data.familyId;
   if (data.currentParentId) _currentParentId = data.currentParentId;
+
+  // Cache each table individually
+  for (const table of tables) {
+    setCache(table, data);
+  }
   return data;
 }
 
@@ -37,6 +70,8 @@ async function writeData(table: string, operation: 'insert' | 'update' | 'delete
     const err = await res.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(err.error || 'Write failed');
   }
+  // Invalidate cache for this table so next read fetches fresh data
+  invalidateCache(table);
   return res.json();
 }
 
@@ -70,6 +105,7 @@ export function getCurrentParentId(): string | null {
 export function resetFamilyCache() {
   _currentFamilyId = null;
   _currentParentId = null;
+  invalidateCache();
 }
 
 export async function getFamily(): Promise<Family | null> {
