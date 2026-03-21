@@ -6,7 +6,24 @@ import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
+import { getSupabase } from '@/lib/supabase';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
+
+// --- Onboarding types ---
+interface OnboardingMessage {
+  role: 'assistant' | 'user';
+  content: string;
+}
+interface OnboardingExtracted {
+  parent_name: string | null;
+  parent_role: 'mama' | 'papa' | null;
+  children: { name: string; age: number }[];
+  family_name: string | null;
+  has_partner: boolean | null;
+  partner_name: string | null;
+  partner_phone: string | null;
+}
+const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
 export default function ChatPage() {
   const router = useRouter();
@@ -38,6 +55,18 @@ export default function ChatPage() {
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  // --- Onboarding state ---
+  const [onboardingMode, setOnboardingMode] = useState(false);
+  const [onboardingMessages, setOnboardingMessages] = useState<OnboardingMessage[]>([]);
+  const [onboardingExtracted, setOnboardingExtracted] = useState<OnboardingExtracted>({
+    parent_name: null, parent_role: null, children: [], family_name: null,
+    has_partner: null, partner_name: null, partner_phone: null,
+  });
+  const [onboardingSending, setOnboardingSending] = useState(false);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingAuthUserId, setOnboardingAuthUserId] = useState<string | null>(null);
+  const [onboardingAuthEmail, setOnboardingAuthEmail] = useState('');
+  const onboardingInitiated = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,7 +80,17 @@ export default function ChatPage() {
       const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
         getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
       ]);
-      if (!fam) { window.location.href = '/login'; return; }
+      if (!fam) {
+        // No family yet — enter onboarding mode
+        setOnboardingMode(true);
+        setDataLoaded(true);
+        // Get auth user for onboarding
+        const { data: { user } } = await getSupabase().auth.getUser();
+        if (!user) { window.location.href = '/login'; return; }
+        setOnboardingAuthUserId(user.id);
+        setOnboardingAuthEmail(user.email || '');
+        return;
+      }
       setFamilyId(fam.id);
       setMessages(msgs);
       setParents(prts);
@@ -77,7 +116,149 @@ export default function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, onboardingMessages]);
+
+  // --- Onboarding: start conversation ---
+  useEffect(() => {
+    if (!onboardingMode || onboardingInitiated.current) return;
+    onboardingInitiated.current = true;
+
+    const startOnboarding = async () => {
+      setOnboardingSending(true);
+      try {
+        const res = await fetch('/api/onboarding-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: '[INICIO - el usuario acaba de crear su cuenta y llegó al chat. Salúdalo y comienza preguntando su nombre.]' }],
+          }),
+        });
+        const data = await res.json();
+        if (data.reply) {
+          setOnboardingMessages([{ role: 'assistant', content: data.reply }]);
+          if (data.extracted) setOnboardingExtracted(data.extracted);
+        }
+      } catch {
+        setOnboardingMessages([{ role: 'assistant', content: '¡Hola! Soy Nanny 👋 Voy a ayudarte a organizar la vida de tus hijos. ¿Cómo te llamas?' }]);
+      }
+      setOnboardingSending(false);
+    };
+    startOnboarding();
+  }, [onboardingMode]);
+
+  // --- Onboarding: send message ---
+  const sendOnboardingMessage = async () => {
+    const text = input.trim();
+    if (!text || onboardingSending || onboardingSaving) return;
+
+    const userMsg: OnboardingMessage = { role: 'user', content: text };
+    const newMessages = [...onboardingMessages, userMsg];
+    setOnboardingMessages(newMessages);
+    setInput('');
+    setOnboardingSending(true);
+
+    try {
+      const res = await fetch('/api/onboarding-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+      const data = await res.json();
+
+      if (data.reply) {
+        setOnboardingMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+        if (data.extracted) setOnboardingExtracted(data.extracted);
+
+        if (data.confirmed && data.extracted) {
+          await saveOnboardingFamily(data.extracted);
+        }
+      }
+    } catch {
+      setOnboardingMessages([...newMessages, { role: 'assistant', content: 'Ups, hubo un error. ¿Puedes intentar de nuevo?' }]);
+    }
+    setOnboardingSending(false);
+    inputRef.current?.focus();
+  };
+
+  // --- Onboarding: save family ---
+  const saveOnboardingFamily = async (data: OnboardingExtracted) => {
+    setOnboardingSaving(true);
+    try {
+      const parentName = data.parent_name || onboardingAuthEmail.split('@')[0] || 'Padre';
+      const parentRole = data.parent_role || 'mama';
+      const familyName = data.family_name || `Familia ${parentName}`;
+
+      const childrenWithDates = data.children.map((c, i) => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - c.age);
+        return {
+          name: c.name,
+          birth_date: d.toISOString().split('T')[0],
+          emoji: CHILD_COLORS[i % CHILD_COLORS.length],
+          school: null, teacher: null, grade: null, allergies: [],
+        };
+      });
+
+      // Build parents array — primary parent + optional partner
+      const parentsToCreate: { name: string; role: string; avatar_emoji: string; phone?: string }[] = [
+        { name: parentName, role: parentRole, avatar_emoji: parentRole },
+      ];
+      if (data.has_partner && data.partner_name) {
+        const partnerRole = parentRole === 'mama' ? 'papa' : 'mama';
+        parentsToCreate.push({
+          name: data.partner_name,
+          role: partnerRole,
+          avatar_emoji: partnerRole,
+          phone: data.partner_phone || undefined,
+        });
+      }
+
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          familyName,
+          parents: parentsToCreate,
+          children: childrenWithDates,
+          authUserId: onboardingAuthUserId,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'Error al guardar');
+      }
+
+      // If partner phone exists, send WhatsApp invite
+      if (data.partner_phone && data.partner_name) {
+        const inviteUrl = `${window.location.origin}/login?invite=${result.family_id}`;
+        const waMessage = encodeURIComponent(
+          `¡Hola ${data.partner_name}! ${parentName} te invita a Nanny, una app para coordinar las cosas de los niños. Únete aquí: ${inviteUrl}`
+        );
+        const waPhone = data.partner_phone.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+        window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank');
+      }
+
+      // Success — reload the chat with the new family data
+      setOnboardingMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '¡Perfecto! Tu familia está creada. Cargando el chat...',
+      }]);
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error('Save error:', err);
+      setOnboardingMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Hubo un error al crear tu familia. ¿Puedes intentar de nuevo?',
+      }]);
+      setOnboardingSaving(false);
+    }
+  };
 
   // Poll for new messages every 3 seconds (messages from other parent or other sessions)
   useEffect(() => {
@@ -636,6 +817,130 @@ export default function ChatPage() {
       </button>
     );
   };
+
+  // --- ONBOARDING MODE: render chat-like onboarding ---
+  if (onboardingMode) {
+    const onboardingProgress = [
+      { label: 'Nombre', done: !!onboardingExtracted.parent_name },
+      { label: 'Rol', done: !!onboardingExtracted.parent_role },
+      { label: 'Hijos', done: onboardingExtracted.children.length > 0 },
+      { label: 'Familia', done: onboardingExtracted.has_partner !== null },
+    ];
+
+    const handleOnboardingKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendOnboardingMessage();
+      }
+    };
+
+    return (
+      <div className="flex flex-col h-[100dvh]">
+        {/* Header */}
+        <div className="bg-white border-b px-4 py-3 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="flex -space-x-2">
+              <div className="w-8 h-8 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
+                <Bot size={16} className="text-white" />
+              </div>
+            </div>
+            <div>
+              <h1 className="font-semibold text-sm">Chat Familiar</h1>
+              <p className="text-[10px] text-[var(--nanny-gray)]">
+                {onboardingSaving ? 'Creando tu familia...' : 'Nanny — Configuración'}
+              </p>
+            </div>
+          </div>
+          {/* Progress */}
+          <div className="flex items-center gap-2 mt-2">
+            {onboardingProgress.map((step, i) => (
+              <div key={step.label} className="flex items-center gap-1">
+                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                  step.done ? 'bg-[var(--nanny-purple)] text-white' : 'bg-gray-200 text-[var(--nanny-gray)]'
+                }`}>
+                  {step.done ? '✓' : i + 1}
+                </div>
+                <span className={`text-[10px] ${step.done ? 'text-[var(--nanny-purple)] font-medium' : 'text-[var(--nanny-gray)]'}`}>
+                  {step.label}
+                </span>
+                {i < onboardingProgress.length - 1 && <div className="w-3 h-px bg-gray-200 mx-0.5" />}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36">
+          {onboardingMessages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}>
+              {msg.role === 'assistant' && (
+                <div className="w-7 h-7 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mr-2 mt-5 shrink-0">
+                  <Bot size={14} className="text-white" />
+                </div>
+              )}
+              <div className="max-w-[80%]">
+                {msg.role === 'assistant' && (
+                  <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1">
+                    <Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny
+                  </p>
+                )}
+                <div className={msg.role === 'user' ? 'bubble-parent' : 'bubble-nanny'}>
+                  <p className="text-[15px] whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {onboardingSending && (
+            <div className="flex justify-start animate-fade-in">
+              <div>
+                <p className="text-[11px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1">
+                  <Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny
+                </p>
+                <div className="bubble-nanny">
+                  <div className="flex gap-1 py-1">
+                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {onboardingSaving && (
+            <div className="flex justify-center">
+              <div className="bg-[var(--nanny-purple-bg)] rounded-2xl px-4 py-3 text-sm text-[var(--nanny-purple)] font-medium animate-pulse">
+                Creando tu familia...
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="chat-input-bar">
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleOnboardingKeyDown}
+              placeholder={onboardingSaving ? 'Espera un momento...' : 'Escribe tu respuesta...'}
+              disabled={onboardingSending || onboardingSaving}
+              className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] disabled:opacity-50"
+            />
+            <button
+              onClick={sendOnboardingMessage}
+              disabled={!input.trim() || onboardingSending || onboardingSaving}
+              className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
+            >
+              <Send size={18} className="text-white ml-0.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[100dvh]">

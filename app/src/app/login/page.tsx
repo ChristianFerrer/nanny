@@ -102,14 +102,8 @@ function LoginContent() {
       }
     }
 
-    // Check if user has a family using admin API (bypasses RLS)
-    try {
-      const res = await fetch('/api/check-family');
-      const { hasFamily } = await res.json();
-      router.replace(hasFamily ? '/chat' : '/onboarding');
-    } catch {
-      router.replace('/onboarding');
-    }
+    // Always go to chat — onboarding happens inline if no family exists
+    router.replace('/chat');
   };
 
   return (

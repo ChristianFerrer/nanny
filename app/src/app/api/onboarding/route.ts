@@ -35,12 +35,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Create parents — link the first parent to the authenticated user
-    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string }, index: number) => ({
+    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string; phone?: string }, index: number) => ({
       family_id: family.id,
       name: p.name,
       role: p.role,
       avatar_emoji: p.avatar_emoji || (p.role === 'mama' ? '👩' : '👨'),
       auth_user_id: index === 0 && authUserId ? authUserId : null,
+      phone: p.phone || null,
     }));
 
     const { data: createdParents, error: parErr } = await supabase
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create welcome message from Nanny
-    const childNames = createdChildren?.map((c: { emoji: string; name: string }) => `${c.emoji} ${c.name}`).join(' y ') || 'tus hijos';
+    const childNames = createdChildren?.map((c: { name: string }) => c.name).join(' y ') || 'tus hijos';
     await supabase.from('messages').insert({
       family_id: family.id,
       sender_id: null,
