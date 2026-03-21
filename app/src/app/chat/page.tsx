@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
@@ -77,20 +77,26 @@ export default function ChatPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
-        getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
-      ]);
-      if (!fam) {
+      // First check auth
+      const { data: { user } } = await getSupabase().auth.getUser();
+      if (!user) { window.location.href = '/login'; return; }
+
+      // Check if user has a family (safe call, doesn't throw)
+      const familyExists = await hasFamily();
+      if (!familyExists) {
         // No family yet — enter onboarding mode
         setOnboardingMode(true);
         setDataLoaded(true);
-        // Get auth user for onboarding
-        const { data: { user } } = await getSupabase().auth.getUser();
-        if (!user) { window.location.href = '/login'; return; }
         setOnboardingAuthUserId(user.id);
         setOnboardingAuthEmail(user.email || '');
         return;
       }
+
+      // Family exists — load all data
+      const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
+        getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
+      ]);
+      if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
       setMessages(msgs);
       setParents(prts);
@@ -99,7 +105,6 @@ export default function ChatPage() {
       setTasks(tsks);
       setMedications(meds);
       if (prts.length > 0 && !currentParent) {
-        // Use the authenticated user's parent ID, fallback to first parent
         const myParentId = getCurrentParentId();
         const matchedParent = myParentId && prts.find(p => p.id === myParentId);
         setCurrentParent(matchedParent ? matchedParent.id : prts[0].id);
