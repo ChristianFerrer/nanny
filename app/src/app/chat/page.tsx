@@ -850,7 +850,7 @@ export default function ChatPage() {
                   isNanny ? 'bubble-nanny' :
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
                 }>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-[15px] whitespace-pre-wrap">{msg.content}</p>
                   {/* Intent badges */}
                   {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm)}
                   {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
@@ -995,7 +995,7 @@ export default function ChatPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje..."
-            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
+            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
           />
           <button
             onClick={sendMessage}
