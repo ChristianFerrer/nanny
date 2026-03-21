@@ -123,9 +123,6 @@ export default function ChatPage() {
   const [nannyWaiting, setNannyWaiting] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [headerVisible, setHeaderVisible] = useState(true);
-  const lastScrollY = useRef(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   // --- Onboarding state ---
   const [onboardingMode, setOnboardingMode] = useState(false);
   const [onboardingExtracted, setOnboardingExtracted] = useState<OnboardingExtracted>({
@@ -192,23 +189,6 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // --- Header auto-hide on scroll (like WhatsApp) ---
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const onScroll = () => {
-      const currentY = container.scrollTop;
-      if (currentY > lastScrollY.current && currentY > 60) {
-        setHeaderVisible(false);
-      } else {
-        setHeaderVisible(true);
-      }
-      lastScrollY.current = currentY;
-    };
-    container.addEventListener('scroll', onScroll, { passive: true });
-    return () => container.removeEventListener('scroll', onScroll);
-  }, []);
 
   // --- Onboarding: start conversation ---
   useEffect(() => {
@@ -1001,9 +981,9 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden">
+    <div className="flex flex-col h-[100dvh]">
       {/* Header */}
-      <div className={`bg-white border-b px-4 py-4 shrink-0 z-10 transition-[margin-top] duration-300 ease-in-out ${headerVisible ? '' : '-mt-40'}`}>
+      <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Participant avatars - stacked */}
@@ -1056,17 +1036,6 @@ export default function ChatPage() {
             </div>
           )}
         </div>
-        {/* Children strip */}
-        {!onboardingMode && children.length > 0 && (
-          <div className="flex gap-2 mt-2 overflow-x-auto">
-            {children.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--nanny-gray-light)] rounded-full text-xs text-[var(--nanny-gray)] whitespace-nowrap">
-                <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-light)] flex items-center justify-center text-[10px] font-bold text-white">{c.name.charAt(0)}</span>
-                {c.name}
-              </span>
-            ))}
-          </div>
-        )}
         {/* Pending detection — interactive card */}
         {pendingDetection && (
           <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 animate-slide-up">
@@ -1142,7 +1111,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
