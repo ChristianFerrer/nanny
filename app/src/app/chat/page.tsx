@@ -847,7 +847,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
+      <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Participant avatars - stacked */}
