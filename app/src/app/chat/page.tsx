@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -20,6 +20,76 @@ interface OnboardingExtracted {
   partner_phone: string | null;
 }
 const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+
+// --- Swipeable message wrapper for reply gesture ---
+function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const startX = useRef(0);
+  const currentX = useRef(0);
+  const swiping = useRef(false);
+  const triggered = useRef(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    currentX.current = 0;
+    swiping.current = false;
+    triggered.current = false;
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - startX.current;
+    // Only swipe left (negative dx)
+    if (dx > 5) return;
+    const absDx = Math.abs(dx);
+    if (absDx > 10) swiping.current = true;
+    if (!swiping.current) return;
+
+    // Cap at -80px
+    const offset = Math.max(-80, dx);
+    currentX.current = offset;
+    if (ref.current) {
+      ref.current.style.transform = `translateX(${offset}px)`;
+      ref.current.style.transition = 'none';
+    }
+
+    // Haptic feedback at threshold
+    if (absDx >= 60 && !triggered.current) {
+      triggered.current = true;
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (ref.current) {
+      ref.current.style.transform = 'translateX(0)';
+      ref.current.style.transition = 'transform 0.2s ease-out';
+    }
+    if (triggered.current) {
+      onSwipe();
+    }
+    swiping.current = false;
+    triggered.current = false;
+  };
+
+  return (
+    <div className="relative overflow-hidden">
+      {/* Reply icon revealed behind the message */}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nanny-gray)] opacity-40">
+        <Reply size={20} />
+      </div>
+      <div
+        ref={ref}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="relative bg-[var(--nanny-gray-light)] will-change-transform"
+        style={{ backgroundColor: 'transparent' }}
+      >
+        {kids}
+      </div>
+    </div>
+  );
+}
 
 export default function ChatPage() {
   const router = useRouter();
@@ -51,6 +121,7 @@ export default function ChatPage() {
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   // --- Onboarding state ---
   const [onboardingMode, setOnboardingMode] = useState(false);
   const [onboardingExtracted, setOnboardingExtracted] = useState<OnboardingExtracted>({
@@ -476,13 +547,20 @@ export default function ChatPage() {
     setInput('');
 
     // Add parent message immediately
+    const replyMeta: Record<string, unknown> = {};
+    if (replyingTo) {
+      replyMeta.reply_to_id = replyingTo.id;
+      replyMeta.reply_to_content = replyingTo.content.slice(0, 100);
+      replyMeta.reply_to_sender = replyingTo.sender_type === 'nanny' ? 'Nanny' : (parents.find(p => p.id === replyingTo.sender_id)?.name || 'Tú');
+      setReplyingTo(null);
+    }
     const parentMsg = await addMessage({
       family_id: familyId,
       sender_id: currentParent,
       sender_type: 'parent',
       content: text,
       message_type: 'text',
-      metadata: {},
+      metadata: replyMeta,
     });
     setMessages(prev => [...prev, parentMsg]);
 
@@ -1035,6 +1113,11 @@ export default function ChatPage() {
             : msgDate === yesterday ? 'Ayer'
             : new Date(msg.created_at).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
 
+          // Reply reference
+          const replyToId = msg.metadata?.reply_to_id as string | undefined;
+          const replyToContent = msg.metadata?.reply_to_content as string | undefined;
+          const replyToSender = msg.metadata?.reply_to_sender as string | undefined;
+
           return (
             <div key={msg.id}>
               {showDateSep && (
@@ -1044,6 +1127,7 @@ export default function ChatPage() {
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
               )}
+              <SwipeableMessage onSwipe={() => { setReplyingTo(msg); inputRef.current?.focus(); }}>
               <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
               {/* Avatar circle for other parent */}
               {isOtherParent && (
@@ -1064,6 +1148,13 @@ export default function ChatPage() {
                   isNanny ? 'bubble-nanny' :
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
                 }>
+                  {/* Reply reference */}
+                  {replyToId && replyToContent && (
+                    <div className="mb-2 pl-2 border-l-2 border-[var(--nanny-purple-light)] rounded-sm">
+                      <p className="text-[11px] font-medium text-[var(--nanny-purple)]">{replyToSender || 'Mensaje'}</p>
+                      <p className="text-[12px] text-[var(--nanny-gray)] line-clamp-2">{replyToContent}</p>
+                    </div>
+                  )}
                   <p className="text-[16px] whitespace-pre-wrap">{msg.content}</p>
                   {/* Intent badges */}
                   {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm)}
@@ -1179,6 +1270,7 @@ export default function ChatPage() {
                 )}
               </div>
             </div>
+            </SwipeableMessage>
             </div>
           );
         })}
@@ -1201,6 +1293,20 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="chat-input-bar">
+        {/* Reply preview */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
+            <div className="flex-1 pl-3 border-l-2 border-[var(--nanny-purple)] rounded-sm min-w-0">
+              <p className="text-xs font-medium text-[var(--nanny-purple)]">
+                {replyingTo.sender_type === 'nanny' ? 'Nanny' : (parents.find(p => p.id === replyingTo.sender_id)?.name || 'Tú')}
+              </p>
+              <p className="text-xs text-[var(--nanny-gray)] truncate">{replyingTo.content}</p>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="p-1 text-[var(--nanny-gray)]">
+              <X size={16} />
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}

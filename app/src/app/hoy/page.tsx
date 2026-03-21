@@ -6,6 +6,7 @@ import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, c
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
 type ModalType = null | 'event' | 'task';
+type DetailItem = { type: 'event'; item: FamilyEvent } | { type: 'task'; item: Task } | null;
 
 export default function HoyPage() {
   const [todayEvents, setTodayEvents] = useState<FamilyEvent[]>([]);
@@ -17,6 +18,7 @@ export default function HoyPage() {
   const [familyId, setFamilyId] = useState('');
   const [showFab, setShowFab] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
+  const [detail, setDetail] = useState<DetailItem>(null);
 
   // Event form
   const [eventTitle, setEventTitle] = useState('');
@@ -399,7 +401,7 @@ export default function HoyPage() {
           ) : (
             <div className="space-y-2">
               {todayEvents.map(event => (
-                <EventCard key={event.id} event={event} child={getChild(event.child_id)} />
+                <EventCard key={event.id} event={event} child={getChild(event.child_id)} onClick={() => setDetail({ type: 'event', item: event })} />
               ))}
             </div>
           )}
@@ -423,6 +425,7 @@ export default function HoyPage() {
                   child={getChild(task.child_id)}
                   parent={getParent(task.assigned_to)}
                   onComplete={handleComplete}
+                  onClick={() => setDetail({ type: 'task', item: task })}
                 />
               ))}
               {normalTasks.map(task => (
@@ -432,6 +435,7 @@ export default function HoyPage() {
                   child={getChild(task.child_id)}
                   parent={getParent(task.assigned_to)}
                   onComplete={handleComplete}
+                  onClick={() => setDetail({ type: 'task', item: task })}
                 />
               ))}
             </div>
@@ -446,12 +450,136 @@ export default function HoyPage() {
             </h2>
             <div className="space-y-2">
               {upcomingEvents.map(event => (
-                <EventCard key={event.id} event={event} child={getChild(event.child_id)} showDate />
+                <EventCard key={event.id} event={event} child={getChild(event.child_id)} showDate onClick={() => setDetail({ type: 'event', item: event })} />
               ))}
             </div>
           </section>
         )}
       </div>
+
+      {/* Detail modal */}
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setDetail(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white px-5 pt-4 pb-2 flex items-center justify-between border-b border-gray-100">
+              <h2 className="font-semibold text-lg">
+                {detail.type === 'event' ? 'Detalle del evento' : 'Detalle de la tarea'}
+              </h2>
+              <button onClick={() => setDetail(null)} className="p-1 text-[var(--nanny-gray)]">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {detail.type === 'event' && (() => {
+                const event = detail.item;
+                const child = getChild(event.child_id);
+                const iconConfig = EVENT_ICONS[event.event_type] || EVENT_ICONS.other;
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl ${iconConfig.bg} flex items-center justify-center`}>{iconConfig.icon}</div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{event.title}</h3>
+                        <span className="text-xs text-[var(--nanny-gray)] capitalize">{event.event_type}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CalendarDays size={16} className="text-[var(--nanny-purple)]" />
+                        <span>{new Date(event.date_start).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock size={16} className="text-[var(--nanny-purple)]" />
+                        <span>{new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      {event.location && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin size={16} className="text-[var(--nanny-purple)]" />
+                          <span>{event.location}</span>
+                        </div>
+                      )}
+                      {child && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="w-6 h-6 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)]">{child.name.charAt(0)}</span>
+                          <span>{child.name}</span>
+                        </div>
+                      )}
+                      {event.description && (
+                        <div className="bg-[var(--nanny-gray-light)] rounded-xl p-3">
+                          <p className="text-sm text-[var(--nanny-gray)]">{event.description}</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-[var(--nanny-gray)]">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${event.status === 'confirmed' ? 'bg-green-100 text-green-700' : event.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {event.status === 'confirmed' ? 'Confirmado' : event.status === 'cancelled' ? 'Cancelado' : event.status === 'completed' ? 'Completado' : 'Pendiente'}
+                        </span>
+                        {event.source && <span>Fuente: {event.source}</span>}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+              {detail.type === 'task' && (() => {
+                const task = detail.item;
+                const child = getChild(task.child_id);
+                const assignedParent = getParent(task.assigned_to);
+                const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <CheckSquare size={20} className="text-amber-500" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{task.title}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium priority-${task.priority}`}>
+                          {task.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {task.due_date && (
+                        <div className={`flex items-center gap-2 text-sm ${isOverdue ? 'text-[var(--nanny-red)]' : ''}`}>
+                          <Clock size={16} className={isOverdue ? 'text-[var(--nanny-red)]' : 'text-[var(--nanny-purple)]'} />
+                          <span>{new Date(task.due_date).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                          {isOverdue && <span className="text-xs font-medium">(vencida)</span>}
+                        </div>
+                      )}
+                      {assignedParent && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <UserIcon size={16} className="text-[var(--nanny-purple)]" />
+                          <span>Asignada a {assignedParent.name}</span>
+                        </div>
+                      )}
+                      {child && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="w-6 h-6 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)]">{child.name.charAt(0)}</span>
+                          <span>{child.name}</span>
+                        </div>
+                      )}
+                      {task.description && (
+                        <div className="bg-[var(--nanny-gray-light)] rounded-xl p-3">
+                          <p className="text-sm text-[var(--nanny-gray)]">{task.description}</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => { handleComplete(task.id); setDetail(null); }}
+                        className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-green)] text-white py-3 rounded-xl font-medium text-sm"
+                      >
+                        <CheckCircle2 size={16} /> Marcar como completada
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Undo toast */}
       {undoToast && (
@@ -500,12 +628,12 @@ const EVENT_ICONS: Record<string, { icon: React.ReactNode; bg: string }> = {
   other: { icon: <MapPinAlt size={16} className="text-gray-500" />, bg: 'bg-gray-50' },
 };
 
-function EventCard({ event, child, showDate }: { event: FamilyEvent; child?: Child; showDate?: boolean }) {
+function EventCard({ event, child, showDate, onClick }: { event: FamilyEvent; child?: Child; showDate?: boolean; onClick?: () => void }) {
   const time = new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   const iconConfig = EVENT_ICONS[event.event_type] || EVENT_ICONS.other;
 
   return (
-    <div className="bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm">
+    <div className="bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onClick={onClick}>
       <div className={`w-9 h-9 rounded-xl ${iconConfig.bg} flex items-center justify-center shrink-0`}>{iconConfig.icon}</div>
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{event.title}</p>
@@ -533,8 +661,8 @@ function EventCard({ event, child, showDate }: { event: FamilyEvent; child?: Chi
   );
 }
 
-function TaskCard({ task, child, parent, onComplete }: {
-  task: Task; child?: Child; parent?: Parent; onComplete: (id: string) => void;
+function TaskCard({ task, child, parent, onComplete, onClick }: {
+  task: Task; child?: Child; parent?: Parent; onComplete: (id: string) => void; onClick?: () => void;
 }) {
   const [completing, setCompleting] = useState(false);
 
@@ -551,8 +679,8 @@ function TaskCard({ task, child, parent, onComplete }: {
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
 
   return (
-    <div className={`bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm transition-all duration-500 ${completing ? 'opacity-30 scale-95' : ''}`}>
-      <button onClick={handleClick} className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors">
+    <div className={`bg-white rounded-xl p-3 flex items-start gap-3 shadow-sm transition-all duration-500 cursor-pointer active:scale-[0.98] ${completing ? 'opacity-30 scale-95' : ''}`} onClick={onClick}>
+      <button onClick={(e) => { e.stopPropagation(); handleClick(); }} className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors">
         {completing ? <CheckCircle2 size={20} className="text-[var(--nanny-green)]" /> : <Circle size={20} />}
       </button>
       <div className="flex-1 min-w-0">

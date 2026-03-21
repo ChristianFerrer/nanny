@@ -1,25 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt } from 'lucide-react';
-import { getEvents, getChildren, getTasks, getMedications, completeTask } from '@/lib/store';
-import type { FamilyEvent, Child, Task, Medication } from '@/lib/types';
+import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, X, CheckSquare, CalendarDays, User as UserIcon } from 'lucide-react';
+import { getEvents, getChildren, getTasks, getMedications, getParents, completeTask } from '@/lib/store';
+import type { FamilyEvent, Child, Task, Medication, Parent } from '@/lib/types';
+
+type DetailItem = { type: 'event'; item: FamilyEvent } | { type: 'task'; item: Task } | null;
 
 export default function SemanaPage() {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [parents, setParents] = useState<Parent[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  const [detail, setDetail] = useState<DetailItem>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [e, c, t, m] = await Promise.all([getEvents(), getChildren(), getTasks(), getMedications()]);
+      const [e, c, t, m, p] = await Promise.all([getEvents(), getChildren(), getTasks(), getMedications(), getParents()]);
       setEvents(e);
       setChildren(c);
       setTasks(t);
       setMedications(m);
+      setParents(p);
     } catch {
       window.location.href = '/login';
     }
@@ -44,6 +49,7 @@ export default function SemanaPage() {
   });
 
   const getChild = (id: string | null) => children.find(c => c.id === id);
+  const getParent = (id: string | null) => parents.find(p => p.id === id);
 
   const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
     doctor: { icon: <Stethoscope size={14} className="text-red-500" />, bg: 'bg-red-50' },
@@ -183,7 +189,8 @@ export default function SemanaPage() {
                     return (
                       <div
                         key={event.id}
-                        className={`bg-white rounded-xl p-3 border-l-4 ${typeColor[event.event_type] || 'border-l-gray-400'} shadow-sm`}
+                        className={`bg-white rounded-xl p-3 border-l-4 ${typeColor[event.event_type] || 'border-l-gray-400'} shadow-sm cursor-pointer active:scale-[0.98] transition-transform`}
+                        onClick={() => setDetail({ type: 'event', item: event })}
                       >
                         <div className="flex items-start gap-2">
                           <span className={`w-7 h-7 rounded-lg ${(typeIcons[event.event_type] || typeIcons.other).bg} flex items-center justify-center shrink-0`}>{(typeIcons[event.event_type] || typeIcons.other).icon}</span>
@@ -210,11 +217,12 @@ export default function SemanaPage() {
                     return (
                       <div
                         key={task.id}
-                        className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm"
+                        className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm cursor-pointer active:scale-[0.98] transition-transform"
+                        onClick={() => setDetail({ type: 'task', item: task })}
                       >
                         <div className="flex items-start gap-2">
                           <button
-                            onClick={() => handleComplete(task.id)}
+                            onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
                             className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors shrink-0"
                           >
                             <Circle size={18} />
@@ -250,10 +258,10 @@ export default function SemanaPage() {
               {tasks.filter(t => !t.due_date).map(task => {
                 const child = getChild(task.child_id);
                 return (
-                  <div key={task.id} className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm">
+                  <div key={task.id} className="bg-white rounded-xl p-3 border-l-4 border-l-amber-400 shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setDetail({ type: 'task', item: task })}>
                     <div className="flex items-start gap-2">
                       <button
-                        onClick={() => handleComplete(task.id)}
+                        onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
                         className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors shrink-0"
                       >
                         <Circle size={18} />
@@ -295,6 +303,129 @@ export default function SemanaPage() {
           </div>
         )}
       </div>
+
+      {/* Detail modal */}
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setDetail(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white px-5 pt-4 pb-2 flex items-center justify-between border-b border-gray-100">
+              <h2 className="font-semibold text-lg">
+                {detail.type === 'event' ? 'Detalle del evento' : 'Detalle de la tarea'}
+              </h2>
+              <button onClick={() => setDetail(null)} className="p-1 text-[var(--nanny-gray)]">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {detail.type === 'event' && (() => {
+                const event = detail.item;
+                const child = getChild(event.child_id);
+                const iconConfig = typeIcons[event.event_type] || typeIcons.other;
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl ${iconConfig.bg} flex items-center justify-center`}>{iconConfig.icon}</div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{event.title}</h3>
+                        <span className="text-xs text-[var(--nanny-gray)] capitalize">{event.event_type}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CalendarDays size={16} className="text-[var(--nanny-purple)]" />
+                        <span>{new Date(event.date_start).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock size={16} className="text-[var(--nanny-purple)]" />
+                        <span>{new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      {event.location && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin size={16} className="text-[var(--nanny-purple)]" />
+                          <span>{event.location}</span>
+                        </div>
+                      )}
+                      {child && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="w-6 h-6 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)]">{child.name.charAt(0)}</span>
+                          <span>{child.name}</span>
+                        </div>
+                      )}
+                      {event.description && (
+                        <div className="bg-[var(--nanny-gray-light)] rounded-xl p-3">
+                          <p className="text-sm text-[var(--nanny-gray)]">{event.description}</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-[var(--nanny-gray)]">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${event.status === 'confirmed' ? 'bg-green-100 text-green-700' : event.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {event.status === 'confirmed' ? 'Confirmado' : event.status === 'cancelled' ? 'Cancelado' : event.status === 'completed' ? 'Completado' : 'Pendiente'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+              {detail.type === 'task' && (() => {
+                const task = detail.item;
+                const child = getChild(task.child_id);
+                const assignedParent = getParent(task.assigned_to);
+                const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <CheckSquare size={20} className="text-amber-500" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{task.title}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium priority-${task.priority}`}>
+                          {task.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {task.due_date && (
+                        <div className={`flex items-center gap-2 text-sm ${isOverdue ? 'text-[var(--nanny-red)]' : ''}`}>
+                          <Clock size={16} className={isOverdue ? 'text-[var(--nanny-red)]' : 'text-[var(--nanny-purple)]'} />
+                          <span>{new Date(task.due_date).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                          {isOverdue && <span className="text-xs font-medium">(vencida)</span>}
+                        </div>
+                      )}
+                      {assignedParent && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <UserIcon size={16} className="text-[var(--nanny-purple)]" />
+                          <span>Asignada a {assignedParent.name}</span>
+                        </div>
+                      )}
+                      {child && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="w-6 h-6 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--nanny-purple)]">{child.name.charAt(0)}</span>
+                          <span>{child.name}</span>
+                        </div>
+                      )}
+                      {task.description && (
+                        <div className="bg-[var(--nanny-gray-light)] rounded-xl p-3">
+                          <p className="text-sm text-[var(--nanny-gray)]">{task.description}</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => { handleComplete(task.id); setDetail(null); }}
+                        className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-green)] text-white py-3 rounded-xl font-medium text-sm"
+                      >
+                        <CheckCircle2 size={16} /> Marcar como completada
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
