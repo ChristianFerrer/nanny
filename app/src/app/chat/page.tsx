@@ -10,10 +10,6 @@ import { getSupabase } from '@/lib/supabase';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
 // --- Onboarding types ---
-interface OnboardingMessage {
-  role: 'assistant' | 'user';
-  content: string;
-}
 interface OnboardingExtracted {
   parent_name: string | null;
   parent_role: 'mama' | 'papa' | null;
@@ -57,7 +53,6 @@ export default function ChatPage() {
   const [dataLoaded, setDataLoaded] = useState(false);
   // --- Onboarding state ---
   const [onboardingMode, setOnboardingMode] = useState(false);
-  const [onboardingMessages, setOnboardingMessages] = useState<OnboardingMessage[]>([]);
   const [onboardingExtracted, setOnboardingExtracted] = useState<OnboardingExtracted>({
     parent_name: null, parent_role: null, children: [], family_name: null,
     has_partner: null, partner_name: null, partner_phone: null,
@@ -121,7 +116,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, onboardingMessages]);
+  }, [messages]);
 
   // --- Onboarding: start conversation ---
   useEffect(() => {
@@ -129,7 +124,7 @@ export default function ChatPage() {
     onboardingInitiated.current = true;
 
     const startOnboarding = async () => {
-      setOnboardingSending(true);
+      setNannyThinking(true);
       try {
         const res = await fetch('/api/onboarding-chat', {
           method: 'POST',
@@ -139,14 +134,22 @@ export default function ChatPage() {
           }),
         });
         const data = await res.json();
-        if (data.reply) {
-          setOnboardingMessages([{ role: 'assistant', content: data.reply }]);
-          if (data.extracted) setOnboardingExtracted(data.extracted);
-        }
+        const greeting = data.reply || '¡Hola! Soy Nanny 👋 Voy a ayudarte a organizar la vida de tus hijos. ¿Cómo te llamas?';
+        if (data.extracted) setOnboardingExtracted(data.extracted);
+        setMessages([{
+          id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
+          content: greeting, message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+          created_at: new Date().toISOString(),
+        }]);
       } catch {
-        setOnboardingMessages([{ role: 'assistant', content: '¡Hola! Soy Nanny 👋 Voy a ayudarte a organizar la vida de tus hijos. ¿Cómo te llamas?' }]);
+        setMessages([{
+          id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
+          content: '¡Hola! Soy Nanny 👋 Voy a ayudarte a organizar la vida de tus hijos. ¿Cómo te llamas?',
+          message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+          created_at: new Date().toISOString(),
+        }]);
       }
-      setOnboardingSending(false);
+      setNannyThinking(false);
     };
     startOnboarding();
   }, [onboardingMode]);
@@ -156,39 +159,60 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || onboardingSending || onboardingSaving) return;
 
-    const userMsg: OnboardingMessage = { role: 'user', content: text };
-    const newMessages = [...onboardingMessages, userMsg];
-    setOnboardingMessages(newMessages);
+    // Add user message to the same messages state
+    const userMsg: Message = {
+      id: crypto.randomUUID(), family_id: '', sender_id: 'onboarding-user', sender_type: 'parent',
+      content: text, message_type: 'text', metadata: { onboarding: true },
+      created_at: new Date().toISOString(),
+    };
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInput('');
-    setOnboardingSending(true);
+    setNannyThinking(true);
 
     try {
+      // Build conversation for the API (role/content pairs)
+      const apiMessages = updatedMessages.map(m => ({
+        role: m.sender_type === 'nanny' ? 'assistant' as const : 'user' as const,
+        content: m.content,
+      }));
+
       const res = await fetch('/api/onboarding-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+        body: JSON.stringify({ messages: apiMessages }),
       });
       const data = await res.json();
 
       if (data.reply) {
-        setOnboardingMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+        const nannyMsg: Message = {
+          id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
+          content: data.reply, message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, nannyMsg]);
         if (data.extracted) setOnboardingExtracted(data.extracted);
 
         if (data.confirmed && data.extracted) {
-          await saveOnboardingFamily(data.extracted);
+          // Include the final nanny reply in the conversation to persist
+          const allMsgs = [...updatedMessages, nannyMsg];
+          await saveOnboardingFamily(data.extracted, allMsgs);
         }
       }
     } catch {
-      setOnboardingMessages([...newMessages, { role: 'assistant', content: 'Ups, hubo un error. ¿Puedes intentar de nuevo?' }]);
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
+        content: 'Ups, hubo un error. ¿Puedes intentar de nuevo?',
+        message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+        created_at: new Date().toISOString(),
+      }]);
     }
-    setOnboardingSending(false);
+    setNannyThinking(false);
     inputRef.current?.focus();
   };
 
   // --- Onboarding: save family ---
-  const saveOnboardingFamily = async (data: OnboardingExtracted) => {
+  const saveOnboardingFamily = async (data: OnboardingExtracted, conversationMsgs: Message[]) => {
     setOnboardingSaving(true);
     try {
       const parentName = data.parent_name || onboardingAuthEmail.split('@')[0] || 'Padre';
@@ -220,6 +244,12 @@ export default function ChatPage() {
         });
       }
 
+      // Build conversation messages for persistence
+      const conversationForApi = conversationMsgs.map(m => ({
+        role: m.sender_type === 'nanny' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -228,6 +258,7 @@ export default function ChatPage() {
           parents: parentsToCreate,
           children: childrenWithDates,
           authUserId: onboardingAuthUserId,
+          conversationMessages: conversationForApi,
         }),
       });
 
@@ -246,20 +277,17 @@ export default function ChatPage() {
         window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank');
       }
 
-      // Success — reload the chat with the new family data
-      setOnboardingMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '¡Perfecto! Tu familia está creada. Cargando el chat...',
-      }]);
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Seamless transition — reload data without page reload
+      setOnboardingMode(false);
+      onboardingInitiated.current = false;
+      await loadData();
     } catch (err) {
       console.error('Save error:', err);
-      setOnboardingMessages(prev => [...prev, {
-        role: 'assistant',
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
         content: 'Hubo un error al crear tu familia. ¿Puedes intentar de nuevo?',
+        message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+        created_at: new Date().toISOString(),
       }]);
       setOnboardingSaving(false);
     }
@@ -485,13 +513,6 @@ export default function ChatPage() {
         processNannyResponse(combinedText, lastMsg);
       }
     }, 3000);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
   };
 
   const handleMedicationConfirm = async (action: 'confirm' | 'reject') => {
@@ -778,21 +799,21 @@ export default function ChatPage() {
     if (!intent) return null;
 
     const badgeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; borderColor: string }> = {
-      EVENT_SCHOOL: { icon: <CalendarDays size={14} />, label: 'Evento escolar', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      EVENT_ACTIVITY: { icon: <CalendarDays size={14} />, label: 'Actividad', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      EVENT_MEDICAL: { icon: <CalendarDays size={14} />, label: 'Cita médica', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      MILESTONE: { icon: <CalendarDays size={14} />, label: 'Fecha importante', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      TASK_SHOPPING: { icon: <ShoppingCart size={14} />, label: 'Compra pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
-      TASK_PAYMENT: { icon: <CreditCard size={14} />, label: 'Pago pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
-      SUPPLY_LOW: { icon: <AlertTriangle size={14} />, label: 'Suministro bajo', color: 'text-orange-600', borderColor: 'border-orange-200' },
-      MEDICATION: { icon: <Pill size={14} />, label: hasPendingMed ? '¿Crear recordatorios?' : 'Tratamiento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      LOGISTICS_PICKUP: { icon: <Car size={14} />, label: 'Recogida asignada', color: 'text-green-600', borderColor: 'border-green-200' },
-      LOGISTICS_TRANSPORT: { icon: <Car size={14} />, label: 'Transporte', color: 'text-green-600', borderColor: 'border-green-200' },
-      SCHEDULE_CHANGE: { icon: <Clock size={14} />, label: 'Cambio de horario', color: 'text-amber-600', borderColor: 'border-amber-200' },
-      HEALTH_LOG: { icon: <Thermometer size={14} />, label: 'Síntoma registrado', color: 'text-amber-600', borderColor: 'border-amber-200' },
+      EVENT_SCHOOL: { icon: <CalendarDays size={16} />, label: 'Evento escolar', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      EVENT_ACTIVITY: { icon: <CalendarDays size={16} />, label: 'Actividad', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      EVENT_MEDICAL: { icon: <CalendarDays size={16} />, label: 'Cita médica', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      MILESTONE: { icon: <CalendarDays size={16} />, label: 'Fecha importante', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      TASK_SHOPPING: { icon: <ShoppingCart size={16} />, label: 'Compra pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
+      TASK_PAYMENT: { icon: <CreditCard size={16} />, label: 'Pago pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
+      SUPPLY_LOW: { icon: <AlertTriangle size={16} />, label: 'Suministro bajo', color: 'text-orange-600', borderColor: 'border-orange-200' },
+      MEDICATION: { icon: <Pill size={16} />, label: hasPendingMed ? '¿Crear recordatorios?' : 'Tratamiento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      LOGISTICS_PICKUP: { icon: <Car size={16} />, label: 'Recogida asignada', color: 'text-green-600', borderColor: 'border-green-200' },
+      LOGISTICS_TRANSPORT: { icon: <Car size={16} />, label: 'Transporte', color: 'text-green-600', borderColor: 'border-green-200' },
+      SCHEDULE_CHANGE: { icon: <Clock size={16} />, label: 'Cambio de horario', color: 'text-amber-600', borderColor: 'border-amber-200' },
+      HEALTH_LOG: { icon: <Thermometer size={16} />, label: 'Síntoma registrado', color: 'text-amber-600', borderColor: 'border-amber-200' },
       // Legacy intents (backward compatibility)
-      EVENT: { icon: <CalendarDays size={14} />, label: 'Evento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      TASK: { icon: <CheckSquare size={14} />, label: 'Tarea registrada', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      EVENT: { icon: <CalendarDays size={16} />, label: 'Evento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
+      TASK: { icon: <CheckSquare size={16} />, label: 'Tarea registrada', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
     };
 
     const config = badgeConfig[intent];
@@ -817,193 +838,74 @@ export default function ChatPage() {
         className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${config.borderColor} w-full hover:opacity-80 transition-opacity`}
       >
         <span className={config.color}>{config.icon}</span>
-        <span className={`text-[11px] font-medium ${config.color}`}>{config.label}</span>
-        {navTarget && <ChevronRight size={12} className={`ml-auto ${config.color} opacity-50`} />}
+        <span className={`text-xs font-medium ${config.color}`}>{config.label}</span>
+        {navTarget && <ChevronRight size={14} className={`ml-auto ${config.color} opacity-50`} />}
       </button>
     );
   };
 
-  // --- ONBOARDING MODE: render chat-like onboarding ---
-  if (onboardingMode) {
-    const onboardingProgress = [
-      { label: 'Nombre', done: !!onboardingExtracted.parent_name },
-      { label: 'Rol', done: !!onboardingExtracted.parent_role },
-      { label: 'Hijos', done: onboardingExtracted.children.length > 0 },
-      { label: 'Familia', done: onboardingExtracted.has_partner !== null },
-    ];
-
-    const handleOnboardingKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendOnboardingMessage();
-      }
-    };
-
-    return (
-      <div className="flex flex-col h-[100dvh]">
-        {/* Header */}
-        <div className="bg-white border-b px-4 py-3 sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
-                <Bot size={16} className="text-white" />
-              </div>
-            </div>
-            <div>
-              <h1 className="font-semibold text-sm">Chat Familiar</h1>
-              <p className="text-[10px] text-[var(--nanny-gray)]">
-                {onboardingSaving ? 'Creando tu familia...' : 'Nanny — Configuración'}
-              </p>
-            </div>
-          </div>
-          {/* Progress */}
-          <div className="flex items-center gap-2 mt-2">
-            {onboardingProgress.map((step, i) => (
-              <div key={step.label} className="flex items-center gap-1">
-                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                  step.done ? 'bg-[var(--nanny-purple)] text-white' : 'bg-gray-200 text-[var(--nanny-gray)]'
-                }`}>
-                  {step.done ? '✓' : i + 1}
-                </div>
-                <span className={`text-[10px] ${step.done ? 'text-[var(--nanny-purple)] font-medium' : 'text-[var(--nanny-gray)]'}`}>
-                  {step.label}
-                </span>
-                {i < onboardingProgress.length - 1 && <div className="w-3 h-px bg-gray-200 mx-0.5" />}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36">
-          {onboardingMessages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up`}>
-              {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center mr-2 mt-5 shrink-0">
-                  <Bot size={14} className="text-white" />
-                </div>
-              )}
-              <div className="max-w-[80%]">
-                {msg.role === 'assistant' && (
-                  <p className="text-[10px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1">
-                    <Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny
-                  </p>
-                )}
-                <div className={msg.role === 'user' ? 'bubble-parent' : 'bubble-nanny'}>
-                  <p className="text-[15px] whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-          {onboardingSending && (
-            <div className="flex justify-start animate-fade-in">
-              <div>
-                <p className="text-[11px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1">
-                  <Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny
-                </p>
-                <div className="bubble-nanny">
-                  <div className="flex gap-1 py-1">
-                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {onboardingSaving && (
-            <div className="flex justify-center">
-              <div className="bg-[var(--nanny-purple-bg)] rounded-2xl px-4 py-3 text-sm text-[var(--nanny-purple)] font-medium animate-pulse">
-                Creando tu familia...
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="chat-input-bar">
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleOnboardingKeyDown}
-              placeholder={onboardingSaving ? 'Espera un momento...' : 'Escribe tu respuesta...'}
-              disabled={onboardingSending || onboardingSaving}
-              className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] disabled:opacity-50"
-            />
-            <button
-              onClick={sendOnboardingMessage}
-              disabled={!input.trim() || onboardingSending || onboardingSaving}
-              className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
-            >
-              <Send size={18} className="text-white ml-0.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 sticky top-0 z-10">
+      <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Participant avatars - stacked */}
             <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
-                <Bot size={16} className="text-white" />
+              <div className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
+                <Bot size={20} className="text-white" />
               </div>
               {parents.map((p, i) => (
                 <div
                   key={p.id}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center ring-2 ring-white ${
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white ${
                     p.id === currentParent ? 'bg-[var(--nanny-purple-bg)]' : 'bg-[var(--nanny-gray-light)]'
                   }`}
                   style={{ zIndex: parents.length - i }}
                 >
-                  <UserIcon size={14} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
+                  <UserIcon size={18} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
                 </div>
               ))}
             </div>
             <div>
-              <h1 className="font-semibold text-sm">Chat Familiar</h1>
-              <p className="text-[10px] text-[var(--nanny-gray)]">
-                Nanny{parents.map(p => `, ${p.name}`).join('')}
+              <h1 className="font-semibold text-base">Chat Familiar</h1>
+              <p className="text-xs text-[var(--nanny-gray)]">
+                {onboardingMode
+                  ? (onboardingSaving ? 'Creando tu familia...' : 'Nanny')
+                  : <>Nanny{parents.map(p => `, ${p.name}`).join('')}</>
+                }
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 relative">
-            <button
-              onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-              className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)] transition-colors"
-            >
-              <MoreVertical size={18} className="text-[var(--nanny-gray)]" />
-            </button>
-            {showHeaderMenu && (
-              <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-[180px] animate-fade-in">
-                <button
-                  onClick={() => { setShowHeaderMenu(false); runCatchup(); }}
-                  disabled={catchingUp || messages.length === 0}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] disabled:opacity-40 text-left"
-                >
-                  <RefreshCw size={15} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
-                  Ponte al d&iacute;a
-                </button>
-              </div>
-            )}
-          </div>
+          {!onboardingMode && (
+            <div className="flex items-center gap-2 relative">
+              <button
+                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)] transition-colors"
+              >
+                <MoreVertical size={20} className="text-[var(--nanny-gray)]" />
+              </button>
+              {showHeaderMenu && (
+                <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-[180px] animate-fade-in">
+                  <button
+                    onClick={() => { setShowHeaderMenu(false); runCatchup(); }}
+                    disabled={catchingUp || messages.length === 0}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] disabled:opacity-40 text-left"
+                  >
+                    <RefreshCw size={16} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
+                    Ponte al d&iacute;a
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {/* Children strip */}
-        {children.length > 0 && (
+        {!onboardingMode && children.length > 0 && (
           <div className="flex gap-2 mt-2 overflow-x-auto">
             {children.map(c => (
-              <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--nanny-gray-light)] rounded-full text-[11px] text-[var(--nanny-gray)] whitespace-nowrap">
-                <span className="w-4 h-4 rounded-full bg-[var(--nanny-purple-light)] flex items-center justify-center text-[8px] font-bold text-white">{c.name.charAt(0)}</span>
+              <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--nanny-gray-light)] rounded-full text-xs text-[var(--nanny-gray)] whitespace-nowrap">
+                <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-light)] flex items-center justify-center text-[10px] font-bold text-white">{c.name.charAt(0)}</span>
                 {c.name}
               </span>
             ))}
@@ -1047,8 +949,8 @@ export default function ChatPage() {
       {/* Push notification prompt */}
       {pushStatus === 'prompt' && (
         <div className="mx-4 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-bg)] rounded-xl px-4 py-3">
-          <Bell size={18} className="text-[var(--nanny-purple)] shrink-0" />
-          <p className="text-xs text-[var(--nanny-purple)] flex-1">
+          <Bell size={20} className="text-[var(--nanny-purple)] shrink-0" />
+          <p className="text-sm text-[var(--nanny-purple)] flex-1">
             Activa las notificaciones para no perderte mensajes
           </p>
           <button
@@ -1117,14 +1019,16 @@ export default function ChatPage() {
 
         {messages.map((msg, idx) => {
           const isNanny = msg.sender_type === 'nanny';
-          const isCurrentParent = msg.sender_id === currentParent;
+          const isCurrentParent = onboardingMode
+            ? msg.sender_type === 'parent'
+            : msg.sender_id === currentParent;
           const senderParent = parents.find(p => p.id === msg.sender_id);
           const isOtherParent = !isNanny && !isCurrentParent;
 
           // Date separator — show if first message or different day from previous
           const msgDate = new Date(msg.created_at).toDateString();
           const prevDate = idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null;
-          const showDateSep = idx === 0 || msgDate !== prevDate;
+          const showDateSep = !onboardingMode && (idx === 0 || msgDate !== prevDate);
           const today = new Date().toDateString();
           const yesterday = new Date(Date.now() - 86400000).toDateString();
           const dateLabel = msgDate === today ? 'Hoy'
@@ -1136,38 +1040,38 @@ export default function ChatPage() {
               {showDateSep && (
                 <div className="flex items-center gap-3 my-4">
                   <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-[10px] text-[var(--nanny-gray)] font-medium uppercase">{dateLabel}</span>
+                  <span className="text-[11px] text-[var(--nanny-gray)] font-medium uppercase">{dateLabel}</span>
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
               )}
               <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
               {/* Avatar circle for other parent */}
               {isOtherParent && (
-                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center mr-2 mt-5 shrink-0">
-                  <UserIcon size={14} className="text-blue-500" />
+                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 mt-5 shrink-0">
+                  <UserIcon size={16} className="text-blue-500" />
                 </div>
               )}
               <div className="max-w-[80%]">
                 {/* Sender label */}
-                <p className={`text-[10px] text-[var(--nanny-gray)] mb-1 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
+                <p className={`text-xs mb-1 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                   {isNanny ? (
-                    <span className="inline-flex items-center gap-1"><Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny</span>
+                    <span className="inline-flex items-center gap-1 text-[var(--nanny-purple)] font-medium"><Bot size={14} /> Nanny</span>
                   ) : (
-                    <span className="inline-flex items-center gap-1"><UserIcon size={11} /> {senderParent?.name || currentParentObj?.name}</span>
+                    <span className="inline-flex items-center gap-1 text-[var(--nanny-gray)]"><UserIcon size={14} /> {senderParent?.name || currentParentObj?.name || 'Tú'}</span>
                   )}
                 </p>
                 <div className={
                   isNanny ? 'bubble-nanny' :
                   isCurrentParent ? 'bubble-parent' : 'bubble-other-parent'
                 }>
-                  <p className="text-[15px] whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-[16px] whitespace-pre-wrap">{msg.content}</p>
                   {/* Intent badges */}
                   {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm)}
                   {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
                     <div className="mt-3 pt-2 border-t border-[var(--nanny-purple-light)]">
                       <div className="flex items-center gap-1.5 mb-2">
-                        <Pill size={14} className="text-[var(--nanny-purple)]" />
-                        <span className="text-[11px] font-medium text-[var(--nanny-purple)]">¿Crear recordatorios?</span>
+                        <Pill size={16} className="text-[var(--nanny-purple)]" />
+                        <span className="text-xs font-medium text-[var(--nanny-purple)]">¿Crear recordatorios?</span>
                       </div>
                       {/* Time editor */}
                       {editingMedTimes && (
@@ -1241,11 +1145,11 @@ export default function ChatPage() {
                   )}
                 </div>
                 {/* Feedback buttons for Nanny messages */}
-                {isNanny && (
+                {isNanny && !onboardingMode && (
                   <div className="flex gap-2 mt-1 ml-1">
                     {feedbackGiven[msg.id] ? (
-                      <span className="text-[11px] text-[var(--nanny-gray)] inline-flex items-center gap-1">
-                        {feedbackGiven[msg.id] === 'up' ? <><ThumbsUp size={10} /> Gracias</> : <><ThumbsDown size={10} /> Anotado</>}
+                      <span className="text-xs text-[var(--nanny-gray)] inline-flex items-center gap-1">
+                        {feedbackGiven[msg.id] === 'up' ? <><ThumbsUp size={12} /> Gracias</> : <><ThumbsDown size={12} /> Anotado</>}
                       </span>
                     ) : (
                       <>
@@ -1253,23 +1157,23 @@ export default function ChatPage() {
                           onClick={() => handleFeedback(msg.id, true)}
                           className="text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors"
                         >
-                          <ThumbsUp size={12} />
+                          <ThumbsUp size={14} />
                         </button>
                         <button
                           onClick={() => handleFeedback(msg.id, false)}
                           className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)] transition-colors"
                         >
-                          <ThumbsDown size={12} />
+                          <ThumbsDown size={14} />
                         </button>
                       </>
                     )}
-                    <span className="text-[11px] text-[var(--nanny-gray)]">
+                    <span className="text-xs text-[var(--nanny-gray)]">
                       {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 )}
-                {!isNanny && (
-                  <p className={`text-[11px] text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
+                {!isNanny && !onboardingMode && (
+                  <p className={`text-xs text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                     {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -1281,12 +1185,12 @@ export default function ChatPage() {
         {nannyThinking && (
           <div className="flex justify-start animate-fade-in">
             <div>
-              <p className="text-[11px] text-[var(--nanny-gray)] mb-1 ml-1 inline-flex items-center gap-1"><Bot size={11} className="text-[var(--nanny-purple)]" /> Nanny</p>
+              <p className="text-xs mb-1 ml-1 inline-flex items-center gap-1 text-[var(--nanny-purple)] font-medium"><Bot size={14} /> Nanny</p>
               <div className="bubble-nanny">
-                <div className="flex gap-1 py-1">
-                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex gap-1.5 py-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -1303,16 +1207,22 @@ export default function ChatPage() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Escribe un mensaje..."
-            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onboardingMode ? sendOnboardingMessage() : sendMessage();
+              }
+            }}
+            placeholder={onboardingMode && onboardingSaving ? 'Espera un momento...' : 'Escribe un mensaje...'}
+            disabled={onboardingMode && (onboardingSending || onboardingSaving)}
+            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] disabled:opacity-50"
           />
           <button
-            onClick={sendMessage}
-            disabled={!input.trim()}
-            className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
+            onClick={onboardingMode ? sendOnboardingMessage : sendMessage}
+            disabled={!input.trim() || (onboardingMode && (onboardingSending || onboardingSaving))}
+            className="w-12 h-12 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
           >
-            <Send size={18} className="text-white ml-0.5" />
+            <Send size={20} className="text-white ml-0.5" />
           </button>
         </div>
       </div>

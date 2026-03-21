@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
-    const { familyName, parents, children, authUserId } = await req.json();
+    const body = await req.json();
+    const { familyName, parents, children, authUserId, conversationMessages } = body;
 
     if (!parents?.length || !children?.length) {
       return NextResponse.json({ error: 'Se necesita al menos un padre y un hijo' }, { status: 400 });
@@ -79,16 +80,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Error al crear hijos: ' + childErr.message }, { status: 500 });
     }
 
-    // Create welcome message from Nanny
-    const childNames = createdChildren?.map((c: { name: string }) => c.name).join(' y ') || 'tus hijos';
-    await supabase.from('messages').insert({
-      family_id: family.id,
-      sender_id: null,
-      sender_type: 'nanny',
-      content: `¡Hola familia! 👋 Soy Nanny, su asistente. Ya conozco a ${childNames}. Escriban aquí como normalmente se coordinan — yo detecto citas, tareas y les ayudo a organizarse. ¿En qué puedo ayudarles?`,
-      message_type: 'text',
-      metadata: { intent: 'CHAT' },
-    });
+    // Persist onboarding conversation messages if provided
+    const primaryParent = createdParents?.[0];
+
+    if (Array.isArray(conversationMessages) && conversationMessages.length > 0) {
+      const baseTime = new Date();
+      baseTime.setMinutes(baseTime.getMinutes() - conversationMessages.length);
+
+      const messageInserts = conversationMessages.map((msg: { role: string; content: string }, i: number) => {
+        const msgTime = new Date(baseTime.getTime() + i * 60000);
+        return {
+          family_id: family.id,
+          sender_id: msg.role === 'user' ? (primaryParent?.id || null) : null,
+          sender_type: msg.role === 'user' ? 'parent' : 'nanny',
+          content: msg.content,
+          message_type: 'text',
+          metadata: { intent: 'CHAT', onboarding: true },
+          created_at: msgTime.toISOString(),
+        };
+      });
+
+      await supabase.from('messages').insert(messageInserts);
+    } else {
+      // Fallback: create a single welcome message if no conversation provided
+      const childNames = createdChildren?.map((c: { name: string }) => c.name).join(' y ') || 'tus hijos';
+      await supabase.from('messages').insert({
+        family_id: family.id,
+        sender_id: null,
+        sender_type: 'nanny',
+        content: `¡Hola familia! 👋 Soy Nanny, su asistente. Ya conozco a ${childNames}. Escriban aquí como normalmente se coordinan — yo detecto citas, tareas y les ayudo a organizarse. ¿En qué puedo ayudarles?`,
+        message_type: 'text',
+        metadata: { intent: 'CHAT' },
+      });
+    }
 
     return NextResponse.json({
       success: true,
