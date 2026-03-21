@@ -2,17 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, X, CheckSquare, CalendarDays, User as UserIcon } from 'lucide-react';
-import { getEvents, getChildren, getTasks, getMedications, getParents, completeTask } from '@/lib/store';
+import { getEvents, getChildren, getTasks, getMedications, getParents, completeTask, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Child, Task, Medication, Parent } from '@/lib/types';
 
 type DetailItem = { type: 'event'; item: FamilyEvent } | { type: 'task'; item: Task } | null;
 
 export default function SemanaPage() {
-  const [events, setEvents] = useState<FamilyEvent[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [parents, setParents] = useState<Parent[]>([]);
+  const _snap = getCachedSnapshot();
+  const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
+  const [children, setChildren] = useState<Child[]>(_snap?.children || []);
+  const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
+  const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailItem>(null);

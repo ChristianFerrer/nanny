@@ -2,20 +2,32 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon } from 'lucide-react';
-import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications } from '@/lib/store';
+import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
 type ModalType = null | 'event' | 'task';
 type DetailItem = { type: 'event'; item: FamilyEvent } | { type: 'task'; item: Task } | null;
 
 export default function HoyPage() {
-  const [todayEvents, setTodayEvents] = useState<FamilyEvent[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<FamilyEvent[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [parents, setParents] = useState<Parent[]>([]);
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [familyId, setFamilyId] = useState('');
+  const _snap = getCachedSnapshot();
+  const [todayEvents, setTodayEvents] = useState<FamilyEvent[]>(() => {
+    if (!_snap) return [];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    return _snap.events.filter(e => { const d = new Date(e.date_start); return d >= today && d < tomorrow; });
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState<FamilyEvent[]>(() => {
+    if (!_snap) return [];
+    const now = new Date(); const end = new Date(); end.setDate(end.getDate() + 3);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    return _snap.events.filter(e => { const d = new Date(e.date_start); return d >= now && d <= end && d >= tomorrow; });
+  });
+  const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
+  const [children, setChildren] = useState<Child[]>(_snap?.children || []);
+  const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
+  const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [familyId, setFamilyId] = useState(_snap?.family?.id || '');
   const [showFab, setShowFab] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
   const [detail, setDetail] = useState<DetailItem>(null);

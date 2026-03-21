@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
@@ -93,15 +93,17 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
 
 export default function ChatPage() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [parents, setParents] = useState<Parent[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [events, setEvents] = useState<FamilyEvent[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [familyId, setFamilyId] = useState<string>('');
+  // Initialize from cache to avoid flash on revisit
+  const _snap = getCachedSnapshot();
+  const [messages, setMessages] = useState<Message[]>(_snap?.messages || []);
+  const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
+  const [children, setChildren] = useState<Child[]>(_snap?.children || []);
+  const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
+  const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
+  const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [familyId, setFamilyId] = useState<string>(_snap?.family?.id || '');
   const [input, setInput] = useState('');
-  const [currentParent, setCurrentParent] = useState<string>('');
+  const [currentParent, setCurrentParent] = useState<string>(_snap?.currentParentId || '');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
   const [toast, setToast] = useState<{ text: string; href: string } | null>(null);
@@ -121,7 +123,7 @@ export default function ChatPage() {
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
   const [nannyWaiting, setNannyWaiting] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(!!_snap);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   // --- Onboarding state ---
   const [onboardingMode, setOnboardingMode] = useState(false);
@@ -144,22 +146,25 @@ export default function ChatPage() {
 
   const loadData = useCallback(async () => {
     try {
-      // First check auth
-      const { data: { user } } = await getSupabase().auth.getUser();
-      if (!user) { window.location.href = '/login'; return; }
+      // Fast path: if we already have family data cached, skip auth checks
+      const cachedFamily = getCachedFamilyId();
+      if (!cachedFamily) {
+        // First load — check auth
+        const { data: { user } } = await getSupabase().auth.getUser();
+        if (!user) { window.location.href = '/login'; return; }
 
-      // Check if user has a family (safe call, doesn't throw)
-      const familyExists = await hasFamily();
-      if (!familyExists) {
-        // No family yet — enter onboarding mode
-        setOnboardingMode(true);
-        setDataLoaded(true);
-        setOnboardingAuthUserId(user.id);
-        setOnboardingAuthEmail(user.email || '');
-        return;
+        // Check if user has a family (safe call, doesn't throw)
+        const familyExists = await hasFamily();
+        if (!familyExists) {
+          setOnboardingMode(true);
+          setDataLoaded(true);
+          setOnboardingAuthUserId(user.id);
+          setOnboardingAuthEmail(user.email || '');
+          return;
+        }
       }
 
-      // Family exists — load all data
+      // Family exists — load all data (hits cache if fresh)
       const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
         getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
       ]);

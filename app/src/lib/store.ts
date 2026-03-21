@@ -38,10 +38,13 @@ export function subscribe(fn: () => void) {
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
+// Tables that change too frequently to cache
+const NO_CACHE_TABLES = new Set(['messages']);
+
 // Fetch family data from server API (bypasses RLS)
 async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown>> {
-  // Check cache for single-table requests
-  if (tables.length === 1) {
+  // Check cache for single-table requests (skip volatile tables)
+  if (tables.length === 1 && !NO_CACHE_TABLES.has(tables[0])) {
     const cached = getCached(tables[0]);
     if (cached) return cached as Record<string, unknown>;
   }
@@ -52,9 +55,11 @@ async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown
   if (data.familyId) _currentFamilyId = data.familyId;
   if (data.currentParentId) _currentParentId = data.currentParentId;
 
-  // Cache each table individually
+  // Cache each table individually (except volatile ones)
   for (const table of tables) {
-    setCache(table, data);
+    if (!NO_CACHE_TABLES.has(table)) {
+      setCache(table, data);
+    }
   }
   return data;
 }
@@ -99,6 +104,42 @@ export async function hasFamily(): Promise<boolean> {
 // Get the current authenticated user's parent ID
 export function getCurrentParentId(): string | null {
   return _currentParentId;
+}
+
+// Check if we already know the family (avoids redundant auth checks)
+export function getCachedFamilyId(): string | null {
+  return _currentFamilyId;
+}
+
+// Synchronous snapshot of cached data — used to initialize state without flash
+export function getCachedSnapshot(): {
+  family: Family | null;
+  parents: Parent[];
+  children: Child[];
+  events: FamilyEvent[];
+  tasks: Task[];
+  medications: Medication[];
+  messages: Message[];
+  currentParentId: string | null;
+} | null {
+  if (!_currentFamilyId) return null;
+  const fam = getCached('family') as Record<string, unknown> | null;
+  const prts = getCached('parents') as Record<string, unknown> | null;
+  const chld = getCached('children') as Record<string, unknown> | null;
+  const evts = getCached('events') as Record<string, unknown> | null;
+  const tsks = getCached('tasks') as Record<string, unknown> | null;
+  const meds = getCached('medications') as Record<string, unknown> | null;
+  if (!fam) return null;
+  return {
+    family: (fam.family as Family) || null,
+    parents: (prts?.parents as Parent[]) || [],
+    children: (chld?.children as Child[]) || [],
+    events: (evts?.events as FamilyEvent[]) || [],
+    tasks: (tsks?.tasks as Task[]) || [],
+    medications: (meds?.medications as Medication[]) || [],
+    messages: [], // messages are not cached
+    currentParentId: _currentParentId,
+  };
 }
 
 // Reset cached family when user logs out or switches
