@@ -112,15 +112,15 @@ select {
   max-width: 430px;
   background: white;
   border-top: 1px solid #E5E7EB;
-  padding: 8px 0 0;
-  padding-bottom: env(safe-area-inset-bottom, 12px);
+  padding: 4px 0 0;
+  padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 8px);
   z-index: 50;
 }
 
 /* ─── Chat input bar ─── */
 .chat-input-bar {
   position: fixed;
-  bottom: calc(56px + env(safe-area-inset-bottom, 12px));
+  bottom: calc(64px + env(safe-area-inset-bottom, 12px) + 8px);
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
