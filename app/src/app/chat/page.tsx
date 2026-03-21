@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ShoppingCart, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -120,8 +120,12 @@ export default function ChatPage() {
   } | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
+  const [nannyWaiting, setNannyWaiting] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   // --- Onboarding state ---
   const [onboardingMode, setOnboardingMode] = useState(false);
   const [onboardingExtracted, setOnboardingExtracted] = useState<OnboardingExtracted>({
@@ -188,6 +192,23 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // --- Header auto-hide on scroll (like WhatsApp) ---
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const currentY = container.scrollTop;
+      if (currentY > lastScrollY.current && currentY > 60) {
+        setHeaderVisible(false);
+      } else {
+        setHeaderVisible(true);
+      }
+      lastScrollY.current = currentY;
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
 
   // --- Onboarding: start conversation ---
   useEffect(() => {
@@ -571,10 +592,14 @@ export default function ChatPage() {
       currentParent
     );
 
-    // Buffer: acumular mensajes del mismo sender por 3 segundos
+    // Buffer: acumular mensajes del mismo sender por 8 segundos
     // Esto evita procesar cada mensaje por separado cuando el padre envía varios seguidos
+    // (ej: "separar local" + "invitar amiguitos" + "comprar mono" → una sola respuesta)
     bufferedTextsRef.current.push(text);
     lastParentMsgRef.current = parentMsg;
+
+    // Show "waiting" indicator while buffering
+    setNannyWaiting(true);
 
     if (bufferTimerRef.current) {
       clearTimeout(bufferTimerRef.current);
@@ -586,11 +611,12 @@ export default function ChatPage() {
       bufferedTextsRef.current = [];
       lastParentMsgRef.current = null;
       bufferTimerRef.current = null;
+      setNannyWaiting(false);
 
       if (lastMsg) {
         processNannyResponse(combinedText, lastMsg);
       }
-    }, 3000);
+    }, 8000);
   };
 
   const handleMedicationConfirm = async (action: 'confirm' | 'reject') => {
@@ -881,7 +907,7 @@ export default function ChatPage() {
       EVENT_ACTIVITY: { icon: <CalendarDays size={16} />, label: 'Actividad', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
       EVENT_MEDICAL: { icon: <CalendarDays size={16} />, label: 'Cita médica', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
       MILESTONE: { icon: <CalendarDays size={16} />, label: 'Fecha importante', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
-      TASK_SHOPPING: { icon: <ShoppingCart size={16} />, label: 'Compra pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
+      TASK_SHOPPING: { icon: <ListChecks size={16} />, label: 'Tarea pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
       TASK_PAYMENT: { icon: <CreditCard size={16} />, label: 'Pago pendiente', color: 'text-blue-600', borderColor: 'border-blue-200' },
       SUPPLY_LOW: { icon: <AlertTriangle size={16} />, label: 'Suministro bajo', color: 'text-orange-600', borderColor: 'border-orange-200' },
       MEDICATION: { icon: <Pill size={16} />, label: hasPendingMed ? '¿Crear recordatorios?' : 'Tratamiento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
@@ -925,7 +951,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-[100dvh]">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
+      <div className={`bg-white border-b px-4 py-4 shrink-0 z-10 transition-all duration-300 overflow-hidden ${headerVisible ? 'max-h-40 opacity-100' : 'max-h-0 py-0 opacity-0 border-b-0'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Participant avatars - stacked */}
@@ -1064,7 +1090,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-36" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
@@ -1274,6 +1300,13 @@ export default function ChatPage() {
             </div>
           );
         })}
+        {nannyWaiting && !nannyThinking && (
+          <div className="flex justify-center animate-fade-in">
+            <p className="text-xs text-[var(--nanny-gray)] bg-[var(--nanny-gray-light)] rounded-full px-3 py-1">
+              Puedes seguir escribiendo...
+            </p>
+          </div>
+        )}
         {nannyThinking && (
           <div className="flex justify-start animate-fade-in">
             <div>
