@@ -295,6 +295,10 @@ export interface ValidatedNannyResponse {
     type: 'event' | 'task' | 'medication';
     data: Record<string, unknown>;
   } | null;
+  additional_confirmations: {
+    type: 'event' | 'task' | 'medication';
+    data: Record<string, unknown>;
+  }[];
   pending_detection: {
     type: string;
     partial_data: Record<string, unknown>;
@@ -370,6 +374,7 @@ export function validateNannyResponse(
     next_action: nextAction,
     child: (raw.child as string) || null,
     confirmation: confirmation as ValidatedNannyResponse['confirmation'],
+    additional_confirmations: (Array.isArray(raw.additional_confirmations) ? raw.additional_confirmations : []) as ValidatedNannyResponse['additional_confirmations'],
     pending_detection: (raw.pending_detection as ValidatedNannyResponse['pending_detection']) || null,
     validation_warnings: allWarnings,
   };

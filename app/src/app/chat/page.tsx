@@ -524,8 +524,60 @@ export default function ChatPage() {
           }
         }
 
+        // Handle additional_confirmations for batch task/event creation
+        if (data.additional_confirmations && Array.isArray(data.additional_confirmations)) {
+          for (const extraConf of data.additional_confirmations) {
+            try {
+              if (extraConf.type === 'task' && extraConf.data?.title) {
+                const newTask = await addTask({
+                  family_id: familyId, child_id: null,
+                  title: extraConf.data.title as string, description: null,
+                  assigned_to: (extraConf.data.assigned_to as string) || null,
+                  due_date: (extraConf.data.due_date as string) || null,
+                  status: 'pending', priority: 'normal', source: 'chat',
+                  auto_detected: true, created_by: currentParent, completed_at: null,
+                });
+                setTasks(prev => [...prev, newTask]);
+              } else if (extraConf.type === 'event' && extraConf.data?.title) {
+                const newEvent = await addEvent({
+                  family_id: familyId, child_id: null,
+                  title: extraConf.data.title as string,
+                  description: (extraConf.data.date_description as string) || null,
+                  event_type: (extraConf.data.event_type as string) || 'other',
+                  date_start: extraConf.data.date_start as string, date_end: null,
+                  location: (extraConf.data.location as string) || null,
+                  status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
+                });
+                setEvents(prev => [...prev, newEvent]);
+              }
+            } catch {
+              console.error('Failed to create additional confirmation');
+            }
+          }
+        }
+
         if (data.pending_detection && data.pending_detection.type) {
-          setPendingDetection(data.pending_detection);
+          // Auto-create tasks from pending_detection — tasks don't need confirmation
+          if (data.pending_detection.type === 'task' && data.pending_detection.partial_data?.title) {
+            try {
+              const pd = data.pending_detection.partial_data;
+              const newTask = await addTask({
+                family_id: familyId, child_id: null,
+                title: pd.title as string, description: null,
+                assigned_to: (pd.assigned_to as string) || null,
+                due_date: (pd.due_date as string) || null,
+                status: 'pending', priority: 'normal', source: 'chat',
+                auto_detected: true, created_by: currentParent, completed_at: null,
+              });
+              setTasks(prev => [...prev, newTask]);
+              showToast(`Tarea creada: ${pd.title}`, '/hoy');
+            } catch {
+              console.error('Failed to auto-create task from pending_detection');
+            }
+            // Don't keep task pending_detection — already created
+          } else {
+            setPendingDetection(data.pending_detection);
+          }
         } else if (data.confirmation) {
           setPendingDetection(null);
         }
@@ -949,9 +1001,9 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh]">
+    <div className="flex flex-col h-[100dvh] overflow-hidden">
       {/* Header */}
-      <div className={`bg-white border-b px-4 py-4 shrink-0 z-10 transition-all duration-300 overflow-hidden ${headerVisible ? 'max-h-40 opacity-100' : 'max-h-0 py-0 opacity-0 border-b-0'}`}>
+      <div className={`bg-white border-b px-4 py-4 shrink-0 z-10 transition-[margin-top] duration-300 ease-in-out ${headerVisible ? '' : '-mt-40'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Participant avatars - stacked */}
