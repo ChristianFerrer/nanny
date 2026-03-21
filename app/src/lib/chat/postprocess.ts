@@ -28,6 +28,9 @@ export function postProcessResponse(input: PostProcessInput): ChatResponse {
   // 2. Validate against false positives
   response = validateConfirmation(response, input);
 
+  // 3. Ensure additional_confirmations passes through
+  response.additional_confirmations = response.additional_confirmations || [];
+
   return response;
 }
 

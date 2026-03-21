@@ -28,6 +28,7 @@ export interface ExtractorOutput {
   next_action: string;
   child: string | null;
   confirmation: { type: string; data: Record<string, unknown> } | null;
+  additional_confirmations: { type: string; data: Record<string, unknown> }[];
   pending_detection: { type: string; partial_data: Record<string, unknown>; missing: string[]; summary: string } | null;
 }
 
@@ -84,6 +85,9 @@ REGLAS DE EXTRACCIÓN:
 
 7. REPLY: Máximo 3 oraciones. Confirma lo detectado + pregunta SOLO datos faltantes.
 
+8. TAREAS Y COMPRAS: Crea la tarea INMEDIATAMENTE con confirmation, incluso sin assigned_to (déjalo null). NO uses pending_detection para tareas.
+   Si el mensaje contiene VARIAS tareas/compras, pon la primera en "confirmation" y las demás en "additional_confirmations".
+
 FORMATO DE RESPUESTA (solo JSON puro):
 {
   "reply": "mensaje de Nanny",
@@ -98,6 +102,7 @@ FORMATO DE RESPUESTA (solo JSON puro):
       // medication: medication_name, duration_days, start_date, end_date, frequency, schedule_times
     }
   },
+  "additional_confirmations": [],
   "pending_detection": null o {
     "type": "event|task|medication",
     "partial_data": {},
@@ -145,7 +150,11 @@ export async function extractData(
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    return {
+      ...parsed,
+      additional_confirmations: Array.isArray(parsed.additional_confirmations) ? parsed.additional_confirmations : [],
+    };
   } catch {
     return {
       reply: content,
@@ -153,6 +162,7 @@ export async function extractData(
       next_action: 'stay_silent',
       child: null,
       confirmation: null,
+      additional_confirmations: [],
       pending_detection: null,
     };
   }

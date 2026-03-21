@@ -467,6 +467,7 @@ export interface ChatResponse {
   next_action: string;
   child: string | null;
   confirmation: { type: string; data: Record<string, unknown> } | null;
+  additional_confirmations: { type: string; data: Record<string, unknown> }[];
   pending_detection: { type: string; partial_data: Record<string, unknown>; missing: string[]; summary: string } | null;
 }
 
@@ -547,7 +548,11 @@ export async function processChatLegacy(input: ChatInput): Promise<ChatResponse>
   }
 
   try {
-    return JSON.parse(cleanContent);
+    const parsed = JSON.parse(cleanContent);
+    return {
+      ...parsed,
+      additional_confirmations: Array.isArray(parsed.additional_confirmations) ? parsed.additional_confirmations : [],
+    };
   } catch {
     return {
       should_respond: true,
@@ -556,6 +561,7 @@ export async function processChatLegacy(input: ChatInput): Promise<ChatResponse>
       next_action: 'stay_silent',
       child: null,
       confirmation: null,
+      additional_confirmations: [],
       pending_detection: null,
     };
   }

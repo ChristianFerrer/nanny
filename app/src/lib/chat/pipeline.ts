@@ -122,6 +122,7 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
         next_action: 'stay_silent',
         child: null,
         confirmation: null,
+        additional_confirmations: [],
         pending_detection: null,
       };
     }
@@ -144,6 +145,7 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
       next_action: 'stay_silent',
       child: null,
       confirmation: null,
+      additional_confirmations: [],
       pending_detection: null,
     };
   }
@@ -192,6 +194,7 @@ async function runExtraction(
     next_action: extracted.next_action || 'stay_silent',
     child: extracted.child || null,
     confirmation: extracted.confirmation || null,
+    additional_confirmations: extracted.additional_confirmations || [],
     pending_detection: extracted.pending_detection || null,
   };
 
