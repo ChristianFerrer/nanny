@@ -141,39 +141,66 @@ export default function ChatPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
 
-  // Mark chat page on body so global CSS can adjust
+  // Mark chat page + lock body to prevent iOS viewport scroll
   useEffect(() => {
     document.body.setAttribute('data-page', 'chat');
-    return () => { document.body.removeAttribute('data-page'); };
+    // Lock body position to prevent iOS from scrolling the layout viewport
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.position = 'fixed';
+    html.style.width = '100%';
+    html.style.height = '100%';
+    html.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.width = '100%';
+    body.style.height = '100%';
+    body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.removeAttribute('data-page');
+      html.style.position = '';
+      html.style.width = '';
+      html.style.height = '';
+      html.style.overflow = '';
+      body.style.position = '';
+      body.style.width = '';
+      body.style.height = '';
+      body.style.overflow = '';
+    };
   }, []);
 
-  // iOS PWA keyboard fix: set container height directly via DOM ref
-  // Using position:fixed so iOS cannot auto-scroll the container when keyboard opens
+  // iOS PWA keyboard fix: position container at the visual viewport
+  // On iOS, the layout viewport scrolls when keyboard opens but the visual viewport
+  // stays where the user can see. We follow the visual viewport with offsetTop + height.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    function updateHeight() {
+    function updateLayout() {
       const vv = window.visualViewport;
-      const h = vv ? vv.height : window.innerHeight;
-      el!.style.height = `${h}px`;
+      if (vv) {
+        el!.style.height = `${vv.height}px`;
+        el!.style.top = `${vv.offsetTop}px`;
+      } else {
+        el!.style.height = `${window.innerHeight}px`;
+        el!.style.top = '0px';
+      }
     }
 
-    // Listen to both visualViewport and window resize as fallback
     const vv = window.visualViewport;
     if (vv) {
-      vv.addEventListener('resize', updateHeight);
-      vv.addEventListener('scroll', updateHeight);
+      vv.addEventListener('resize', updateLayout);
+      vv.addEventListener('scroll', updateLayout);
     }
-    window.addEventListener('resize', updateHeight);
-    updateHeight();
+    window.addEventListener('resize', updateLayout);
+    updateLayout();
 
     return () => {
       if (vv) {
-        vv.removeEventListener('resize', updateHeight);
-        vv.removeEventListener('scroll', updateHeight);
+        vv.removeEventListener('resize', updateLayout);
+        vv.removeEventListener('scroll', updateLayout);
       }
-      window.removeEventListener('resize', updateHeight);
+      window.removeEventListener('resize', updateLayout);
     };
   }, []);
 
