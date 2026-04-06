@@ -11,6 +11,7 @@
   --nanny-gray: #6B7280;
   --nanny-gray-light: #F3F4F6;
   --nanny-bg: #FAFAFA;
+  --nav-h: calc(64px + env(safe-area-inset-bottom, 12px) + 20px);
 }
 
 @theme inline {

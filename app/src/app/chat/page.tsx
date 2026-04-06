@@ -139,52 +139,28 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // WhatsApp-style keyboard handling: resize container to visual viewport
+  // Hide bottom nav when input is focused (keyboard open)
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    let wasKeyboardVisible = false;
-
-    const onResize = () => {
-      const el = containerRef.current;
-      if (!el) return;
-
-      const keyboardVisible = vv.height < window.innerHeight * 0.80;
-
-      if (keyboardVisible) {
-        // Keyboard open: fill visual viewport, hide bottom nav
-        el.style.height = `${vv.height}px`;
-        el.style.paddingBottom = '0px';
-        document.body.setAttribute('data-keyboard', 'open');
-      } else {
-        // Keyboard closed: restore layout
-        el.style.height = '';
-        el.style.paddingBottom = '';
-        document.body.removeAttribute('data-keyboard');
-      }
-
-      // Scroll to bottom on keyboard state change
-      if (keyboardVisible !== wasKeyboardVisible) {
-        wasKeyboardVisible = keyboardVisible;
-        requestAnimationFrame(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-        });
-      }
+    const onFocus = () => {
+      document.body.setAttribute('data-keyboard', 'open');
+      // Scroll to latest message after keyboard opens
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 300);
     };
-
-    const onScroll = () => {
-      // Prevent iOS from scrolling the page behind the fixed container
-      window.scrollTo(0, 0);
+    const onBlur = () => {
+      document.body.removeAttribute('data-keyboard');
     };
-
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onScroll);
+    const input = inputRef.current;
+    if (input) {
+      input.addEventListener('focus', onFocus);
+      input.addEventListener('blur', onBlur);
+    }
     return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onScroll);
+      if (input) {
+        input.removeEventListener('focus', onFocus);
+        input.removeEventListener('blur', onBlur);
+      }
       document.body.removeAttribute('data-keyboard');
     };
   }, []);
@@ -1042,7 +1018,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div ref={containerRef} className="fixed inset-0 flex flex-col bg-[var(--nanny-bg)]" style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 12px) + 20px)', maxWidth: '430px', margin: '0 auto' }}>
+    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: 'calc(100dvh - var(--nav-h, 84px))', overflow: 'hidden' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
