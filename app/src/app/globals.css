@@ -52,6 +52,12 @@ main {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Chat page: main doesn't need scroll or extra padding */
+body[data-page="chat"] main {
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+
 /* ─── Standard input field ─── */
 input[type="text"],
 input[type="email"],

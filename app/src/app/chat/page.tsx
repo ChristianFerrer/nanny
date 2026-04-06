@@ -139,11 +139,16 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
+  // Mark chat page on body so main doesn't add extra padding
+  useEffect(() => {
+    document.body.setAttribute('data-page', 'chat');
+    return () => { document.body.removeAttribute('data-page'); };
+  }, []);
+
   // Hide bottom nav when input is focused (keyboard open)
   useEffect(() => {
     const onFocus = () => {
       document.body.setAttribute('data-keyboard', 'open');
-      // Scroll to latest message after keyboard opens
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
       }, 300);
@@ -1018,7 +1023,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: 'calc(100dvh - var(--nav-h, 84px))', overflow: 'hidden' }}>
+    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: '100dvh', paddingBottom: 'var(--nav-h, 84px)', overflow: 'hidden' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
@@ -1398,7 +1403,10 @@ export default function ChatPage() {
             </button>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <form className="flex items-center gap-2" onSubmit={(e) => {
+          e.preventDefault();
+          onboardingMode ? sendOnboardingMessage() : sendMessage();
+        }}>
           <input
             ref={inputRef}
             type="text"
@@ -1406,24 +1414,18 @@ export default function ChatPage() {
             autoComplete="off"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                onboardingMode ? sendOnboardingMessage() : sendMessage();
-              }
-            }}
             placeholder={onboardingMode && onboardingSaving ? 'Espera un momento...' : 'Escribe un mensaje...'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
             className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-1 focus:ring-[var(--nanny-purple-light)]/40 disabled:opacity-50"
           />
           <button
-            onClick={onboardingMode ? sendOnboardingMessage : sendMessage}
+            type="submit"
             disabled={!input.trim() || (onboardingMode && (onboardingSending || onboardingSaving))}
             className="w-12 h-12 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
           >
             <Send size={20} className="text-white ml-0.5" />
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
