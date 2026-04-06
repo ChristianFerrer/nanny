@@ -52,9 +52,8 @@ main {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Chat page: main doesn't need scroll or extra padding */
+/* Chat page: no extra padding, allow iOS keyboard scroll */
 body[data-page="chat"] main {
-  overflow: hidden;
   padding-bottom: 0 !important;
 }
 

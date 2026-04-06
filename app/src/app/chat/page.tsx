@@ -1023,7 +1023,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: '100dvh', paddingBottom: 'var(--nav-h, 84px)', overflow: 'hidden' }}>
+    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: '100dvh', paddingBottom: 'var(--nav-h, 84px)' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
