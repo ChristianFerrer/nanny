@@ -141,17 +141,37 @@ export default function ChatPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
 
+  // iOS focus hack: translate input off-screen before focus so iOS has nothing to scroll to
+  const focusWithoutScroll = useCallback(() => {
+    const el = inputRef.current;
+    if (!el || document.activeElement === el) return;
+    el.style.transform = 'translateY(-8000px)';
+    el.focus();
+    requestAnimationFrame(() => {
+      el.style.transform = 'none';
+    });
+  }, []);
+
+  // Intercept touch on input to apply the focus hack before iOS can scroll
+  const handleInputTouchEnd = useCallback((e: React.TouchEvent) => {
+    const el = inputRef.current;
+    if (!el || document.activeElement === el) return;
+    e.preventDefault();
+    focusWithoutScroll();
+  }, [focusWithoutScroll]);
+
   // Mark chat page + lock body to prevent iOS viewport scroll
   useEffect(() => {
     document.body.setAttribute('data-page', 'chat');
-    // Lock body position to prevent iOS from scrolling the layout viewport
     const html = document.documentElement;
     const body = document.body;
     html.style.position = 'fixed';
+    html.style.top = '0';
     html.style.width = '100%';
     html.style.height = '100%';
     html.style.overflow = 'hidden';
     body.style.position = 'fixed';
+    body.style.top = '0';
     body.style.width = '100%';
     body.style.height = '100%';
     body.style.overflow = 'hidden';
@@ -159,25 +179,28 @@ export default function ChatPage() {
     return () => {
       document.body.removeAttribute('data-page');
       html.style.position = '';
+      html.style.top = '';
       html.style.width = '';
       html.style.height = '';
       html.style.overflow = '';
       body.style.position = '';
+      body.style.top = '';
       body.style.width = '';
       body.style.height = '';
       body.style.overflow = '';
     };
   }, []);
 
-  // iOS PWA keyboard fix: position container at the visual viewport
-  // On iOS, the layout viewport scrolls when keyboard opens but the visual viewport
-  // stays where the user can see. We follow the visual viewport with offsetTop + height.
+  // iOS PWA keyboard fix: pin container to the visual viewport
+  // On every resize/scroll, reset window scroll to 0 and match container to visual viewport
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     function updateLayout() {
       const vv = window.visualViewport;
+      // Force iOS back to top — undo any layout viewport scroll
+      window.scrollTo(0, 0);
       if (vv) {
         el!.style.height = `${vv.height}px`;
         el!.style.top = `${vv.offsetTop}px`;
@@ -373,7 +396,7 @@ export default function ChatPage() {
       }]);
     }
     setNannyThinking(false);
-    inputRef.current?.focus();
+    focusWithoutScroll();
   };
 
   // --- Onboarding: save family ---
@@ -1182,7 +1205,7 @@ export default function ChatPage() {
               <button
                 onClick={() => {
                   setInput(`${pendingDetection.missing[0]}: `);
-                  inputRef.current?.focus();
+                  focusWithoutScroll();
                 }}
                 className="mt-2 w-full text-center text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg py-1.5 hover:bg-amber-200 transition-colors"
               >
@@ -1254,7 +1277,7 @@ export default function ChatPage() {
               ].map((suggestion, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
+                  onClick={() => { setInput(suggestion); focusWithoutScroll(); }}
                   className="w-full text-left px-4 py-3 bg-[var(--nanny-gray-light)] rounded-xl text-sm text-[var(--nanny-gray)] hover:bg-[var(--nanny-purple-bg)] hover:text-[var(--nanny-purple)] transition-colors"
                 >
                   &ldquo;{suggestion}&rdquo;
@@ -1296,7 +1319,7 @@ export default function ChatPage() {
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
               )}
-              <SwipeableMessage onSwipe={() => { setReplyingTo(msg); inputRef.current?.focus(); }}>
+              <SwipeableMessage onSwipe={() => { setReplyingTo(msg); focusWithoutScroll(); }}>
               <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
               {/* Avatar circle for other parent */}
               {isOtherParent && (
@@ -1494,6 +1517,7 @@ export default function ChatPage() {
             autoComplete="off"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onTouchEnd={handleInputTouchEnd}
             placeholder={onboardingMode && onboardingSaving ? 'Espera un momento...' : 'Escribe un mensaje...'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
             className="chat-input-field flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-1 focus:ring-[var(--nanny-purple-light)]/40 disabled:opacity-50"
