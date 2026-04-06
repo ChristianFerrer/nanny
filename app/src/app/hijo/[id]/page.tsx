@@ -65,7 +65,7 @@ export default function HijoDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex px-4 mt-4 gap-1">
+      <div className="sticky top-0 z-10 bg-[var(--nanny-bg)] flex px-4 pt-4 pb-2 gap-1">
         {tabs.map(tab => (
           <button
             key={tab.id}

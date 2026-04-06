@@ -185,7 +185,7 @@ export default function PerfilPage() {
   if (editSection) {
     return (
       <div className="min-h-screen bg-white animate-fade-in">
-        <div className="px-5 pt-12 pb-8">
+        <div className="px-5 pt-12 pb-24">
           <button onClick={() => setEditSection(null)} className="mb-4 text-[var(--nanny-gray)]">
             <X size={20} />
           </button>

@@ -184,7 +184,7 @@ export default function HoyPage() {
   if (modal) {
     return (
       <div className="min-h-screen bg-white animate-fade-in">
-        <div className="px-5 pt-12 pb-8">
+        <div className="px-5 pt-12 pb-24">
           <button onClick={() => setModal(null)} className="mb-4 text-[var(--nanny-gray)]">
             <X size={20} />
           </button>
