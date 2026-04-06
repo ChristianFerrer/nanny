@@ -56,15 +56,10 @@ main {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Chat page: no extra padding, main height follows visual viewport */
+/* Chat page: main is behind the fixed chat container, hide it */
 body[data-page="chat"] main {
   padding-bottom: 0 !important;
-  height: var(--vvh, 100dvh);
   overflow: hidden;
-}
-
-body[data-page="chat"] {
-  touch-action: none;
 }
 
 /* Safari blink workaround — forces repaint on focus to fix visual viewport */

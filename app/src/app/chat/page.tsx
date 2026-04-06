@@ -138,29 +138,42 @@ export default function ChatPage() {
   const onboardingInitiated = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
-  // Mark chat page on body so global CSS can adjust (no main padding, touch-action)
+
+  // Mark chat page on body so global CSS can adjust
   useEffect(() => {
     document.body.setAttribute('data-page', 'chat');
     return () => { document.body.removeAttribute('data-page'); };
   }, []);
 
-  // iOS PWA keyboard fix: track visualViewport height
-  // No bottom nav on chat page, so --vvh = full visual viewport height
+  // iOS PWA keyboard fix: set container height directly via DOM ref
+  // Using position:fixed so iOS cannot auto-scroll the container when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    function setVVH() {
-      document.body.style.setProperty('--vvh', `${vv!.height}px`);
+    function updateHeight() {
+      const vv = window.visualViewport;
+      const h = vv ? vv.height : window.innerHeight;
+      el!.style.height = `${h}px`;
     }
 
-    vv.addEventListener('resize', setVVH);
-    setVVH();
+    // Listen to both visualViewport and window resize as fallback
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', updateHeight);
+      vv.addEventListener('scroll', updateHeight);
+    }
+    window.addEventListener('resize', updateHeight);
+    updateHeight();
 
     return () => {
-      vv.removeEventListener('resize', setVVH);
-      document.body.style.removeProperty('--vvh');
+      if (vv) {
+        vv.removeEventListener('resize', updateHeight);
+        vv.removeEventListener('scroll', updateHeight);
+      }
+      window.removeEventListener('resize', updateHeight);
     };
   }, []);
 
@@ -225,16 +238,19 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-  // Scroll to bottom when keyboard opens (visualViewport resizes)
+  // Scroll to bottom when keyboard opens
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    let prevH = vv.height;
     const onResize = () => {
-      if (document.activeElement === inputRef.current) {
+      // Keyboard opened (height decreased significantly)
+      if (vv.height < prevH - 50) {
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-        }, 100);
+        }, 150);
       }
+      prevH = vv.height;
     };
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
@@ -1031,7 +1047,19 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: 'var(--vvh, 100dvh)', overscrollBehavior: 'contain' }}>
+    <div
+      ref={containerRef}
+      className="flex flex-col bg-[var(--nanny-bg)]"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        maxWidth: 430,
+        margin: '0 auto',
+        overflow: 'hidden',
+      }}
+    >
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
