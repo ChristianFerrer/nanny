@@ -75,10 +75,6 @@ body[data-page="chat"] {
   animation: iosBlink 0.02s;
 }
 
-/* Chat input bar — will-change for smooth transition */
-.chat-input-bar {
-  will-change: transform;
-}
 
 /* ─── Standard input field ─── */
 input[type="text"],
