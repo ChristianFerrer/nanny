@@ -25,7 +25,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+html {
+  height: 100vh; /* Use vh not dvh — prevents layout jump on iOS */
+}
+
+body {
   height: 100dvh;
   overflow: hidden;
 }
@@ -52,9 +56,28 @@ main {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Chat page: no extra padding, allow iOS keyboard scroll */
+/* Chat page: no extra padding, disable touch-action for iOS keyboard fix */
 body[data-page="chat"] main {
   padding-bottom: 0 !important;
+}
+
+body[data-page="chat"] {
+  touch-action: none;
+}
+
+/* Safari blink workaround — forces repaint on focus to fix visual viewport */
+@keyframes iosBlink {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.chat-input-field:focus {
+  animation: iosBlink 0.02s;
+}
+
+/* Chat input bar — will-change for smooth transition */
+.chat-input-bar {
+  will-change: transform;
 }
 
 /* ─── Standard input field ─── */

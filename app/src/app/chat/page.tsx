@@ -145,27 +145,31 @@ export default function ChatPage() {
     return () => { document.body.removeAttribute('data-page'); };
   }, []);
 
-  // Hide bottom nav when input is focused (keyboard open)
+  // iOS PWA keyboard fix: track visualViewport height to position input bar correctly
   useEffect(() => {
-    const onFocus = () => {
-      document.body.setAttribute('data-keyboard', 'open');
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-      }, 300);
-    };
-    const onBlur = () => {
-      document.body.removeAttribute('data-keyboard');
-    };
-    const input = inputRef.current;
-    if (input) {
-      input.addEventListener('focus', onFocus);
-      input.addEventListener('blur', onBlur);
-    }
-    return () => {
-      if (input) {
-        input.removeEventListener('focus', onFocus);
-        input.removeEventListener('blur', onBlur);
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    function setVVH() {
+      const vvh = `${vv!.height}px`;
+      // When keyboard is open, vv.height is much smaller — hide bottom nav
+      const keyboardOpen = vv!.height < window.innerHeight * 0.75;
+      document.body.style.setProperty('--vvh', vvh);
+      document.body.style.setProperty('--vvs', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom)');
+      if (keyboardOpen) {
+        document.body.setAttribute('data-keyboard', 'open');
+      } else {
+        document.body.removeAttribute('data-keyboard');
       }
+    }
+
+    vv.addEventListener('resize', setVVH);
+    setVVH();
+
+    return () => {
+      vv.removeEventListener('resize', setVVH);
+      document.body.style.removeProperty('--vvh');
+      document.body.style.removeProperty('--vvs');
       document.body.removeAttribute('data-keyboard');
     };
   }, []);
@@ -224,13 +228,27 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!initialScrollDone.current) {
-      // First render: scroll instantly (no animation) to avoid visible scroll
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
       if (messages.length > 0) initialScrollDone.current = true;
     } else {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Scroll to bottom when keyboard opens (visualViewport resizes)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      if (document.activeElement === inputRef.current) {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+        }, 100);
+      }
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   // --- Onboarding: start conversation ---
   useEffect(() => {
@@ -1023,7 +1041,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: '100dvh', paddingBottom: 'var(--nav-h, 84px)' }}>
+    <>
+    <div className="flex flex-col bg-[var(--nanny-bg)]" style={{ height: 'var(--vvh, 100dvh)', overflow: 'auto', overscrollBehavior: 'contain' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
@@ -1153,7 +1172,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 space-y-3" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 space-y-3" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
@@ -1387,8 +1406,26 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="shrink-0 bg-white border-t border-gray-200 px-3 py-2">
+      </div>
+
+      {/* Input bar — fixed at bottom of visual viewport (ios-chat pattern) */}
+      <div
+        className="chat-input-bar bg-white border-t border-gray-200 px-3 py-2"
+        style={{
+          position: 'fixed',
+          left: 0,
+          width: '100%',
+          maxWidth: '430px',
+          marginInline: 'auto',
+          right: 0,
+          top: 'var(--vvh, 100dvh)',
+          transform: 'translateY(-100%)',
+          transition: 'top 0.15s ease',
+          paddingBottom: 'calc(10px + var(--vvs, env(safe-area-inset-bottom)))',
+          zIndex: 55,
+          touchAction: 'none',
+        }}
+      >
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
@@ -1416,7 +1453,7 @@ export default function ChatPage() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={onboardingMode && onboardingSaving ? 'Espera un momento...' : 'Escribe un mensaje...'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
-            className="flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-1 focus:ring-[var(--nanny-purple-light)]/40 disabled:opacity-50"
+            className="chat-input-field flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-1 focus:ring-[var(--nanny-purple-light)]/40 disabled:opacity-50"
           />
           <button
             type="submit"
@@ -1427,7 +1464,7 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
-    </div>
+    </>
   );
 }
 
