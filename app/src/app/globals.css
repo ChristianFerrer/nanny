@@ -117,20 +117,6 @@ select {
   z-index: 50;
 }
 
-/* ─── Chat input bar ─── */
-.chat-input-bar {
-  position: fixed;
-  bottom: calc(64px + env(safe-area-inset-bottom, 12px) + 20px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
-  background: white;
-  border-top: 1px solid #E5E7EB;
-  padding: 12px;
-  z-index: 40;
-}
-
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
   width: 0;

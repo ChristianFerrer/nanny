@@ -139,27 +139,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Adjust container height when virtual keyboard opens/closes on mobile
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const fullHeight = vv.height; // initial height without keyboard
-    const update = () => {
-      if (!containerRef.current) return;
-      const keyboardOpen = vv.height < fullHeight * 0.85;
-      if (keyboardOpen) {
-        // Keyboard open: use full visual viewport (bottom nav is behind keyboard)
-        containerRef.current.style.height = `${vv.height}px`;
-      } else {
-        // Keyboard closed: subtract bottom nav space
-        containerRef.current.style.height = '';
-      }
-    };
-    vv.addEventListener('resize', update);
-    return () => vv.removeEventListener('resize', update);
-  }, []);
 
   // Buffer: agrupa mensajes consecutivos del mismo sender antes de procesar
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1014,7 +993,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div ref={containerRef} className="flex flex-col" style={{ height: 'calc(100dvh - 64px - env(safe-area-inset-bottom, 12px) - 20px)' }}>
+    <div className="fixed inset-0 flex flex-col bg-[var(--nanny-bg)]" style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 12px) + 20px)', maxWidth: '430px', margin: '0 auto' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
