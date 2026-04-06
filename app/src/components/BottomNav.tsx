@@ -54,8 +54,8 @@ export default function BottomNav() {
     return () => clearInterval(interval);
   }, [checkBadges]);
 
-  // Hide nav on auth and onboarding pages
-  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/') {
+  // Hide nav on auth, onboarding, and chat pages
+  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/' || pathname === '/chat') {
     return null;
   }
 

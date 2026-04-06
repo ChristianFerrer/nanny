@@ -139,30 +139,20 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
-  // Mark chat page on body so main doesn't add extra padding
+  // Mark chat page on body so global CSS can adjust (no main padding, touch-action)
   useEffect(() => {
     document.body.setAttribute('data-page', 'chat');
     return () => { document.body.removeAttribute('data-page'); };
   }, []);
 
   // iOS PWA keyboard fix: track visualViewport height
+  // No bottom nav on chat page, so --vvh = full visual viewport height
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
     function setVVH() {
-      const keyboardOpen = vv!.height < window.innerHeight * 0.75;
-      // When keyboard is open: use visual viewport height (smaller, excludes keyboard)
-      // When keyboard is closed: subtract bottom nav height so input sits above nav
-      const navH = keyboardOpen ? 0 : 84; // approximate --nav-h
-      const vvh = `${vv!.height - navH}px`;
-      document.body.style.setProperty('--vvh', vvh);
-      document.body.style.setProperty('--chat-input-pb', keyboardOpen ? '6px' : '10px');
-      if (keyboardOpen) {
-        document.body.setAttribute('data-keyboard', 'open');
-      } else {
-        document.body.removeAttribute('data-keyboard');
-      }
+      document.body.style.setProperty('--vvh', `${vv!.height}px`);
     }
 
     vv.addEventListener('resize', setVVH);
@@ -171,8 +161,6 @@ export default function ChatPage() {
     return () => {
       vv.removeEventListener('resize', setVVH);
       document.body.style.removeProperty('--vvh');
-      document.body.style.removeProperty('--chat-input-pb');
-      document.body.removeAttribute('data-keyboard');
     };
   }, []);
 
@@ -1093,6 +1081,23 @@ export default function ChatPage() {
                     <RefreshCw size={16} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
                     Ponte al d&iacute;a
                   </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button onClick={() => { setShowHeaderMenu(false); router.push('/hoy'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
+                    <CalendarDays size={16} className="text-[var(--nanny-gray)]" />
+                    Hoy
+                  </button>
+                  <button onClick={() => { setShowHeaderMenu(false); router.push('/semana'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
+                    <Clock size={16} className="text-[var(--nanny-gray)]" />
+                    Semana
+                  </button>
+                  <button onClick={() => { setShowHeaderMenu(false); router.push('/hijo'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
+                    <ListChecks size={16} className="text-[var(--nanny-gray)]" />
+                    Hijos
+                  </button>
+                  <button onClick={() => { setShowHeaderMenu(false); router.push('/perfil'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
+                    <UserIcon size={16} className="text-[var(--nanny-gray)]" />
+                    Perfil
+                  </button>
                 </div>
               )}
             </div>
@@ -1408,7 +1413,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 bg-white border-t border-gray-200 px-3 py-2" style={{ paddingBottom: 'var(--chat-input-pb, 10px)' }}>
+      <div className="shrink-0 bg-white border-t border-gray-200 px-3 py-2">
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
