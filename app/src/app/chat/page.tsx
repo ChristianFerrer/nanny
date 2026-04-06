@@ -139,6 +139,54 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initialScrollDone = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // WhatsApp-style keyboard handling: resize container to visual viewport
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !containerRef.current) return;
+
+    const navHeight = 84; // bottom nav approximate height
+
+    const onResize = () => {
+      const el = containerRef.current;
+      if (!el) return;
+
+      // visualViewport.height shrinks when keyboard opens
+      // visualViewport.offsetTop increases if page scrolled (we prevent that)
+      const keyboardVisible = vv.height < window.innerHeight * 0.80;
+
+      if (keyboardVisible) {
+        // Keyboard open: fill visual viewport entirely (nav is behind keyboard)
+        el.style.height = `${vv.height}px`;
+        el.style.paddingBottom = '0px';
+      } else {
+        // Keyboard closed: leave space for bottom nav
+        el.style.height = '';
+        el.style.paddingBottom = '';
+      }
+
+      // Keep messages scrolled to bottom when keyboard changes
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      });
+    };
+
+    const onScroll = () => {
+      // Prevent iOS from scrolling the page when keyboard opens
+      // (we handle it ourselves by resizing the container)
+      if (containerRef.current) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onScroll);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onScroll);
+    };
+  }, []);
 
   // Buffer: agrupa mensajes consecutivos del mismo sender antes de procesar
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -993,7 +1041,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[var(--nanny-bg)]" style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 12px) + 20px)', maxWidth: '430px', margin: '0 auto' }}>
+    <div ref={containerRef} className="fixed inset-0 flex flex-col bg-[var(--nanny-bg)]" style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 12px) + 20px)', maxWidth: '430px', margin: '0 auto' }}>
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
         <div className="flex items-center justify-between">
