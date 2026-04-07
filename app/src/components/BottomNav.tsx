@@ -55,7 +55,7 @@ export default function BottomNav() {
   }, [checkBadges]);
 
   // Hide nav on auth, onboarding, and chat pages
-  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/' || pathname === '/chat') {
+  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/' || pathname === '/chat' || pathname.startsWith('/admin')) {
     return null;
   }
 
