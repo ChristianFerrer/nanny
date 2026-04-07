@@ -2,8 +2,8 @@
  * Pipeline de Nanny: orquesta classify → extract → postprocess.
  *
  * Flujo:
- * 1. Classifier (mini): ¿Es accionable? ¿Qué tipo? ¿Para Nanny?
- * 2a. Si es saludo/pregunta directa → Responder (mini)
+ * 1. Classifier (mini): ¿Es accionable? ¿Qué tipo? ¿Para Nanny? ¿Puede aportar valor?
+ * 2a. Si es saludo/pregunta directa/concern/proactive → Responder (mini)
  * 2b. Si es accionable → Extractor (mini o gpt-4o según complejidad)
  * 3. Post-proceso: fix assigned_to, validar FPs
  *
@@ -22,8 +22,6 @@ import { getSupabaseAdmin } from '@/lib/supabase';
  * Determina el rol del sender (mama o papa) basándose en el familyContext.
  */
 function getSenderRole(senderName: string, familyContext: string): 'mama' | 'papa' {
-  // familyContext format: "Familia: Lucía (👧, 6 años), Mateo (👶, 3 años), Ana (👩), Carlos (👨)"
-  // El nombre seguido de (👩) es mamá, el seguido de (👨) es papá
   const mamaMatch = familyContext.match(/(\w+)\s*\(👩\)/);
   const papaMatch = familyContext.match(/(\w+)\s*\(👨\)/);
 
@@ -34,7 +32,6 @@ function getSenderRole(senderName: string, familyContext: string): 'mama' | 'pap
   if (senderLower === mamaName || senderLower.includes(mamaName)) return 'mama';
   if (senderLower === papaName || senderLower.includes(papaName)) return 'papa';
 
-  // Fallback: si no matchea, intentar por posición
   return 'mama';
 }
 
@@ -42,7 +39,6 @@ function getSenderRole(senderName: string, familyContext: string): 'mama' | 'pap
  * Extrae los nombres de los hijos del familyContext.
  */
 function getChildrenNames(familyContext: string): string[] {
-  // Buscar nombres antes de emojis de niños (👧, 👦, 👶)
   const matches = familyContext.matchAll(/(\w+)\s*\((?:👧|👦|👶)/g);
   return Array.from(matches).map(m => m[1]);
 }
@@ -78,7 +74,7 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   const childrenNames = getChildrenNames(input.familyContext);
 
   const now = new Date();
-  const currentDate = now.toISOString().split('T')[0] + ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ')';
+  const currentDate = now.toISOString().split('T')[0] + ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ') ' + now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
   // ═══════════════════════════════════════
   // PASO 1: Clasificar
@@ -92,14 +88,29 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   });
 
   // ═══════════════════════════════════════
-  // PASO 2a: Respuestas directas (saludos, preguntas)
+  // PASO 2a: Respuestas directas
   // ═══════════════════════════════════════
-  if (classification.is_direct_to_nanny || classification.is_question_nanny_can_answer) {
-    const responseType = classification.intent === 'GREETING'
-      ? 'greeting'
-      : classification.is_direct_to_nanny
-        ? 'direct_question'
-        : 'answerable_question';
+  // Determine response type — now handles CONCERN and proactive
+  const needsDirectResponse =
+    classification.is_direct_to_nanny ||
+    classification.is_question_nanny_can_answer ||
+    classification.intent === 'CONCERN' ||
+    classification.can_add_value;
+
+  if (needsDirectResponse) {
+    let responseType: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'proactive';
+
+    if (classification.intent === 'GREETING') {
+      responseType = 'greeting';
+    } else if (classification.intent === 'CONCERN') {
+      responseType = 'concern';
+    } else if (classification.is_direct_to_nanny) {
+      responseType = 'direct_question';
+    } else if (classification.is_question_nanny_can_answer) {
+      responseType = 'answerable_question';
+    } else {
+      responseType = 'proactive';
+    }
 
     const directResponse = await generateDirectResponse(openai, {
       message: input.message,
@@ -110,10 +121,11 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
       existingEvents: input.existingEvents,
       existingTasks: input.existingTasks,
       activeMedications: input.activeMedications,
+      currentDate,
       type: responseType,
     });
 
-    // Si además es accionable, continuar con extracción
+    // If also actionable, continue with extraction and combine
     if (!classification.is_actionable) {
       return {
         should_respond: true,
@@ -127,9 +139,8 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
       };
     }
 
-    // Es accionable Y tiene pregunta directa: extraer datos Y responder
+    // Actionable AND has direct response: extract AND respond
     const extractedResponse = await runExtraction(openai, input, classification, senderRole, currentDate);
-    // Combinar respuesta directa con la extracción
     extractedResponse.reply = directResponse.reply + '\n\n' + extractedResponse.reply;
     return extractedResponse;
   }
@@ -166,7 +177,6 @@ async function runExtraction(
   senderRole: 'mama' | 'papa',
   currentDate: string
 ): Promise<ChatResponse> {
-  // Decidir modelo según complejidad
   const model = classification.complexity === 'complex' ? 'gpt-4o' : 'gpt-4o-mini';
 
   const extracted = await extractData(openai, {
@@ -209,5 +219,4 @@ async function runExtraction(
   return postProcessed;
 }
 
-// Re-export para que getActivePromptContent sea accesible si se necesita
 export { getActivePromptContent };

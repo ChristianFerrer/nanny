@@ -530,7 +530,7 @@ export default function ChatPage() {
   const processNannyResponse = useCallback(async (text: string, parentMsg: Message) => {
     setNannyThinking(true);
     try {
-      const recentMsgs = [...messages.slice(-15), parentMsg]
+      const recentMsgs = [...messages.slice(-25), parentMsg]
         .map(m => {
           const sender = m.sender_type === 'nanny' ? 'Nanny'
             : parents.find(p => p.id === m.sender_id)?.name || 'Padre';
@@ -539,11 +539,11 @@ export default function ChatPage() {
 
       const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
 
-      const existingEventsStr = events.slice(-10).map(e =>
+      const existingEventsStr = events.slice(-20).map(e =>
         `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
       ).join('\n');
-      const existingTasksStr = tasks.filter(t => t.status !== 'done').slice(-10).map(t =>
-        `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''})`
+      const existingTasksStr = tasks.filter(t => t.status !== 'done').slice(-15).map(t =>
+        `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''}${t.assigned_to ? `, encargado: ${t.assigned_to}` : ''})`
       ).join('\n');
       const activeMeds = medications.filter(m => m.status === 'active').map(m =>
         `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
