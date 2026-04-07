@@ -92,6 +92,7 @@ export default function TestingDashboard() {
     totalTimeMs: number;
   } | null>(null);
   const abortRef = useRef(false);
+  const autopilotAbortRef = useRef<AbortController | null>(null);
 
   // Autopilot state
   const [autopilotRunning, setAutopilotRunning] = useState(false);
@@ -317,446 +318,176 @@ export default function TestingDashboard() {
     setAutopilotReeval(null);
     setAutopilotResult(null);
     setError(null);
-    abortRef.current = false;
 
-    // Helper: fetch con reintentos
-    async function fetchWithRetry(url: string, options?: RequestInit, retries = 3): Promise<Response> {
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-          const res = await fetch(url, options);
-          if (res.ok) return res;
-          // Si es 429 (rate limit) o 5xx, reintentar
-          if ((res.status === 429 || res.status >= 500) && attempt < retries) {
-            const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
-          return res; // Devolver aunque no sea ok (para manejo de error)
-        } catch (e) {
-          if (attempt < retries) {
-            const delay = Math.pow(2, attempt + 1) * 1000;
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
-          throw e;
+    const abortController = new AbortController();
+    autopilotAbortRef.current = abortController;
+
+    // SSE event handler — updates React state from server-streamed events
+    function handleEvent(event: string, data: Record<string, unknown>) {
+      switch (event) {
+        case 'phase':
+          setAutopilotPhase(data.phase as string);
+          setAutopilotMessage(data.message as string);
+          break;
+
+        case 'conversation': {
+          const { index, name, status, score, total } = data as {
+            index: number; name: string; status: string; score?: number; total: number;
+          };
+          setAutopilotConvs(prev => {
+            if (prev.length === 0 && total > 0) {
+              const arr: ConvProgress[] = Array.from({ length: total }, (_, i) => ({
+                index: i,
+                name: i === index ? name : `Conversación ${i + 1}`,
+                status: 'pending',
+              }));
+              arr[index] = { index, name, status: status as ConvProgress['status'], score };
+              return arr;
+            }
+            return prev.map((c, i) =>
+              i === index ? { ...c, name, status: status as ConvProgress['status'], score } : c
+            );
+          });
+          break;
         }
+
+        case 'message_progress': {
+          const { conversationIndex, messageIndex, totalMessages } = data as {
+            conversationIndex: number; messageIndex: number; totalMessages: number;
+          };
+          setAutopilotConvs(prev => prev.map((c, i) =>
+            i === conversationIndex
+              ? { ...c, completedMessages: messageIndex, totalMessages, status: 'running' }
+              : c
+          ));
+          break;
+        }
+
+        case 'saved':
+          break;
+
+        case 'diagnosis':
+          setAutopilotDiagnosis(data as {
+            summary: string; failurePatterns: number; proposedAdjustments: number;
+          });
+          break;
+
+        case 'adjustment': {
+          const adj = data as {
+            index: number; pattern: string; status: string; reason?: string;
+          };
+          setAutopilotAdjustments(prev => {
+            const updated = [...prev];
+            while (updated.length <= adj.index) {
+              updated.push({ index: updated.length, pattern: '', status: 'pending' });
+            }
+            updated[adj.index] = {
+              index: adj.index,
+              pattern: adj.pattern,
+              status: adj.status as 'pending' | 'applying' | 'done' | 'skipped' | 'error',
+              reason: adj.reason,
+            };
+            return updated;
+          });
+          break;
+        }
+
+        case 'reeval_progress': {
+          const { index: reIdx, total: reTotal, name: reName } = data as {
+            index: number; total: number; name: string;
+          };
+          setAutopilotMessage(`Re-evaluando ${reIdx + 1}/${reTotal}: ${reName}`);
+          setAutopilotReeval(prev => prev || { status: 'running', preScore: 0 });
+          break;
+        }
+
+        case 'reeval_result': {
+          const reeval = data as {
+            preScore: number; postScore: number; improved: boolean; rolledBack: boolean;
+          };
+          setAutopilotReeval({
+            status: reeval.rolledBack ? 'rollback' : reeval.improved ? 'improved' : 'regressed',
+            preScore: reeval.preScore,
+            postScore: reeval.postScore,
+            rolledBack: reeval.rolledBack,
+          });
+          break;
+        }
+
+        case 'result':
+          setAutopilotResult(data as {
+            runId: string | null;
+            aggregate: EvalRun['aggregate_scores'];
+            adjustmentsApplied: number;
+            diagnosisSummary?: string;
+            reeval?: {
+              preScore: number; postScore: number; improved: boolean; rolledBack: boolean;
+            };
+          });
+          break;
+
+        case 'error':
+          setError((data as { message: string }).message);
+          break;
       }
-      throw new Error('Max retries exceeded');
     }
 
-    // Helper: pausa entre operaciones para evitar rate limiting
-    const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
-
     try {
-      // ═══════════════════════════════════════════
-      // FASE 1: Evaluación (reutiliza las mismas APIs)
-      // ═══════════════════════════════════════════
-      setAutopilotPhase('evaluation');
-      setAutopilotMessage('Ejecutando evaluación...');
-
-      const listRes = await fetch('/api/eval/run');
-      if (!listRes.ok) throw new Error(`Error listando conversaciones: HTTP ${listRes.status}`);
-      const conversations: ConversationInfo[] = await listRes.json();
-
-      setAutopilotConvs(conversations.map(c => ({
-        index: c.index,
-        name: c.name,
-        status: 'pending',
-        totalMessages: c.messageCount,
-        completedMessages: 0,
-      })));
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results: any[] = [];
-
-      for (let i = 0; i < conversations.length; i++) {
-        if (abortRef.current) break;
-        const conv = conversations[i];
-
-        setAutopilotConvs(prev => prev.map((c, idx) =>
-          idx === i ? { ...c, status: 'running', completedMessages: 0 } : c
-        ));
-        setAutopilotMessage(`Conversación ${i + 1}/${conversations.length}: ${conv.name}`);
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let state: any = null;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let finalResult: any = null;
-
-          for (let msgIdx = 0; msgIdx < conv.messageCount; msgIdx++) {
-            if (abortRef.current) break;
-
-            const res = await fetchWithRetry('/api/eval/run', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ conversationIndex: i, messageIndex: msgIdx, state }),
-            });
-
-            if (!res.ok) {
-              const errText = await res.text().catch(() => `HTTP ${res.status}`);
-              throw new Error(errText);
-            }
-
-            const data = await res.json();
-
-            setAutopilotConvs(prev => prev.map((c, idx) =>
-              idx === i ? { ...c, completedMessages: msgIdx + 1 } : c
-            ));
-
-            if (data.done) {
-              finalResult = data.result;
-            } else {
-              state = data.state;
-            }
-
-            // Pequeña pausa entre mensajes para no saturar
-            await pause(300);
-          }
-
-          if (finalResult) {
-            results.push(finalResult);
-            setAutopilotConvs(prev => prev.map((c, idx) =>
-              idx === i ? { ...c, status: 'done', score: finalResult.scores.overall } : c
-            ));
-          }
-        } catch (e) {
-          setAutopilotConvs(prev => prev.map((c, idx) =>
-            idx === i ? { ...c, status: 'error', error: e instanceof Error ? e.message : 'Error' } : c
-          ));
-        }
-
-        // Pausa entre conversaciones para evitar rate limiting
-        if (i < conversations.length - 1) {
-          await pause(1000);
-        }
-      }
-
-      if (abortRef.current || results.length === 0) {
-        setError(abortRef.current ? 'Autopilot cancelado' : 'No se obtuvieron resultados');
-        return;
-      }
-
-      // ═══════════════════════════════════════════
-      // FASE 2: Guardar resultados
-      // ═══════════════════════════════════════════
-      setAutopilotPhase('saving');
-      setAutopilotMessage('Guardando resultados...');
-
-      let savedRunId: string | null = null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let aggregate: any = null;
-
-      const totalTimeMs = results.reduce((sum: number, r: { totalTimeMs: number }) => sum + r.totalTimeMs, 0);
-
-      try {
-        const finalRes = await fetch('/api/eval/run/finalize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ results, totalTimeMs }),
-        });
-        if (finalRes.ok) {
-          const finalData = await finalRes.json();
-          savedRunId = finalData.id;
-          aggregate = finalData.aggregate;
-        }
-      } catch {
-        // continue even if save fails
-      }
-
-      if (!aggregate) {
-        const avg = (nums: number[]) =>
-          nums.length === 0 ? 0 : Math.round((nums.reduce((a: number, b: number) => a + b, 0) / nums.length) * 100) / 100;
-        aggregate = {
-          precision: avg(results.map((r: { scores: { precision: number } }) => r.scores.precision)),
-          recall: avg(results.map((r: { scores: { recall: number } }) => r.scores.recall)),
-          ambiguityHandling: avg(results.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
-          behaviorScore: avg(results.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
-          falsePositiveRate: avg(results.map((r: { scores: { falsePositiveRate: number } }) => r.scores.falsePositiveRate)),
-          fieldAccuracy: {
-            dateAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { dateAccuracy: number } } }) => r.scores.fieldAccuracy.dateAccuracy)),
-            ownerAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { ownerAccuracy: number } } }) => r.scores.fieldAccuracy.ownerAccuracy)),
-            typeAccuracy: avg(results.map((r: { scores: { fieldAccuracy: { typeAccuracy: number } } }) => r.scores.fieldAccuracy.typeAccuracy)),
-          },
-          overall: avg(results.map((r: { scores: { overall: number } }) => r.scores.overall)),
-        };
-      }
-
-      // Si score perfecto, no necesita diagnóstico
-      if (aggregate.overall >= 1.0) {
-        setAutopilotPhase('complete');
-        setAutopilotMessage('Score perfecto. No se requieren cambios.');
-        setAutopilotResult({ runId: savedRunId, aggregate, adjustmentsApplied: 0 });
-        return;
-      }
-
-      // ═══════════════════════════════════════════
-      // FASE 3: Diagnóstico
-      // ═══════════════════════════════════════════
-      if (!savedRunId) {
-        setAutopilotPhase('complete');
-        setAutopilotMessage('No se pudo guardar el run, diagnóstico omitido.');
-        setAutopilotResult({ runId: null, aggregate, adjustmentsApplied: 0 });
-        return;
-      }
-
-      setAutopilotPhase('diagnosis');
-      setAutopilotMessage('Ejecutando diagnóstico AI...');
-
-      let diagnosis;
-      try {
-        const diagRes = await fetch('/api/eval/diagnose', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ runId: savedRunId }),
-        });
-        if (!diagRes.ok) throw new Error(`HTTP ${diagRes.status}`);
-        diagnosis = await diagRes.json();
-      } catch (e) {
-        setError(`Error en diagnóstico: ${e instanceof Error ? e.message : 'Error'}`);
-        setAutopilotPhase('complete');
-        setAutopilotMessage('Diagnóstico falló.');
-        setAutopilotResult({ runId: savedRunId, aggregate, adjustmentsApplied: 0 });
-        return;
-      }
-
-      setAutopilotDiagnosis({
-        summary: diagnosis.summary,
-        failurePatterns: diagnosis.failurePatterns?.length || 0,
-        proposedAdjustments: diagnosis.proposedAdjustments?.length || 0,
+      // Connect to server-side autopilot SSE endpoint
+      // All 5 phases run server-side — no background tab throttling
+      const response = await fetch('/api/eval/autopilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skipDiagnosis: false }),
+        signal: abortController.signal,
       });
 
-      const adjustments = diagnosis.proposedAdjustments || [];
-      if (adjustments.length === 0) {
-        setAutopilotPhase('complete');
-        setAutopilotMessage('Diagnóstico sin ajustes propuestos.');
-        setAutopilotResult({ runId: savedRunId, aggregate, adjustmentsApplied: 0, diagnosisSummary: diagnosis.summary });
-        return;
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}`);
       }
 
-      // ═══════════════════════════════════════════
-      // FASE 4: Aplicar ajustes al prompt
-      // ═══════════════════════════════════════════
-      setAutopilotPhase('applying');
-      setAutopilotMessage(`Aplicando ${adjustments.length} ajustes al prompt...`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      // Guardar snapshot de reglas ANTES de aplicar ajustes (para rollback)
-      let canRollback = false;
-      try {
-        const snapRes = await fetch('/api/eval/prompt', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'snapshot' }),
-        });
-        canRollback = snapRes.ok;
-      } catch {
-        // Continue without rollback capability
-      }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      setAutopilotAdjustments(adjustments.map((_: unknown, i: number) => ({
-        index: i,
-        pattern: '',
-        status: 'pending' as const,
-      })));
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      let appliedCount = 0;
-
-      for (let i = 0; i < adjustments.length; i++) {
-        if (abortRef.current) break;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const adj = adjustments[i] as any;
-
-        if (!adj.proposedChange) {
-          setAutopilotAdjustments(prev => prev.map((a, idx) =>
-            idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: 'skipped', reason: 'Sin cambio propuesto' } : a
-          ));
-          continue;
-        }
-
-        setAutopilotAdjustments(prev => prev.map((a, idx) =>
-          idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: 'applying' } : a
-        ));
-        setAutopilotMessage(`Aplicando ajuste ${i + 1}/${adjustments.length}: ${adj.pattern}`);
-
-        try {
-          const adjRes = await fetchWithRetry('/api/eval/prompt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              target: adj.target || 'extractor',
-              currentSection: adj.currentPromptSection || '',
-              proposedChange: adj.proposedChange,
-              description: `Autopilot: ${adj.pattern} - ${adj.expectedImpact || ''}`,
-            }),
-          });
-
-          if (!adjRes.ok) {
-            const errData = await adjRes.json().catch(() => ({ error: `HTTP ${adjRes.status}` }));
-            throw new Error(errData.error || `HTTP ${adjRes.status}`);
-          }
-
-          const adjData = await adjRes.json();
-          appliedCount++;
-          setAutopilotAdjustments(prev => prev.map((a, idx) =>
-            idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: 'done', version: adjData.version } : a
-          ));
-        } catch (e) {
-          const errMsg = e instanceof Error ? e.message : 'Error';
-          const isSkip = errMsg.includes('no se encontró');
-          setAutopilotAdjustments(prev => prev.map((a, idx) =>
-            idx === i ? { ...a, pattern: adj.pattern || `Ajuste ${i+1}`, status: isSkip ? 'skipped' : 'error', reason: errMsg } : a
-          ));
-        }
-      }
-
-      // ═══════════════════════════════════════════
-      // FASE 5: Re-evaluación post-ajustes
-      // ═══════════════════════════════════════════
-      const preScore = aggregate.overall;
-      let postAggregate = aggregate;
-      let postRunId: string | null = null;
-      let rolledBack = false;
-
-      if (appliedCount > 0 && !abortRef.current) {
-        setAutopilotPhase('reeval');
-        setAutopilotMessage('Re-evaluando con prompt ajustado...');
-        setAutopilotReeval({ status: 'running', preScore });
-
-        // Re-run conversations with the updated prompt
-        const reListRes = await fetch('/api/eval/run');
-        if (reListRes.ok) {
-          const reConversations: ConversationInfo[] = await reListRes.json();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const reResults: any[] = [];
-
-          for (let i = 0; i < reConversations.length; i++) {
-            if (abortRef.current) break;
-            const conv = reConversations[i];
-            setAutopilotMessage(`Re-evaluando ${i + 1}/${reConversations.length}: ${conv.name}`);
-
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ') && currentEvent) {
             try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              let state: any = null;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              let finalResult: any = null;
-
-              for (let msgIdx = 0; msgIdx < conv.messageCount; msgIdx++) {
-                if (abortRef.current) break;
-
-                const res = await fetchWithRetry('/api/eval/run', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ conversationIndex: i, messageIndex: msgIdx, state }),
-                });
-
-                if (!res.ok) break;
-                const data = await res.json();
-
-                if (data.done) {
-                  finalResult = data.result;
-                } else {
-                  state = data.state;
-                }
-
-                await pause(300);
-              }
-
-              if (finalResult) reResults.push(finalResult);
+              const parsed = JSON.parse(line.slice(6));
+              handleEvent(currentEvent, parsed);
             } catch {
-              // Skip failed conversations in reeval
+              // Skip malformed SSE data
             }
-
-            if (i < reConversations.length - 1) await pause(1000);
-          }
-
-          if (reResults.length > 0 && !abortRef.current) {
-            // Calculate post-adjustment scores
-            const reAvg = (nums: number[]) =>
-              nums.length === 0 ? 0 : Math.round((nums.reduce((a: number, b: number) => a + b, 0) / nums.length) * 100) / 100;
-
-            postAggregate = {
-              precision: reAvg(reResults.map((r: { scores: { precision: number } }) => r.scores.precision)),
-              recall: reAvg(reResults.map((r: { scores: { recall: number } }) => r.scores.recall)),
-              ambiguityHandling: reAvg(reResults.map((r: { scores: { ambiguityHandling: number } }) => r.scores.ambiguityHandling)),
-              behaviorScore: reAvg(reResults.map((r: { scores: { behaviorScore: number } }) => r.scores.behaviorScore)),
-              overall: reAvg(reResults.map((r: { scores: { overall: number } }) => r.scores.overall)),
-            };
-
-            const postScore = postAggregate.overall;
-
-            // DECISIÓN: ¿Mejoró o empeoró?
-            if (postScore < preScore) {
-              // EMPEORÓ → ROLLBACK
-              setAutopilotReeval({ status: 'rollback', preScore, postScore });
-              setAutopilotMessage(`Score bajó de ${Math.round(preScore * 100)}% a ${Math.round(postScore * 100)}%. Revirtiendo...`);
-
-              if (canRollback) {
-                try {
-                  await fetch('/api/eval/prompt', {
-                    method: 'DELETE',
-                  });
-                  rolledBack = true;
-                  setAutopilotMessage(`Rollback completado. Reglas restauradas a versión pre-ajustes.`);
-                } catch {
-                  setAutopilotMessage('Rollback falló. Las reglas ajustadas siguen activas.');
-                }
-              }
-
-              // Restore pre-adjustment aggregate for result display
-              postAggregate = aggregate;
-            } else {
-              // MEJORÓ o igual → guardar el nuevo run
-              setAutopilotReeval({ status: 'improved', preScore, postScore });
-              setAutopilotMessage(`Score mejoró: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`);
-
-              // Save the re-evaluation run
-              try {
-                const reTotalTimeMs = reResults.reduce((sum: number, r: { totalTimeMs: number }) => sum + r.totalTimeMs, 0);
-                const reFinalRes = await fetch('/api/eval/run/finalize', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ results: reResults, totalTimeMs: reTotalTimeMs }),
-                });
-                if (reFinalRes.ok) {
-                  const reFinalData = await reFinalRes.json();
-                  postRunId = reFinalData.id;
-                }
-              } catch {
-                // Continue even if save fails
-              }
-            }
+            currentEvent = '';
           }
         }
       }
-
-      // ═══════════════════════════════════════════
-      // COMPLETO
-      // ═══════════════════════════════════════════
-      setAutopilotPhase('complete');
-      const postScore = postAggregate.overall;
-      setAutopilotMessage(
-        rolledBack
-          ? `Pipeline completado. ${appliedCount} ajustes revertidos (score bajó).`
-          : `Pipeline completado. ${appliedCount} ajustes aplicados.`
-      );
-      setAutopilotResult({
-        runId: postRunId || savedRunId,
-        aggregate: postAggregate,
-        adjustmentsApplied: rolledBack ? 0 : appliedCount,
-        diagnosisSummary: diagnosis.summary,
-        reeval: appliedCount > 0 ? {
-          preScore,
-          postScore,
-          improved: postScore >= preScore,
-          rolledBack,
-        } : undefined,
-      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error en autopilot');
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setError('Autopilot cancelado');
+      } else {
+        setError(e instanceof Error ? e.message : 'Error en autopilot');
+      }
     } finally {
+      autopilotAbortRef.current = null;
       setAutopilotRunning(false);
       loadRuns();
     }
+  }
+
+  function stopAutopilot() {
+    autopilotAbortRef.current?.abort();
   }
 
   const latest = runs[0];
@@ -780,9 +511,8 @@ export default function TestingDashboard() {
         <div className="flex items-center gap-2">
           {(running || autopilotRunning) ? (
             <button
-              onClick={stopEvaluation}
-              disabled={autopilotRunning}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              onClick={autopilotRunning ? stopAutopilot : stopEvaluation}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition-colors"
             >
               <Square size={12} fill="currentColor" />
               Detener
