@@ -89,6 +89,7 @@ export async function runConversation(
           existingTasks: createdTasks.join('\n') || 'Ninguna',
           activeMedications: activeMedications.join('\n') || 'Ninguno',
           senderName,
+          senderRole: 'role' in msg && msg.role === 'papa' ? 'papa' : 'mama',
           pendingDetection,
         });
         response = result;

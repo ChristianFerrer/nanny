@@ -19,18 +19,20 @@ import type { ChatInput, ChatResponse } from './processChat';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 /**
- * Determina el rol del sender (mama o papa) basándose en el familyContext.
+ * Determina el rol del sender. Usa el rol enviado por el frontend (de la DB),
+ * con fallback a inferencia por emoji si no está disponible.
  */
-function getSenderRole(senderName: string, familyContext: string): 'mama' | 'papa' {
-  const mamaMatch = familyContext.match(/(\w+)\s*\(👩\)/);
-  const papaMatch = familyContext.match(/(\w+)\s*\(👨\)/);
+function getSenderRole(input: ChatInput): 'mama' | 'papa' {
+  // Preferir el rol explícito del frontend (viene de parent.role en la DB)
+  if (input.senderRole) return input.senderRole;
 
-  const mamaName = mamaMatch?.[1]?.toLowerCase() || '';
-  const papaName = papaMatch?.[1]?.toLowerCase() || '';
-  const senderLower = senderName.toLowerCase();
+  // Fallback: inferir del familyContext
+  const mamaMatch = input.familyContext.match(/(\w+)\s*\(👩\)/);
+  const papaMatch = input.familyContext.match(/(\w+)\s*\(👨\)/);
+  const senderLower = input.senderName.toLowerCase();
 
-  if (senderLower === mamaName || senderLower.includes(mamaName)) return 'mama';
-  if (senderLower === papaName || senderLower.includes(papaName)) return 'papa';
+  if (mamaMatch && senderLower.includes(mamaMatch[1].toLowerCase())) return 'mama';
+  if (papaMatch && senderLower.includes(papaMatch[1].toLowerCase())) return 'papa';
 
   return 'mama';
 }
@@ -70,7 +72,7 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   }
 
   const openai = new OpenAI({ apiKey });
-  const senderRole = getSenderRole(input.senderName, input.familyContext);
+  const senderRole = getSenderRole(input);
   const childrenNames = getChildrenNames(input.familyContext);
 
   const now = new Date();
@@ -82,6 +84,7 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   const classification = await classifyMessage(openai, {
     message: input.message,
     senderName: input.senderName,
+    senderRole,
     recentMessages: input.recentMessages,
     pendingDetection: input.pendingDetection,
     childrenNames,
@@ -96,17 +99,20 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
     classification.is_direct_to_nanny ||
     classification.is_question_nanny_can_answer ||
     classification.intent === 'CONCERN' ||
+    classification.intent === 'CORRECTION' ||
     classification.intent === 'GREETING' ||
     classification.intent === 'DIRECT_QUESTION' ||
     classification.can_add_value;
 
   if (needsDirectResponse) {
-    let responseType: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'proactive';
+    let responseType: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'correction' | 'proactive';
 
     if (classification.intent === 'GREETING') {
       responseType = 'greeting';
     } else if (classification.intent === 'CONCERN') {
       responseType = 'concern';
+    } else if (classification.intent === 'CORRECTION') {
+      responseType = 'correction';
     } else if (classification.is_direct_to_nanny) {
       responseType = 'direct_question';
     } else if (classification.is_question_nanny_can_answer) {

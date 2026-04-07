@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
         existingTasks: (state.createdTasks as string[]).join('\n') || 'Ninguna',
         activeMedications: (state.activeMedications as string[]).join('\n') || 'Ninguno',
         senderName,
+        senderRole: 'role' in msg && msg.role === 'papa' ? 'papa' : 'mama',
         pendingDetection: state.pendingDetection,
       });
     } catch (e) {

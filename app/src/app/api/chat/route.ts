@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
       existingTasks: body.existingTasks || 'Ninguna',
       activeMedications: body.activeMedications || 'Ninguno',
       senderName: body.senderName || 'Padre',
+      senderRole: body.senderRole || 'mama',
       pendingDetection: body.pendingDetection || null,
     });
 

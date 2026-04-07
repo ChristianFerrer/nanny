@@ -457,6 +457,7 @@ export interface ChatInput {
   existingTasks: string;
   activeMedications: string;
   senderName: string;
+  senderRole: 'mama' | 'papa';
   pendingDetection: Record<string, unknown> | null;
 }
 

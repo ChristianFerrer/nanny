@@ -560,6 +560,7 @@ export default function ChatPage() {
           existingTasks: existingTasksStr,
           activeMedications: activeMeds || 'Ninguno',
           senderName: currentParentObj?.name || 'Padre',
+          senderRole: currentParentObj?.role || 'mama',
           pendingDetection,
         }),
       });

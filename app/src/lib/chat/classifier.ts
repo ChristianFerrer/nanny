@@ -11,6 +11,7 @@ import { buildRulesText } from './prompt-rules';
 export interface ClassifierInput {
   message: string;
   senderName: string;
+  senderRole: 'mama' | 'papa';
   recentMessages: string;
   pendingDetection: Record<string, unknown> | null;
   childrenNames: string[];
@@ -34,7 +35,7 @@ const CLASSIFIER_PROMPT = `Eres un clasificador de mensajes para una app de coor
 Tu ÚNICO trabajo es clasificar cada mensaje. NO extraigas datos, NO generes respuestas.
 
 CONTEXTO:
-- Quien escribe: {sender_name}
+- Quien escribe: {sender_name} (es {sender_role})
 - Hijos: {children_names}
 - Mensajes recientes: {recent_messages}
 - Detección pendiente: {pending_detection}
@@ -89,9 +90,10 @@ REGLAS DE CLASIFICACIÓN:
 
 8. detected_items_count: cuántos ítems accionables DISTINTOS hay (0, 1, 2, 3...)
 
-9. intent (uno principal): EVENT_SCHOOL|EVENT_ACTIVITY|EVENT_MEDICAL|TASK_SHOPPING|TASK_PAYMENT|MEDICATION|LOGISTICS_PICKUP|LOGISTICS_TRANSPORT|SCHEDULE_CHANGE|MILESTONE|SUPPLY_LOW|HEALTH_LOG|CONCERN|DIRECT_QUESTION|GREETING|CHAT|IGNORE
+9. intent (uno principal): EVENT_SCHOOL|EVENT_ACTIVITY|EVENT_MEDICAL|TASK_SHOPPING|TASK_PAYMENT|MEDICATION|LOGISTICS_PICKUP|LOGISTICS_TRANSPORT|SCHEDULE_CHANGE|MILESTONE|SUPPLY_LOW|HEALTH_LOG|CONCERN|CORRECTION|DIRECT_QUESTION|GREETING|CHAT|IGNORE
 
    CONCERN = un padre expresa preocupación sobre salud, desarrollo, comportamiento de un hijo. NO es accionable pero Nanny PUEDE responder si tiene datos relevantes.
+   CORRECTION = un padre corrige a Nanny o corrige información ("yo soy papá", "no es el lunes, es el martes", "no es para Pau, es para Lucía"). Nanny DEBE responder disculpándose y corrigiendo.
 
 10. should_respond = true si:
    - El mensaje es un SALUDO (con o sin "Nanny")
@@ -99,6 +101,7 @@ REGLAS DE CLASIFICACIÓN:
    - Nanny puede aportar valor (can_add_value)
    - Es un CONCERN
    - Es is_direct_to_nanny
+   - Es una CORRECCIÓN a algo que Nanny dijo mal
    - should_respond = false SOLO para: mensajes entre padres que son puramente personales/sentimentales, "ok/dale" sin contexto, emojis solos, conversación donde Nanny NO aporta nada
 
 Responde SOLO JSON puro:
@@ -126,6 +129,7 @@ export async function classifyMessage(
   const extraRules = buildRulesText('classifier');
   const prompt = (CLASSIFIER_PROMPT + extraRules)
     .replace('{sender_name}', input.senderName)
+    .replace('{sender_role}', input.senderRole)
     .replace('{children_names}', input.childrenNames.join(', ') || 'No especificados')
     .replace('{recent_messages}', input.recentMessages || 'Ninguno')
     .replace('{pending_detection}', pendingStr);

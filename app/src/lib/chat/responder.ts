@@ -16,7 +16,7 @@ export interface ResponderInput {
   existingTasks: string;
   activeMedications: string;
   currentDate: string;
-  type: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'proactive';
+  type: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'correction' | 'proactive';
 }
 
 export interface ResponderOutput {
@@ -67,6 +67,12 @@ CÓMO RESPONDER SEGÚN TIPO:
 
 • PREOCUPACIÓN PARENTAL: Un padre expresa preocupación (salud, desarrollo, comportamiento). Responde SOLO con datos que ya tienes registrados: medicamentos activos, citas próximas, síntomas mencionados antes. Conecta puntos: "Pau ha tenido fiebre desde el martes y tiene cita con el pediatra el jueves." NO des consejos médicos. Si no tienes datos relevantes, ofrece anotar: "¿Quieres que registre esto para comentárselo al pediatra?"
 
+• CORRECCIÓN: Un padre corrige algo que Nanny dijo mal (nombre, rol, fecha, asignación).
+  - Discúlpate brevemente y con naturalidad: "¡Perdón! Tienes razón."
+  - Confirma la corrección: "Anotado, eres papá." / "Corrijo: la cita es el martes, no el lunes."
+  - NO te excuses de más. Sé breve y corrige.
+  - Si la corrección afecta un evento/tarea registrado, menciona que lo corregirás.
+
 • PROACTIVA (Nanny aporta sin que le pregunten): Úsalo para:
   - Conflictos de horario: "Ojo, ese día Pau ya tiene dentista a las 10."
   - Info que un padre no sabe: "Por si sirve, Ana mencionó ayer que la excursión es a las 8."
@@ -84,6 +90,7 @@ export async function generateDirectResponse(
     direct_question: 'PREGUNTA DIRECTA A NANNY',
     answerable_question: 'PREGUNTA ENTRE PADRES (Nanny tiene la respuesta)',
     concern: 'PREOCUPACIÓN PARENTAL',
+    correction: 'CORRECCIÓN (el padre corrige algo que Nanny dijo mal)',
     proactive: 'PROACTIVA (Nanny aporta sin que le pregunten)',
   }[input.type];
 
