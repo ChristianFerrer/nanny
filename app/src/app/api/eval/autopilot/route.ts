@@ -19,8 +19,15 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let clientConnected = true;
       function send(event: string, data: unknown) {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (!clientConnected) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          // Client disconnected — pipeline continues server-side
+          clientConnected = false;
+        }
       }
 
       try {
@@ -402,7 +409,7 @@ export async function POST(req: NextRequest) {
         send('error', { message: e instanceof Error ? e.message : 'Error desconocido' });
       }
 
-      controller.close();
+      try { controller.close(); } catch { /* client already disconnected */ }
     },
   });
 
