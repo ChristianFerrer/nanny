@@ -92,9 +92,12 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   // ═══════════════════════════════════════
   // Determine response type — now handles CONCERN and proactive
   const needsDirectResponse =
+    classification.should_respond ||
     classification.is_direct_to_nanny ||
     classification.is_question_nanny_can_answer ||
     classification.intent === 'CONCERN' ||
+    classification.intent === 'GREETING' ||
+    classification.intent === 'DIRECT_QUESTION' ||
     classification.can_add_value;
 
   if (needsDirectResponse) {

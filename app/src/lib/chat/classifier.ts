@@ -59,6 +59,9 @@ REGLAS DE CLASIFICACIÓN:
    - Mencionan "Nanny" por nombre
    - Le hacen una pregunta directa ("Nanny, ¿cuándo es...?")
    - Le dan una instrucción ("Nanny anota...")
+   - Piden información que SOLO Nanny puede dar: resúmenes ("dame un resumen"), consultas de agenda ("qué tenemos hoy?", "qué hay esta semana?"), estado de tareas ("qué falta por hacer?")
+   - Comandos implícitos dirigidos al asistente: "anota esto", "recuérdame", "registra que..."
+   - En este chat solo hay 2 padres y Nanny. Si el mensaje NO es claramente para el otro padre, probablemente es para Nanny.
 
 4. is_question_nanny_can_answer = true si:
    - Un padre pregunta algo al otro Y la respuesta está en los MENSAJES RECIENTES, EVENTOS, TAREAS o MEDICAMENTOS conocidos
@@ -89,6 +92,14 @@ REGLAS DE CLASIFICACIÓN:
 9. intent (uno principal): EVENT_SCHOOL|EVENT_ACTIVITY|EVENT_MEDICAL|TASK_SHOPPING|TASK_PAYMENT|MEDICATION|LOGISTICS_PICKUP|LOGISTICS_TRANSPORT|SCHEDULE_CHANGE|MILESTONE|SUPPLY_LOW|HEALTH_LOG|CONCERN|DIRECT_QUESTION|GREETING|CHAT|IGNORE
 
    CONCERN = un padre expresa preocupación sobre salud, desarrollo, comportamiento de un hijo. NO es accionable pero Nanny PUEDE responder si tiene datos relevantes.
+
+10. should_respond = true si:
+   - El mensaje es un SALUDO (con o sin "Nanny")
+   - Es una pregunta (directa a Nanny o que Nanny puede contestar)
+   - Nanny puede aportar valor (can_add_value)
+   - Es un CONCERN
+   - Es is_direct_to_nanny
+   - should_respond = false SOLO para: mensajes entre padres que son puramente personales/sentimentales, "ok/dale" sin contexto, emojis solos, conversación donde Nanny NO aporta nada
 
 Responde SOLO JSON puro:
 {
