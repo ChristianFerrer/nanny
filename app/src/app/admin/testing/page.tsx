@@ -348,12 +348,12 @@ export default function TestingDashboard() {
             return;
           }
 
-          // Stale job recovery: if updated_at is >45s old and still running,
+          // Stale job recovery: if updated_at is >20s old and still running,
           // the chain may have broken — re-trigger it
           if (data.job.status === 'running' && data.job.updated_at) {
             const age = Date.now() - new Date(data.job.updated_at).getTime();
-            if (age > 45_000) {
-              console.log('[autopilot] Job stale, re-triggering chunk...');
+            if (age > 20_000) {
+              console.log('[autopilot] Job stale (' + Math.round(age/1000) + 's), re-triggering...');
               fetch('/api/eval/autopilot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -368,10 +368,18 @@ export default function TestingDashboard() {
     }, 5000);
   }
 
-  function stopAutopilot() {
+  async function stopAutopilot() {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
+    }
+    // Cancel the running job on the server
+    if (autopilotJob?.id) {
+      fetch('/api/eval/autopilot', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: autopilotJob.id }),
+      }).catch(() => {});
     }
     setAutopilotJob(null);
     loadRuns();

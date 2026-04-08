@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { allConversations } from '@/lib/eval/conversations/index';
 import { processChat } from '@/lib/chat/processChat';
@@ -189,10 +188,10 @@ export async function GET() {
       return NextResponse.json({ active: false });
     }
 
-    // If running and older than 7 minutes, mark as error (stale)
+    // If running and older than 10 minutes, mark as error (stale)
     if (data.status === 'running') {
       const age = Date.now() - new Date(data.created_at).getTime();
-      if (age > 7 * 60 * 1000) {
+      if (age > 10 * 60 * 1000) {
         await sb.from('autopilot_jobs').update({
           status: 'error',
           message: 'Timeout: el job excedió el tiempo máximo',
@@ -215,7 +214,29 @@ export async function GET() {
   }
 }
 
+// ─── DELETE: Cancel a running job ───
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (!body.jobId) {
+      return NextResponse.json({ error: 'jobId required' }, { status: 400 });
+    }
+    const sb = getSupabaseAdmin();
+    await sb.from('autopilot_jobs').update({
+      status: 'error',
+      message: 'Cancelado por el usuario',
+      updated_at: new Date().toISOString(),
+    }).eq('id', body.jobId).eq('status', 'running');
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
 // ─── POST: Start new job OR continue processing next chunk ───
+// Each POST processes ONE chunk inline (~20-30s), returns result.
+// The client polling detects stale jobs (>20s since updated_at) and triggers the next chunk.
+// This avoids after() which Vercel may not execute reliably on Hobby plan.
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
@@ -223,36 +244,44 @@ export async function POST(req: NextRequest) {
     const sb = getSupabaseAdmin();
     const baseUrl = req.nextUrl.origin;
 
-    // If jobId provided, process next chunk in after() and return immediately
+    // If jobId provided, process next chunk inline
     if (body.jobId) {
-      after(async () => {
-        try {
-          await processChunkAndContinue(body.jobId, baseUrl);
-        } catch (e) {
-          console.error('[autopilot] chunk error:', e);
-          await sb.from('autopilot_jobs').update({
-            status: 'error',
-            message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
-            updated_at: new Date().toISOString(),
-          }).eq('id', body.jobId);
-        }
-      });
-      // Return immediately — after() does the work
-      return NextResponse.json({ accepted: true });
+      try {
+        await processChunkAndContinue(body.jobId, baseUrl);
+        return NextResponse.json({ ok: true });
+      } catch (e) {
+        console.error('[autopilot] chunk error:', e);
+        await sb.from('autopilot_jobs').update({
+          status: 'error',
+          message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', body.jobId);
+        return NextResponse.json({ error: String(e) }, { status: 500 });
+      }
     }
 
     // Otherwise, start a new job
     const { data: existing } = await sb
       .from('autopilot_jobs')
-      .select('id')
+      .select('id, updated_at')
       .eq('status', 'running')
       .limit(1);
 
     if (existing && existing.length > 0) {
-      return NextResponse.json(
-        { error: 'Ya hay un autopilot en ejecución', jobId: existing[0].id },
-        { status: 409 },
-      );
+      // If the existing job is stale (>90s old), mark it as error so user can retry
+      const age = Date.now() - new Date(existing[0].updated_at).getTime();
+      if (age > 90_000) {
+        await sb.from('autopilot_jobs').update({
+          status: 'error',
+          message: 'Job anterior estancado — marcado como error.',
+          updated_at: new Date().toISOString(),
+        }).eq('id', existing[0].id);
+      } else {
+        return NextResponse.json(
+          { error: 'Ya hay un autopilot en ejecución', jobId: existing[0].id },
+          { status: 409 },
+        );
+      }
     }
 
     const jobId = crypto.randomUUID();
@@ -270,19 +299,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Process first chunk in after()
-    after(async () => {
-      try {
-        await processChunkAndContinue(jobId, baseUrl);
-      } catch (e) {
-        console.error('[autopilot] first chunk error:', e);
-        await sb.from('autopilot_jobs').update({
-          status: 'error',
-          message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
-          updated_at: new Date().toISOString(),
-        }).eq('id', jobId);
-      }
-    });
+    // Process first chunk inline
+    try {
+      await processChunkAndContinue(jobId, baseUrl);
+    } catch (e) {
+      console.error('[autopilot] first chunk error:', e);
+      await sb.from('autopilot_jobs').update({
+        status: 'error',
+        message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+    }
 
     return NextResponse.json({ started: true, jobId });
   } catch (e) {
@@ -293,10 +320,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── Process one chunk and chain to the next via self-invocation ───
-// Each chunk: loads job state → does one unit of work → updates DB → awaits fetch to next chunk.
-// The next chunk's POST returns immediately ({accepted:true}), so the fetch resolves in <1s.
-// Total time per invocation: ~30s work + ~1s trigger = well within 60s Hobby limit.
+// ─── Process ONE chunk for a job (inline, no after()) ───
+// Processes one unit of work, updates DB, then fire-and-forget triggers next chunk.
+// If the fire-and-forget fails (Vercel kills it), client polling retriggers within 20s.
 async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<void> {
   const sb = getSupabaseAdmin();
 
@@ -321,17 +347,19 @@ async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<
     result: ConversationResult;
   }>;
 
-  // Helper to trigger the next chunk (awaited — returns instantly because POST uses after())
-  async function triggerNext() {
-    try {
-      await fetch(`${baseUrl}/api/eval/autopilot`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId }),
-      });
-    } catch (err) {
-      console.error('[autopilot] Failed to trigger next chunk:', err);
-    }
+  // Fire-and-forget: send the HTTP request but don't wait for response.
+  // Use a short-lived AbortController so the function doesn't hang.
+  function triggerNext() {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 3000); // 3s max wait
+    fetch(`${baseUrl}/api/eval/autopilot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
+      signal: controller.signal,
+    }).catch(() => {
+      // Expected: abort or network error — client polling will retry
+    });
   }
 
   if (phase === 'evaluation') {
@@ -363,7 +391,7 @@ async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
-      await triggerNext();
+      triggerNext();
       return;
     }
   }
@@ -435,7 +463,7 @@ async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
-    await triggerNext();
+    triggerNext();
     return;
   }
 
@@ -504,7 +532,7 @@ async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<
     }).eq('id', jobId);
 
     if (appliedCount > 0) {
-      await triggerNext();
+      triggerNext();
     }
     return;
   }
@@ -601,7 +629,7 @@ async function processChunkAndContinue(jobId: string, baseUrl: string): Promise<
         return;
       }
 
-      await triggerNext();
+      triggerNext();
       return;
     }
   }
