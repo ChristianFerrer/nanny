@@ -92,7 +92,6 @@ export default function TestingDashboard() {
     totalTimeMs: number;
   } | null>(null);
   const abortRef = useRef(false);
-  const autopilotAbortRef = useRef<AbortController | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autopilotStartTimeRef = useRef<string | null>(null);
   const runsRef = useRef<EvalRun[]>([]);
@@ -321,8 +320,8 @@ export default function TestingDashboard() {
 
   async function startAutopilot() {
     setAutopilotRunning(true);
-    setAutopilotPhase('');
-    setAutopilotMessage('');
+    setAutopilotPhase('background');
+    setAutopilotMessage('Autopilot iniciado. Ejecutándose en el servidor...');
     setAutopilotConvs([]);
     setAutopilotDiagnosis(null);
     setAutopilotAdjustments([]);
@@ -330,182 +329,29 @@ export default function TestingDashboard() {
     setAutopilotResult(null);
     setError(null);
 
-    const abortController = new AbortController();
-    autopilotAbortRef.current = abortController;
-
-    // SSE event handler — updates React state from server-streamed events
-    function handleEvent(event: string, data: Record<string, unknown>) {
-      switch (event) {
-        case 'phase':
-          setAutopilotPhase(data.phase as string);
-          setAutopilotMessage(data.message as string);
-          break;
-
-        case 'conversation': {
-          const { index, name, status, score, total } = data as {
-            index: number; name: string; status: string; score?: number; total: number;
-          };
-          setAutopilotConvs(prev => {
-            if (prev.length === 0 && total > 0) {
-              const arr: ConvProgress[] = Array.from({ length: total }, (_, i) => ({
-                index: i,
-                name: i === index ? name : `Conversación ${i + 1}`,
-                status: 'pending',
-              }));
-              arr[index] = { index, name, status: status as ConvProgress['status'], score };
-              return arr;
-            }
-            return prev.map((c, i) =>
-              i === index ? { ...c, name, status: status as ConvProgress['status'], score } : c
-            );
-          });
-          break;
-        }
-
-        case 'message_progress': {
-          const { conversationIndex, messageIndex, totalMessages } = data as {
-            conversationIndex: number; messageIndex: number; totalMessages: number;
-          };
-          setAutopilotConvs(prev => prev.map((c, i) =>
-            i === conversationIndex
-              ? { ...c, completedMessages: messageIndex, totalMessages, status: 'running' }
-              : c
-          ));
-          break;
-        }
-
-        case 'saved':
-          break;
-
-        case 'diagnosis':
-          setAutopilotDiagnosis(data as {
-            summary: string; failurePatterns: number; proposedAdjustments: number;
-          });
-          break;
-
-        case 'adjustment': {
-          const adj = data as {
-            index: number; pattern: string; status: string; reason?: string;
-          };
-          setAutopilotAdjustments(prev => {
-            const updated = [...prev];
-            while (updated.length <= adj.index) {
-              updated.push({ index: updated.length, pattern: '', status: 'pending' });
-            }
-            updated[adj.index] = {
-              index: adj.index,
-              pattern: adj.pattern,
-              status: adj.status as 'pending' | 'applying' | 'done' | 'skipped' | 'error',
-              reason: adj.reason,
-            };
-            return updated;
-          });
-          break;
-        }
-
-        case 'reeval_progress': {
-          const { index: reIdx, total: reTotal, name: reName } = data as {
-            index: number; total: number; name: string;
-          };
-          setAutopilotMessage(`Re-evaluando ${reIdx + 1}/${reTotal}: ${reName}`);
-          setAutopilotReeval(prev => prev || { status: 'running', preScore: 0 });
-          break;
-        }
-
-        case 'reeval_result': {
-          const reeval = data as {
-            preScore: number; postScore: number; improved: boolean; rolledBack: boolean;
-          };
-          setAutopilotReeval({
-            status: reeval.rolledBack ? 'rollback' : reeval.improved ? 'improved' : 'regressed',
-            preScore: reeval.preScore,
-            postScore: reeval.postScore,
-            rolledBack: reeval.rolledBack,
-          });
-          break;
-        }
-
-        case 'result':
-          setAutopilotResult(data as {
-            runId: string | null;
-            aggregate: EvalRun['aggregate_scores'];
-            adjustmentsApplied: number;
-            diagnosisSummary?: string;
-            reeval?: {
-              preScore: number; postScore: number; improved: boolean; rolledBack: boolean;
-            };
-          });
-          break;
-
-        case 'error':
-          setError((data as { message: string }).message);
-          break;
-      }
-    }
-
     autopilotStartTimeRef.current = new Date().toISOString();
 
     try {
-      const response = await fetch('/api/eval/autopilot', {
+      // Fire-and-forget: the server runs the full pipeline via after()
+      // independently of this HTTP connection
+      const res = await fetch('/api/eval/autopilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skipDiagnosis: false }),
-        signal: abortController.signal,
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        let currentEvent = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7);
-          } else if (line.startsWith('data: ') && currentEvent) {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              handleEvent(currentEvent, parsed);
-            } catch {
-              // Skip malformed SSE data
-            }
-            currentEvent = '';
-          }
-        }
-      }
-
-      // Stream completed normally
-      autopilotAbortRef.current = null;
-      autopilotStartTimeRef.current = null;
-      setAutopilotRunning(false);
-      loadRuns();
+      // Server accepted — start polling for results
+      startPollingForResults();
     } catch (e) {
-      autopilotAbortRef.current = null;
-
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        // Manual cancellation
-        autopilotStartTimeRef.current = null;
-        setError('Autopilot cancelado');
-        setAutopilotRunning(false);
-        loadRuns();
-      } else {
-        // Connection lost (mobile app switch, network drop, etc.)
-        // Server continues processing — switch to polling mode
-        setAutopilotPhase('background');
-        setAutopilotMessage('Conexión perdida. El autopilot sigue ejecutándose en el servidor...');
-        startPollingForResults();
-      }
+      setError(e instanceof Error ? e.message : 'Error iniciando autopilot');
+      setAutopilotRunning(false);
+      setAutopilotPhase('');
+      setAutopilotMessage('');
+      autopilotStartTimeRef.current = null;
     }
   }
 
@@ -520,14 +366,13 @@ export default function TestingDashboard() {
         const data: EvalRun[] = await res.json();
         setRuns(data);
 
-        // Check if a new run appeared since autopilot started
+        // Detect new run that appeared after autopilot started
         if (startTime && data.length > 0 && data[0].timestamp > startTime) {
-          // Autopilot completed on server — show result
           if (pollingRef.current) clearInterval(pollingRef.current);
           pollingRef.current = null;
           autopilotStartTimeRef.current = null;
           setAutopilotPhase('complete');
-          setAutopilotMessage('Autopilot completado en el servidor.');
+          setAutopilotMessage('Autopilot completado.');
           setAutopilotResult({
             runId: data[0].id,
             aggregate: data[0].aggregate_scores,
@@ -536,11 +381,11 @@ export default function TestingDashboard() {
           setAutopilotRunning(false);
         }
       } catch {
-        // Ignore polling errors — will retry next interval
+        // Ignore — will retry next interval
       }
     }, 10000);
 
-    // Auto-stop polling after 6 minutes (maxDuration + buffer)
+    // Auto-stop after 6 minutes (server maxDuration=300s + buffer)
     setTimeout(() => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -555,16 +400,15 @@ export default function TestingDashboard() {
   }
 
   function stopAutopilot() {
-    autopilotAbortRef.current?.abort();
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
-      autopilotStartTimeRef.current = null;
-      setAutopilotRunning(false);
-      setAutopilotPhase('');
-      setAutopilotMessage('');
-      loadRuns();
     }
+    autopilotStartTimeRef.current = null;
+    setAutopilotRunning(false);
+    setAutopilotPhase('');
+    setAutopilotMessage('');
+    loadRuns();
   }
 
   const latest = runs[0];
