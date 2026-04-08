@@ -9,40 +9,83 @@ import type { MessageResult, ConversationResult } from '@/lib/eval/types';
 export const maxDuration = 60;
 
 // ─── Ensure table exists ───
+let tableVerified = false;
 async function ensureTable() {
+  if (tableVerified) return;
+
   const sb = getSupabaseAdmin();
-  // Try a simple query — if it fails, create the table
   const { error } = await sb.from('autopilot_jobs').select('id').limit(1);
+
   if (error?.code === '42P01') {
-    // Table doesn't exist — create it
-    try {
-      await sb.rpc('exec_sql', {
-        query: `
-          CREATE TABLE IF NOT EXISTS autopilot_jobs (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            status TEXT NOT NULL DEFAULT 'running',
-            phase TEXT NOT NULL DEFAULT 'evaluation',
-            current_conversation INTEGER NOT NULL DEFAULT 0,
-            total_conversations INTEGER NOT NULL DEFAULT 0,
-            message TEXT DEFAULT '',
-            conversation_scores JSONB NOT NULL DEFAULT '[]'::jsonb,
-            eval_run_id UUID,
-            aggregate_scores JSONB,
-            diagnosis_summary TEXT,
-            adjustments_applied INTEGER DEFAULT 0,
-            reeval_pre_score NUMERIC,
-            reeval_post_score NUMERIC,
-            reeval_improved BOOLEAN,
-            reeval_rolled_back BOOLEAN,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-          );
-        `,
-      });
-    } catch {
-      // rpc might not exist — table was probably created via migration
+    // Table doesn't exist — create via Supabase SQL endpoint
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      const sql = `
+        CREATE TABLE IF NOT EXISTS autopilot_jobs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          status TEXT NOT NULL DEFAULT 'running',
+          phase TEXT NOT NULL DEFAULT 'evaluation',
+          current_conversation INTEGER NOT NULL DEFAULT 0,
+          total_conversations INTEGER NOT NULL DEFAULT 0,
+          message TEXT DEFAULT '',
+          conversation_scores JSONB NOT NULL DEFAULT '[]'::jsonb,
+          eval_run_id UUID,
+          aggregate_scores JSONB,
+          diagnosis_summary TEXT,
+          adjustments_applied INTEGER DEFAULT 0,
+          reeval_pre_score NUMERIC,
+          reeval_post_score NUMERIC,
+          reeval_improved BOOLEAN,
+          reeval_rolled_back BOOLEAN,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        ALTER TABLE autopilot_jobs ENABLE ROW LEVEL SECURITY;
+      `;
+
+      try {
+        // Use Supabase's pg-meta SQL endpoint
+        const res = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({ query: sql }),
+        });
+
+        if (!res.ok) {
+          // Fallback: try via the sql endpoint (pg-meta)
+          console.log('[autopilot] rpc failed, trying pg-meta...');
+          const pgRes = await fetch(`${supabaseUrl.replace('.supabase.co', '.supabase.co')}/pg/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ query: sql }),
+          });
+          if (!pgRes.ok) {
+            console.error('[autopilot] Could not create table. Please run the migration SQL manually.');
+          }
+        }
+      } catch (e) {
+        console.error('[autopilot] Table creation failed:', e);
+      }
+    }
+
+    // Verify it was created
+    const { error: retryError } = await sb.from('autopilot_jobs').select('id').limit(1);
+    if (retryError?.code === '42P01') {
+      throw new Error('Table autopilot_jobs no existe. Ejecuta el SQL de supabase/migrations/20260408_autopilot_jobs.sql en el dashboard de Supabase.');
     }
   }
+
+  tableVerified = true;
 }
 
 // ─── Process a single conversation ───
