@@ -93,6 +93,9 @@ export default function TestingDashboard() {
   } | null>(null);
   const abortRef = useRef(false);
   const autopilotAbortRef = useRef<AbortController | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autopilotStartTimeRef = useRef<string | null>(null);
+  const runsRef = useRef<EvalRun[]>([]);
 
   // Autopilot state
   const [autopilotRunning, setAutopilotRunning] = useState(false);
@@ -146,6 +149,14 @@ export default function TestingDashboard() {
   }, []);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
+  useEffect(() => { runsRef.current = runs; }, [runs]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   // Bloquear navegación del browser mientras hay proceso en ejecución
   const processRunning = running || autopilotRunning;
@@ -432,9 +443,9 @@ export default function TestingDashboard() {
       }
     }
 
+    autopilotStartTimeRef.current = new Date().toISOString();
+
     try {
-      // Connect to server-side autopilot SSE endpoint
-      // All 5 phases run server-side — no background tab throttling
       const response = await fetch('/api/eval/autopilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -473,21 +484,87 @@ export default function TestingDashboard() {
           }
         }
       }
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        setError('Autopilot cancelado');
-      } else {
-        setError(e instanceof Error ? e.message : 'Error en autopilot');
-      }
-    } finally {
+
+      // Stream completed normally
       autopilotAbortRef.current = null;
+      autopilotStartTimeRef.current = null;
       setAutopilotRunning(false);
       loadRuns();
+    } catch (e) {
+      autopilotAbortRef.current = null;
+
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        // Manual cancellation
+        autopilotStartTimeRef.current = null;
+        setError('Autopilot cancelado');
+        setAutopilotRunning(false);
+        loadRuns();
+      } else {
+        // Connection lost (mobile app switch, network drop, etc.)
+        // Server continues processing — switch to polling mode
+        setAutopilotPhase('background');
+        setAutopilotMessage('Conexión perdida. El autopilot sigue ejecutándose en el servidor...');
+        startPollingForResults();
+      }
     }
+  }
+
+  function startPollingForResults() {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    const startTime = autopilotStartTimeRef.current;
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/eval/runs');
+        if (!res.ok) return;
+        const data: EvalRun[] = await res.json();
+        setRuns(data);
+
+        // Check if a new run appeared since autopilot started
+        if (startTime && data.length > 0 && data[0].timestamp > startTime) {
+          // Autopilot completed on server — show result
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          autopilotStartTimeRef.current = null;
+          setAutopilotPhase('complete');
+          setAutopilotMessage('Autopilot completado en el servidor.');
+          setAutopilotResult({
+            runId: data[0].id,
+            aggregate: data[0].aggregate_scores,
+            adjustmentsApplied: 0,
+          });
+          setAutopilotRunning(false);
+        }
+      } catch {
+        // Ignore polling errors — will retry next interval
+      }
+    }, 10000);
+
+    // Auto-stop polling after 6 minutes (maxDuration + buffer)
+    setTimeout(() => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+        autopilotStartTimeRef.current = null;
+        setAutopilotRunning(false);
+        setAutopilotPhase('');
+        setAutopilotMessage('');
+        loadRuns();
+      }
+    }, 360000);
   }
 
   function stopAutopilot() {
     autopilotAbortRef.current?.abort();
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+      autopilotStartTimeRef.current = null;
+      setAutopilotRunning(false);
+      setAutopilotPhase('');
+      setAutopilotMessage('');
+      loadRuns();
+    }
   }
 
   const latest = runs[0];
@@ -579,22 +656,37 @@ export default function TestingDashboard() {
 
           {/* Phase steps */}
           <div className="flex gap-1 mb-4">
-            {['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'].map((phase) => {
-              const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'];
-              const currentIdx = phases.indexOf(autopilotPhase);
-              const phaseIdx = phases.indexOf(phase);
-              const isActive = phase === autopilotPhase;
-              const isDone = phaseIdx < currentIdx || autopilotPhase === 'complete';
-              return (
-                <div
-                  key={phase}
-                  className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
-                    isDone ? 'bg-purple-500' : isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-700'
-                  }`}
-                />
-              );
-            })}
+            {autopilotPhase === 'background' ? (
+              // Background mode: all bars pulse
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex-1 h-1.5 rounded-full bg-yellow-500/60 animate-pulse" />
+              ))
+            ) : (
+              ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'].map((phase) => {
+                const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'];
+                const currentIdx = phases.indexOf(autopilotPhase);
+                const phaseIdx = phases.indexOf(phase);
+                const isActive = phase === autopilotPhase;
+                const isDone = phaseIdx < currentIdx || autopilotPhase === 'complete';
+                return (
+                  <div
+                    key={phase}
+                    className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                      isDone ? 'bg-purple-500' : isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-700'
+                    }`}
+                  />
+                );
+              })
+            )}
           </div>
+
+          {/* Background mode banner */}
+          {autopilotPhase === 'background' && (
+            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3 mb-4 text-xs text-yellow-300">
+              <p className="font-medium mb-1">Ejecutándose en el servidor</p>
+              <p className="text-yellow-400/80">El autopilot sigue corriendo aunque cierres esta página. Los resultados aparecerán automáticamente cuando termine.</p>
+            </div>
+          )}
 
           {/* Evaluation conversations progress */}
           {autopilotConvs.length > 0 && (
