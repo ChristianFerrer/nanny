@@ -1,186 +1,341 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { allConversations } from '@/lib/eval/conversations/index';
 import { processChat } from '@/lib/chat/processChat';
 import { profiles, buildFamilyContext } from '@/lib/eval/profiles';
 import { scoreConversation } from '@/lib/eval/scorer';
 import type { MessageResult, ConversationResult } from '@/lib/eval/types';
-import { createClient } from '@supabase/supabase-js';
 
-export const maxDuration = 300; // 5 minutes for full autopilot
+export const maxDuration = 60;
 
-/**
- * POST: Starts the autopilot pipeline using after().
- * Returns immediately — the pipeline runs independently of the client connection.
- * Results are saved to Supabase; client polls /api/eval/runs to detect completion.
- */
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const skipDiagnosis = body.skipDiagnosis === true;
+// ─── Ensure table exists ───
+async function ensureTable() {
+  const sb = getSupabaseAdmin();
+  // Try a simple query — if it fails, create the table
+  const { error } = await sb.from('autopilot_jobs').select('id').limit(1);
+  if (error?.code === '42P01') {
+    // Table doesn't exist — create it
+    try {
+      await sb.rpc('exec_sql', {
+        query: `
+          CREATE TABLE IF NOT EXISTS autopilot_jobs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            status TEXT NOT NULL DEFAULT 'running',
+            phase TEXT NOT NULL DEFAULT 'evaluation',
+            current_conversation INTEGER NOT NULL DEFAULT 0,
+            total_conversations INTEGER NOT NULL DEFAULT 0,
+            message TEXT DEFAULT '',
+            conversation_scores JSONB NOT NULL DEFAULT '[]'::jsonb,
+            eval_run_id UUID,
+            aggregate_scores JSONB,
+            diagnosis_summary TEXT,
+            adjustments_applied INTEGER DEFAULT 0,
+            reeval_pre_score NUMERIC,
+            reeval_post_score NUMERIC,
+            reeval_improved BOOLEAN,
+            reeval_rolled_back BOOLEAN,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        `,
+      });
+    } catch {
+      // rpc might not exist — table was probably created via migration
+    }
+  }
+}
 
-  // Schedule the full pipeline to run AFTER the response is sent.
-  // This means the client can close the browser, switch apps, etc.
-  // The function continues running on the server for up to maxDuration.
-  after(async () => {
-    console.log('[autopilot] Pipeline started');
+// ─── Process a single conversation ───
+async function processConversation(convIndex: number): Promise<ConversationResult | null> {
+  const conversation = allConversations[convIndex];
+  if (!conversation) return null;
+
+  const profile = profiles.find(p => p.id === conversation.profileId);
+  if (!profile) return null;
+
+  const state = {
+    recentMessages: [] as string[],
+    createdEvents: [] as string[],
+    createdTasks: [] as string[],
+    activeMedications: [] as string[],
+    pendingDetection: null as unknown,
+    messageResults: [] as MessageResult[],
+  };
+
+  for (let msgIdx = 0; msgIdx < conversation.messages.length; msgIdx++) {
+    const msg = conversation.messages[msgIdx];
+    const senderName = msg.sender === 'mama' ? profile.mamaName : profile.papaName;
+    const familyContext = buildFamilyContext(profile);
+    const recentStr = state.recentMessages.slice(-15).join('\n') || 'Ninguno';
+    const msgStart = Date.now();
+    let response = null;
+    let error: string | undefined;
 
     try {
-      await runAutopilotPipeline(skipDiagnosis);
-      console.log('[autopilot] Pipeline completed successfully');
+      response = await processChat({
+        message: msg.text,
+        familyContext,
+        recentMessages: recentStr,
+        existingEvents: state.createdEvents.join('\n') || 'Ninguno',
+        existingTasks: state.createdTasks.join('\n') || 'Ninguna',
+        activeMedications: state.activeMedications.join('\n') || 'Ninguno',
+        senderName,
+        senderRole: msg.sender === 'papa' ? 'papa' : 'mama',
+        pendingDetection: state.pendingDetection as Record<string, unknown> | null,
+      });
     } catch (e) {
-      console.error('[autopilot] Pipeline failed:', e);
+      error = e instanceof Error ? e.message : String(e);
     }
-  });
 
-  // Return immediately — client doesn't need to stay connected
-  return NextResponse.json({
-    started: true,
-    startedAt: new Date().toISOString(),
+    state.recentMessages.push(`${senderName}: ${msg.text}`);
+    if (response) {
+      if (response.should_respond && response.reply) {
+        state.recentMessages.push(`Nanny: ${response.reply}`);
+      }
+      if (response.confirmation) {
+        const conf = response.confirmation;
+        if (conf.type === 'event') {
+          state.createdEvents.push(`${conf.data.title} - ${conf.data.date_start || ''} (${conf.data.assigned_to || 'sin asignar'})`);
+        } else if (conf.type === 'task') {
+          state.createdTasks.push(`${conf.data.title} (${conf.data.assigned_to || 'sin asignar'})`);
+        } else if (conf.type === 'medication') {
+          state.activeMedications.push(`${conf.data.medication_name} - ${conf.data.frequency || ''}`);
+        }
+      }
+      state.pendingDetection = response.pending_detection || null;
+    }
+
+    state.messageResults.push({
+      messageIndex: msgIdx,
+      senderName,
+      messageText: msg.text,
+      response,
+      responseTimeMs: Date.now() - msgStart,
+      error,
+    });
+  }
+
+  const { detectionMatches, behaviorMatches, scores } = scoreConversation(conversation, state.messageResults);
+
+  return {
+    conversationId: conversation.id,
+    conversationName: conversation.name,
+    profileId: conversation.profileId,
+    messageResults: state.messageResults,
+    detectionMatches,
+    behaviorMatches,
+    scores,
+    totalTimeMs: state.messageResults.reduce((sum, mr) => sum + mr.responseTimeMs, 0),
+  };
+}
+
+// ─── GET: Return current job status ───
+export async function GET() {
+  try {
+    await ensureTable();
+    const sb = getSupabaseAdmin();
+    const { data, error } = await sb
+      .from('autopilot_jobs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json({ active: false });
+    }
+
+    // If running and older than 7 minutes, mark as error (stale)
+    if (data.status === 'running') {
+      const age = Date.now() - new Date(data.created_at).getTime();
+      if (age > 7 * 60 * 1000) {
+        await sb.from('autopilot_jobs').update({
+          status: 'error',
+          message: 'Timeout: el job excedió el tiempo máximo',
+          updated_at: new Date().toISOString(),
+        }).eq('id', data.id);
+        data.status = 'error';
+        data.message = 'Timeout: el job excedió el tiempo máximo';
+      }
+    }
+
+    return NextResponse.json({
+      active: data.status === 'running',
+      job: data,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 },
+    );
+  }
+}
+
+// ─── POST: Start new job OR continue processing next chunk ───
+export async function POST(req: NextRequest) {
+  try {
+    await ensureTable();
+    const body = await req.json().catch(() => ({}));
+    const sb = getSupabaseAdmin();
+
+    // If jobId provided, continue that job's next chunk
+    if (body.jobId) {
+      return await processNextChunk(body.jobId, req);
+    }
+
+    // Otherwise, start a new job
+    // First check there's no active job
+    const { data: existing } = await sb
+      .from('autopilot_jobs')
+      .select('id')
+      .eq('status', 'running')
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json(
+        { error: 'Ya hay un autopilot en ejecución', jobId: existing[0].id },
+        { status: 409 },
+      );
+    }
+
+    // Create new job
+    const jobId = crypto.randomUUID();
+    const { error } = await sb.from('autopilot_jobs').insert({
+      id: jobId,
+      status: 'running',
+      phase: 'evaluation',
+      current_conversation: 0,
+      total_conversations: allConversations.length,
+      message: `Evaluando conversación 1/${allConversations.length}...`,
+      conversation_scores: [],
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Trigger first chunk processing
+    triggerNextChunk(req, jobId);
+
+    return NextResponse.json({ started: true, jobId });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 },
+    );
+  }
+}
+
+// ─── Trigger the next chunk via self-invocation ───
+function triggerNextChunk(req: NextRequest, jobId: string) {
+  const baseUrl = req.nextUrl.origin;
+  // Fire-and-forget: don't await
+  fetch(`${baseUrl}/api/eval/autopilot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobId }),
+  }).catch(err => {
+    console.error('[autopilot] Failed to trigger next chunk:', err);
   });
 }
 
-async function runAutopilotPipeline(skipDiagnosis: boolean) {
-  const avg = (nums: number[]) =>
-    nums.length === 0 ? 0 : Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+// ─── Process the next chunk for a job ───
+async function processNextChunk(jobId: string, req: NextRequest): Promise<NextResponse> {
+  const sb = getSupabaseAdmin();
 
-  // ═══════════════════════════════════════════
-  // PHASE 1: Run all conversations
-  // ═══════════════════════════════════════════
-  console.log('[autopilot] Phase 1: Evaluation');
+  // Load job state
+  const { data: job, error: jobError } = await sb
+    .from('autopilot_jobs')
+    .select('*')
+    .eq('id', jobId)
+    .single();
 
-  const results: ConversationResult[] = [];
-  const startTime = Date.now();
-
-  for (let i = 0; i < allConversations.length; i++) {
-    const conversation = allConversations[i];
-    const profile = profiles.find(p => p.id === conversation.profileId);
-    if (!profile) continue;
-
-    console.log(`[autopilot] Conversation ${i + 1}/${allConversations.length}: ${conversation.name}`);
-
-    const state = {
-      recentMessages: [] as string[],
-      createdEvents: [] as string[],
-      createdTasks: [] as string[],
-      activeMedications: [] as string[],
-      pendingDetection: null as unknown,
-      messageResults: [] as MessageResult[],
-    };
-
-    let hasError = false;
-
-    for (let msgIdx = 0; msgIdx < conversation.messages.length; msgIdx++) {
-      const msg = conversation.messages[msgIdx];
-      const senderName = msg.sender === 'mama' ? profile.mamaName : profile.papaName;
-      const familyContext = buildFamilyContext(profile);
-      const recentStr = state.recentMessages.slice(-15).join('\n') || 'Ninguno';
-
-      const msgStart = Date.now();
-      let response = null;
-      let error: string | undefined;
-
-      try {
-        response = await processChat({
-          message: msg.text,
-          familyContext,
-          recentMessages: recentStr,
-          existingEvents: state.createdEvents.join('\n') || 'Ninguno',
-          existingTasks: state.createdTasks.join('\n') || 'Ninguna',
-          activeMedications: state.activeMedications.join('\n') || 'Ninguno',
-          senderName,
-          senderRole: msg.sender === 'papa' ? 'papa' : 'mama',
-          pendingDetection: state.pendingDetection as Record<string, unknown> | null,
-        });
-      } catch (e) {
-        error = e instanceof Error ? e.message : String(e);
-        hasError = true;
-      }
-
-      const responseTimeMs = Date.now() - msgStart;
-
-      state.recentMessages.push(`${senderName}: ${msg.text}`);
-      if (response) {
-        if (response.should_respond && response.reply) {
-          state.recentMessages.push(`Nanny: ${response.reply}`);
-        }
-        if (response.confirmation) {
-          const conf = response.confirmation;
-          if (conf.type === 'event') {
-            state.createdEvents.push(`${conf.data.title} - ${conf.data.date_start || ''} (${conf.data.assigned_to || 'sin asignar'})`);
-          } else if (conf.type === 'task') {
-            state.createdTasks.push(`${conf.data.title} (${conf.data.assigned_to || 'sin asignar'})`);
-          } else if (conf.type === 'medication') {
-            state.activeMedications.push(`${conf.data.medication_name} - ${conf.data.frequency || ''}`);
-          }
-        }
-        state.pendingDetection = response.pending_detection || null;
-      }
-
-      state.messageResults.push({
-        messageIndex: msgIdx,
-        senderName,
-        messageText: msg.text,
-        response,
-        responseTimeMs,
-        error,
-      });
-    }
-
-    if (!hasError) {
-      const { detectionMatches, behaviorMatches, scores } = scoreConversation(
-        conversation,
-        state.messageResults,
-      );
-
-      results.push({
-        conversationId: conversation.id,
-        conversationName: conversation.name,
-        profileId: conversation.profileId,
-        messageResults: state.messageResults,
-        detectionMatches,
-        behaviorMatches,
-        scores,
-        totalTimeMs: state.messageResults.reduce((sum, mr) => sum + mr.responseTimeMs, 0),
-      });
-    }
+  if (jobError || !job || job.status !== 'running') {
+    return NextResponse.json({ error: 'Job not found or not running' }, { status: 404 });
   }
 
-  if (results.length === 0) {
-    console.error('[autopilot] No results obtained');
-    return;
-  }
-
-  // ═══════════════════════════════════════════
-  // PHASE 2: Save results
-  // ═══════════════════════════════════════════
-  console.log('[autopilot] Phase 2: Saving results');
-
-  const totalTimeMs = Date.now() - startTime;
-
-  const aggregate = {
-    precision: avg(results.map(r => r.scores.precision)),
-    recall: avg(results.map(r => r.scores.recall)),
-    ambiguityHandling: avg(results.map(r => r.scores.ambiguityHandling)),
-    behaviorScore: avg(results.map(r => r.scores.behaviorScore)),
-    falsePositiveRate: avg(results.map(r => r.scores.falsePositiveRate ?? 0)),
-    fieldAccuracy: {
-      dateAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
-      ownerAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
-      typeAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
-    },
-    overall: avg(results.map(r => r.scores.overall)),
-  };
-
-  let savedRunId: string | null = null;
+  const phase = job.phase as string;
+  const convIndex = job.current_conversation as number;
+  const totalConvs = job.total_conversations as number;
+  const scores = (job.conversation_scores || []) as Array<{
+    name: string;
+    score: number;
+    result: ConversationResult;
+  }>;
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const id = crypto.randomUUID();
-      const { error } = await supabase.from('evaluation_runs').insert({
-        id,
+    if (phase === 'evaluation') {
+      // Process one conversation
+      if (convIndex < totalConvs) {
+        const convName = allConversations[convIndex]?.name || `Conv ${convIndex + 1}`;
+        console.log(`[autopilot] Job ${jobId}: evaluating ${convIndex + 1}/${totalConvs} — ${convName}`);
+
+        const result = await processConversation(convIndex);
+
+        const newScores = [...scores];
+        if (result) {
+          newScores.push({
+            name: result.conversationName,
+            score: result.scores.overall,
+            result,
+          });
+        }
+
+        const nextConv = convIndex + 1;
+        const isLast = nextConv >= totalConvs;
+
+        await sb.from('autopilot_jobs').update({
+          current_conversation: nextConv,
+          conversation_scores: newScores,
+          message: isLast
+            ? 'Evaluación completada. Guardando resultados...'
+            : `Evaluando conversación ${nextConv + 1}/${totalConvs}...`,
+          phase: isLast ? 'saving' : 'evaluation',
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+
+        // Trigger next chunk
+        triggerNextChunk(req, jobId);
+        return NextResponse.json({ ok: true, next: isLast ? 'saving' : 'evaluation' });
+      }
+    }
+
+    if (phase === 'saving') {
+      console.log(`[autopilot] Job ${jobId}: saving results`);
+
+      const results = scores.map(s => s.result).filter(Boolean);
+      if (results.length === 0) {
+        await sb.from('autopilot_jobs').update({
+          status: 'error',
+          message: 'No se obtuvieron resultados',
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return NextResponse.json({ ok: true, done: true });
+      }
+
+      const avg = (nums: number[]) =>
+        nums.length === 0 ? 0 : Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+
+      const aggregate = {
+        precision: avg(results.map(r => r.scores.precision)),
+        recall: avg(results.map(r => r.scores.recall)),
+        ambiguityHandling: avg(results.map(r => r.scores.ambiguityHandling)),
+        behaviorScore: avg(results.map(r => r.scores.behaviorScore)),
+        falsePositiveRate: avg(results.map(r => r.scores.falsePositiveRate ?? 0)),
+        fieldAccuracy: {
+          dateAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
+          ownerAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
+          typeAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
+        },
+        overall: avg(results.map(r => r.scores.overall)),
+      };
+
+      // Save to evaluation_runs
+      const runId = crypto.randomUUID();
+      const totalTimeMs = results.reduce((sum, r) => sum + r.totalTimeMs, 0);
+
+      await sb.from('evaluation_runs').insert({
+        id: runId,
         timestamp: new Date().toISOString(),
         prompt_version: 'current',
         model: 'gpt-4o-mini',
@@ -192,215 +347,222 @@ async function runAutopilotPipeline(skipDiagnosis: boolean) {
         failed_conversations: results.filter(r => r.scores.overall < 0.6).length,
         total_time_ms: totalTimeMs,
       });
-      if (!error) {
-        savedRunId = id;
-        console.log(`[autopilot] Saved run: ${id}, overall: ${Math.round(aggregate.overall * 100)}%`);
-      } else {
-        console.error('[autopilot] Save error:', error);
+
+      // Perfect score? Done.
+      if (aggregate.overall >= 1.0) {
+        await sb.from('autopilot_jobs').update({
+          status: 'completed',
+          phase: 'complete',
+          eval_run_id: runId,
+          aggregate_scores: aggregate,
+          message: 'Score perfecto. No se requieren cambios.',
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return NextResponse.json({ ok: true, done: true });
       }
+
+      // Move to diagnosis
+      await sb.from('autopilot_jobs').update({
+        phase: 'diagnosis',
+        eval_run_id: runId,
+        aggregate_scores: aggregate,
+        message: 'Ejecutando diagnóstico AI...',
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+
+      // Trigger diagnosis chunk
+      triggerNextChunk(req, jobId);
+      return NextResponse.json({ ok: true, next: 'diagnosis' });
     }
-  } catch (e) {
-    console.error('[autopilot] Save failed:', e);
-  }
 
-  // If perfect score or skip diagnosis, done
-  if (aggregate.overall >= 1.0 || skipDiagnosis || !savedRunId) {
-    console.log('[autopilot] Done (no diagnosis needed)');
-    return;
-  }
+    if (phase === 'diagnosis') {
+      console.log(`[autopilot] Job ${jobId}: running diagnosis`);
 
-  // ═══════════════════════════════════════════
-  // PHASE 3: Diagnosis
-  // ═══════════════════════════════════════════
-  console.log('[autopilot] Phase 3: Diagnosis');
+      const results = scores.map(s => s.result).filter(Boolean);
 
-  let diagnosis;
-  try {
-    const { diagnoseResults } = await import('@/lib/eval/diagnosis');
-    const { CLASSIFIER_PROMPT_TEXT, EXTRACTOR_PROMPT_TEXT } = await import('@/app/api/eval/prompt/prompt-texts');
-    diagnosis = await diagnoseResults(results, {
-      classifier: CLASSIFIER_PROMPT_TEXT,
-      extractor: EXTRACTOR_PROMPT_TEXT,
-    });
-    diagnosis.runId = savedRunId;
-    console.log(`[autopilot] Diagnosis: ${diagnosis.proposedAdjustments?.length || 0} adjustments proposed`);
-  } catch (e) {
-    console.error('[autopilot] Diagnosis failed:', e);
-    return;
-  }
-
-  const adjustments = diagnosis.proposedAdjustments || [];
-  if (adjustments.length === 0) {
-    console.log('[autopilot] No adjustments proposed');
-    return;
-  }
-
-  // ═══════════════════════════════════════════
-  // PHASE 4: Apply adjustments
-  // ═══════════════════════════════════════════
-  console.log(`[autopilot] Phase 4: Applying ${adjustments.length} adjustments`);
-
-  const { addRule, saveSnapshot, rollbackToSnapshot } = await import('@/lib/chat/prompt-rules');
-  saveSnapshot();
-
-  let appliedCount = 0;
-  for (let i = 0; i < adjustments.length; i++) {
-    const adj = adjustments[i];
-    if (!adj.proposedChange) continue;
-
-    try {
-      addRule(
-        adj.target || 'extractor',
-        adj.proposedChange,
-        `Autopilot: ${adj.pattern}`,
-      );
-      appliedCount++;
-      console.log(`[autopilot] Applied adjustment ${i + 1}: ${adj.pattern}`);
-    } catch (e) {
-      console.error(`[autopilot] Adjustment ${i + 1} failed:`, e);
-    }
-  }
-
-  if (appliedCount === 0) {
-    console.log('[autopilot] No adjustments applied');
-    return;
-  }
-
-  // ═══════════════════════════════════════════
-  // PHASE 5: Re-evaluation
-  // ═══════════════════════════════════════════
-  console.log('[autopilot] Phase 5: Re-evaluation');
-
-  const reResults: ConversationResult[] = [];
-
-  for (let i = 0; i < allConversations.length; i++) {
-    const conversation = allConversations[i];
-    const profile = profiles.find(p => p.id === conversation.profileId);
-    if (!profile) continue;
-
-    console.log(`[autopilot] Re-eval ${i + 1}/${allConversations.length}: ${conversation.name}`);
-
-    const state = {
-      recentMessages: [] as string[],
-      createdEvents: [] as string[],
-      createdTasks: [] as string[],
-      activeMedications: [] as string[],
-      pendingDetection: null as unknown,
-      messageResults: [] as MessageResult[],
-    };
-
-    try {
-      for (const msg of conversation.messages) {
-        const senderName = msg.sender === 'mama' ? profile.mamaName : profile.papaName;
-        const familyContext = buildFamilyContext(profile);
-        const recentStr = state.recentMessages.slice(-15).join('\n') || 'Ninguno';
-        const msgStart = Date.now();
-
-        const response = await processChat({
-          message: msg.text,
-          familyContext,
-          recentMessages: recentStr,
-          existingEvents: state.createdEvents.join('\n') || 'Ninguno',
-          existingTasks: state.createdTasks.join('\n') || 'Ninguna',
-          activeMedications: state.activeMedications.join('\n') || 'Ninguno',
-          senderName,
-          senderRole: msg.sender === 'papa' ? 'papa' : 'mama',
-          pendingDetection: state.pendingDetection as Record<string, unknown> | null,
+      let diagnosis;
+      try {
+        const { diagnoseResults } = await import('@/lib/eval/diagnosis');
+        const { CLASSIFIER_PROMPT_TEXT, EXTRACTOR_PROMPT_TEXT } = await import('@/app/api/eval/prompt/prompt-texts');
+        diagnosis = await diagnoseResults(results, {
+          classifier: CLASSIFIER_PROMPT_TEXT,
+          extractor: EXTRACTOR_PROMPT_TEXT,
         });
+      } catch (e) {
+        await sb.from('autopilot_jobs').update({
+          status: 'completed',
+          phase: 'complete',
+          message: `Diagnóstico falló: ${e instanceof Error ? e.message : 'Error'}`,
+          diagnosis_summary: `Error: ${e instanceof Error ? e.message : 'Error'}`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return NextResponse.json({ ok: true, done: true });
+      }
 
-        state.recentMessages.push(`${senderName}: ${msg.text}`);
-        if (response?.should_respond && response.reply) {
-          state.recentMessages.push(`Nanny: ${response.reply}`);
+      const adjustments = diagnosis.proposedAdjustments || [];
+
+      if (adjustments.length === 0) {
+        await sb.from('autopilot_jobs').update({
+          status: 'completed',
+          phase: 'complete',
+          message: 'Diagnóstico completado. Sin ajustes propuestos.',
+          diagnosis_summary: diagnosis.summary,
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return NextResponse.json({ ok: true, done: true });
+      }
+
+      // Apply adjustments
+      const { addRule, saveSnapshot } = await import('@/lib/chat/prompt-rules');
+      saveSnapshot();
+
+      let appliedCount = 0;
+      for (const adj of adjustments) {
+        if (!adj.proposedChange) continue;
+        try {
+          addRule(adj.target || 'extractor', adj.proposedChange, `Autopilot: ${adj.pattern}`);
+          appliedCount++;
+        } catch {
+          // skip
         }
-        if (response?.confirmation) {
-          const conf = response.confirmation;
-          if (conf.type === 'event') state.createdEvents.push(`${conf.data.title}`);
-          else if (conf.type === 'task') state.createdTasks.push(`${conf.data.title}`);
-          else if (conf.type === 'medication') state.activeMedications.push(`${conf.data.medication_name}`);
+      }
+
+      await sb.from('autopilot_jobs').update({
+        phase: appliedCount > 0 ? 'reeval' : 'complete',
+        status: appliedCount > 0 ? 'running' : 'completed',
+        message: appliedCount > 0
+          ? `${appliedCount} ajustes aplicados. Re-evaluando...`
+          : 'Sin ajustes aplicables.',
+        diagnosis_summary: diagnosis.summary,
+        adjustments_applied: appliedCount,
+        current_conversation: 0, // Reset for re-evaluation
+        conversation_scores: [], // Clear for re-eval scores
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+
+      if (appliedCount > 0) {
+        triggerNextChunk(req, jobId);
+      }
+      return NextResponse.json({ ok: true, next: appliedCount > 0 ? 'reeval' : 'done' });
+    }
+
+    if (phase === 'reeval') {
+      // Re-evaluate one conversation at a time
+      if (convIndex < totalConvs) {
+        const convName = allConversations[convIndex]?.name || `Conv ${convIndex + 1}`;
+        console.log(`[autopilot] Job ${jobId}: re-eval ${convIndex + 1}/${totalConvs} — ${convName}`);
+
+        const result = await processConversation(convIndex);
+        const newScores = [...scores];
+        if (result) {
+          newScores.push({ name: result.conversationName, score: result.scores.overall, result });
         }
-        state.pendingDetection = response?.pending_detection || null;
 
-        state.messageResults.push({
-          messageIndex: state.messageResults.length,
-          senderName,
-          messageText: msg.text,
-          response,
-          responseTimeMs: Date.now() - msgStart,
-        });
+        const nextConv = convIndex + 1;
+        const isLast = nextConv >= totalConvs;
+
+        await sb.from('autopilot_jobs').update({
+          current_conversation: nextConv,
+          conversation_scores: newScores,
+          message: isLast
+            ? 'Re-evaluación completada. Comparando scores...'
+            : `Re-evaluando ${nextConv + 1}/${totalConvs}...`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+
+        if (isLast) {
+          // Compare pre vs post scores
+          const reResults = newScores.map(s => s.result).filter(Boolean);
+          const avg = (nums: number[]) =>
+            nums.length === 0 ? 0 : Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+
+          const postScore = avg(reResults.map(r => r.scores.overall));
+          const preScore = (job.aggregate_scores as { overall: number })?.overall ?? 0;
+
+          if (postScore < preScore) {
+            // Regressed — rollback
+            const { rollbackToSnapshot } = await import('@/lib/chat/prompt-rules');
+            rollbackToSnapshot();
+
+            await sb.from('autopilot_jobs').update({
+              status: 'completed',
+              phase: 'complete',
+              message: `Score bajó (${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%). Rollback aplicado.`,
+              reeval_pre_score: preScore,
+              reeval_post_score: postScore,
+              reeval_improved: false,
+              reeval_rolled_back: true,
+              adjustments_applied: 0,
+              updated_at: new Date().toISOString(),
+            }).eq('id', jobId);
+          } else {
+            // Improved — save new run
+            const reAggregate = {
+              precision: avg(reResults.map(r => r.scores.precision)),
+              recall: avg(reResults.map(r => r.scores.recall)),
+              ambiguityHandling: avg(reResults.map(r => r.scores.ambiguityHandling)),
+              behaviorScore: avg(reResults.map(r => r.scores.behaviorScore)),
+              falsePositiveRate: avg(reResults.map(r => r.scores.falsePositiveRate ?? 0)),
+              fieldAccuracy: {
+                dateAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
+                ownerAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
+                typeAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
+              },
+              overall: postScore,
+            };
+
+            const reRunId = crypto.randomUUID();
+            await sb.from('evaluation_runs').insert({
+              id: reRunId,
+              timestamp: new Date().toISOString(),
+              prompt_version: 'current',
+              model: 'gpt-4o-mini',
+              conversation_results: reResults,
+              aggregate_scores: reAggregate,
+              total_conversations: reResults.length,
+              perfect_conversations: reResults.filter(r => r.scores.overall >= 0.9).length,
+              partial_conversations: reResults.filter(r => r.scores.overall >= 0.6 && r.scores.overall < 0.9).length,
+              failed_conversations: reResults.filter(r => r.scores.overall < 0.6).length,
+              total_time_ms: reResults.reduce((sum, r) => sum + r.totalTimeMs, 0),
+            });
+
+            await sb.from('autopilot_jobs').update({
+              status: 'completed',
+              phase: 'complete',
+              eval_run_id: reRunId,
+              aggregate_scores: reAggregate,
+              message: `Score mejoró: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`,
+              reeval_pre_score: preScore,
+              reeval_post_score: postScore,
+              reeval_improved: true,
+              reeval_rolled_back: false,
+              updated_at: new Date().toISOString(),
+            }).eq('id', jobId);
+          }
+
+          return NextResponse.json({ ok: true, done: true });
+        }
+
+        // Trigger next re-eval conversation
+        triggerNextChunk(req, jobId);
+        return NextResponse.json({ ok: true, next: 'reeval' });
       }
-
-      const { detectionMatches, behaviorMatches, scores } = scoreConversation(conversation, state.messageResults);
-      reResults.push({
-        conversationId: conversation.id,
-        conversationName: conversation.name,
-        profileId: conversation.profileId,
-        messageResults: state.messageResults,
-        detectionMatches,
-        behaviorMatches,
-        scores,
-        totalTimeMs: state.messageResults.reduce((sum, mr) => sum + mr.responseTimeMs, 0),
-      });
-    } catch (e) {
-      console.error(`[autopilot] Re-eval conversation ${i + 1} failed:`, e);
     }
+
+    // Fallback
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error(`[autopilot] Job ${jobId} chunk error:`, e);
+
+    await sb.from('autopilot_jobs').update({
+      status: 'error',
+      message: `Error: ${e instanceof Error ? e.message : 'Error desconocido'}`,
+      updated_at: new Date().toISOString(),
+    }).eq('id', jobId);
+
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 },
+    );
   }
-
-  if (reResults.length === 0) {
-    console.log('[autopilot] Re-evaluation produced no results');
-    return;
-  }
-
-  const preScore = aggregate.overall;
-  const postScore = avg(reResults.map(r => r.scores.overall));
-
-  if (postScore < preScore) {
-    // Regressed — rollback
-    rollbackToSnapshot();
-    console.log(`[autopilot] Score regressed: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%. Rolled back.`);
-  } else {
-    // Improved — save the new run
-    console.log(`[autopilot] Score improved: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`);
-
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const reTotalTimeMs = reResults.reduce((sum, r) => sum + r.totalTimeMs, 0);
-        const reAggregate = {
-          precision: avg(reResults.map(r => r.scores.precision)),
-          recall: avg(reResults.map(r => r.scores.recall)),
-          ambiguityHandling: avg(reResults.map(r => r.scores.ambiguityHandling)),
-          behaviorScore: avg(reResults.map(r => r.scores.behaviorScore)),
-          falsePositiveRate: avg(reResults.map(r => r.scores.falsePositiveRate ?? 0)),
-          fieldAccuracy: {
-            dateAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
-            ownerAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
-            typeAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
-          },
-          overall: postScore,
-        };
-
-        await supabase.from('evaluation_runs').insert({
-          id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          prompt_version: 'current',
-          model: 'gpt-4o-mini',
-          conversation_results: reResults,
-          aggregate_scores: reAggregate,
-          total_conversations: reResults.length,
-          perfect_conversations: reResults.filter(r => r.scores.overall >= 0.9).length,
-          partial_conversations: reResults.filter(r => r.scores.overall >= 0.6 && r.scores.overall < 0.9).length,
-          failed_conversations: reResults.filter(r => r.scores.overall < 0.6).length,
-          total_time_ms: reTotalTimeMs,
-        });
-
-        console.log('[autopilot] Re-evaluation saved');
-      }
-    } catch (e) {
-      console.error('[autopilot] Failed to save re-evaluation:', e);
-    }
-  }
-
-  console.log('[autopilot] Pipeline complete');
 }

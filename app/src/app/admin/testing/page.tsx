@@ -93,44 +93,10 @@ export default function TestingDashboard() {
   } | null>(null);
   const abortRef = useRef(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autopilotStartTimeRef = useRef<string | null>(null);
-  const runsRef = useRef<EvalRun[]>([]);
 
-  // Autopilot state
-  const [autopilotRunning, setAutopilotRunning] = useState(false);
-  const [autopilotPhase, setAutopilotPhase] = useState<string>('');
-  const [autopilotMessage, setAutopilotMessage] = useState<string>('');
-  const [autopilotConvs, setAutopilotConvs] = useState<ConvProgress[]>([]);
-  const [autopilotDiagnosis, setAutopilotDiagnosis] = useState<{
-    summary: string;
-    failurePatterns: number;
-    proposedAdjustments: number;
-  } | null>(null);
-  const [autopilotAdjustments, setAutopilotAdjustments] = useState<{
-    index: number;
-    pattern: string;
-    status: 'pending' | 'applying' | 'done' | 'skipped' | 'error';
-    version?: string;
-    reason?: string;
-  }[]>([]);
-  const [autopilotReeval, setAutopilotReeval] = useState<{
-    status: 'running' | 'improved' | 'regressed' | 'rollback';
-    preScore: number;
-    postScore?: number;
-    rolledBack?: boolean;
-  } | null>(null);
-  const [autopilotResult, setAutopilotResult] = useState<{
-    runId: string | null;
-    aggregate: EvalRun['aggregate_scores'];
-    adjustmentsApplied: number;
-    diagnosisSummary?: string;
-    reeval?: {
-      preScore: number;
-      postScore: number;
-      improved: boolean;
-      rolledBack: boolean;
-    };
-  } | null>(null);
+  // Autopilot state — driven by DB job status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [autopilotJob, setAutopilotJob] = useState<Record<string, any> | null>(null);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -148,7 +114,25 @@ export default function TestingDashboard() {
   }, []);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
-  useEffect(() => { runsRef.current = runs; }, [runs]);
+
+  // On mount, check if there's an active autopilot job
+  const checkAutopilotStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/eval/autopilot');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.job) {
+        setAutopilotJob(data.job);
+        if (data.active && !pollingRef.current) {
+          startPolling();
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { checkAutopilotStatus(); }, [checkAutopilotStatus]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -157,7 +141,7 @@ export default function TestingDashboard() {
     };
   }, []);
 
-  // Bloquear navegación del browser mientras hay proceso en ejecución
+  const autopilotRunning = autopilotJob?.status === 'running';
   const processRunning = running || autopilotRunning;
   useEffect(() => {
     if (!processRunning) return;
@@ -319,84 +303,54 @@ export default function TestingDashboard() {
   }
 
   async function startAutopilot() {
-    setAutopilotRunning(true);
-    setAutopilotPhase('background');
-    setAutopilotMessage('Autopilot iniciado. Ejecutándose en el servidor...');
-    setAutopilotConvs([]);
-    setAutopilotDiagnosis(null);
-    setAutopilotAdjustments([]);
-    setAutopilotReeval(null);
-    setAutopilotResult(null);
     setError(null);
 
-    autopilotStartTimeRef.current = new Date().toISOString();
-
     try {
-      // Fire-and-forget: the server runs the full pipeline via after()
-      // independently of this HTTP connection
       const res = await fetch('/api/eval/autopilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skipDiagnosis: false }),
+        body: JSON.stringify({}),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        setError(data.error || `HTTP ${res.status}`);
+        return;
       }
 
-      // Server accepted — start polling for results
-      startPollingForResults();
+      // Immediately fetch job status and start polling
+      await checkAutopilotStatus();
+      startPolling();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error iniciando autopilot');
-      setAutopilotRunning(false);
-      setAutopilotPhase('');
-      setAutopilotMessage('');
-      autopilotStartTimeRef.current = null;
     }
   }
 
-  function startPollingForResults() {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    const startTime = autopilotStartTimeRef.current;
+  function startPolling() {
+    if (pollingRef.current) return; // Already polling
 
     pollingRef.current = setInterval(async () => {
       try {
-        const res = await fetch('/api/eval/runs');
+        // Poll job status
+        const res = await fetch('/api/eval/autopilot');
         if (!res.ok) return;
-        const data: EvalRun[] = await res.json();
-        setRuns(data);
+        const data = await res.json();
 
-        // Detect new run that appeared after autopilot started
-        if (startTime && data.length > 0 && data[0].timestamp > startTime) {
-          if (pollingRef.current) clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          autopilotStartTimeRef.current = null;
-          setAutopilotPhase('complete');
-          setAutopilotMessage('Autopilot completado.');
-          setAutopilotResult({
-            runId: data[0].id,
-            aggregate: data[0].aggregate_scores,
-            adjustmentsApplied: 0,
-          });
-          setAutopilotRunning(false);
+        if (data.job) {
+          setAutopilotJob(data.job);
+
+          // If completed or error, stop polling and refresh runs
+          if (!data.active) {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            loadRuns();
+          }
         }
       } catch {
-        // Ignore — will retry next interval
+        // Ignore — retry next interval
       }
-    }, 10000);
-
-    // Auto-stop after 6 minutes (server maxDuration=300s + buffer)
-    setTimeout(() => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-        autopilotStartTimeRef.current = null;
-        setAutopilotRunning(false);
-        setAutopilotPhase('');
-        setAutopilotMessage('');
-        loadRuns();
-      }
-    }, 360000);
+    }, 5000);
   }
 
   function stopAutopilot() {
@@ -404,11 +358,16 @@ export default function TestingDashboard() {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
-    autopilotStartTimeRef.current = null;
-    setAutopilotRunning(false);
-    setAutopilotPhase('');
-    setAutopilotMessage('');
+    setAutopilotJob(null);
     loadRuns();
+  }
+
+  function dismissAutopilot() {
+    setAutopilotJob(null);
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
   }
 
   const latest = runs[0];
@@ -479,221 +438,144 @@ export default function TestingDashboard() {
         </div>
       )}
 
-      {/* Autopilot progress */}
-      {(autopilotRunning || autopilotResult) && (
+      {/* Autopilot progress — reads from DB job state */}
+      {autopilotJob && (
         <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 mb-4">
-          {/* Phase indicator */}
+          {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Zap size={14} className="text-purple-400" />
               <p className="text-sm font-semibold text-purple-300">
-                {autopilotResult ? 'Autopilot completado' : 'Autopilot'}
+                {autopilotJob.status === 'completed' ? 'Autopilot completado'
+                  : autopilotJob.status === 'error' ? 'Autopilot error'
+                  : 'Autopilot'}
               </p>
             </div>
-            {autopilotRunning && (
+            {autopilotJob.status === 'running' && (
               <span className="text-xs text-purple-400 flex items-center gap-1.5">
                 <Loader2 size={10} className="animate-spin" />
-                {autopilotMessage}
+                {autopilotJob.message}
               </span>
             )}
           </div>
 
           {/* Phase steps */}
           <div className="flex gap-1 mb-4">
-            {autopilotPhase === 'background' ? (
-              // Background mode: all bars pulse
-              Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex-1 h-1.5 rounded-full bg-yellow-500/60 animate-pulse" />
-              ))
-            ) : (
-              ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'].map((phase) => {
-                const phases = ['evaluation', 'saving', 'diagnosis', 'applying', 'reeval', 'complete'];
-                const currentIdx = phases.indexOf(autopilotPhase);
-                const phaseIdx = phases.indexOf(phase);
-                const isActive = phase === autopilotPhase;
-                const isDone = phaseIdx < currentIdx || autopilotPhase === 'complete';
-                return (
-                  <div
-                    key={phase}
-                    className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
-                      isDone ? 'bg-purple-500' : isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-700'
-                    }`}
-                  />
-                );
-              })
-            )}
+            {['evaluation', 'saving', 'diagnosis', 'reeval', 'complete'].map((phase) => {
+              const phases = ['evaluation', 'saving', 'diagnosis', 'reeval', 'complete'];
+              const currentIdx = phases.indexOf(autopilotJob.phase);
+              const phaseIdx = phases.indexOf(phase);
+              const isActive = phase === autopilotJob.phase && autopilotJob.status === 'running';
+              const isDone = phaseIdx < currentIdx || autopilotJob.phase === 'complete';
+              return (
+                <div
+                  key={phase}
+                  className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                    isDone ? 'bg-purple-500' : isActive ? 'bg-purple-400 animate-pulse' : 'bg-gray-700'
+                  }`}
+                />
+              );
+            })}
           </div>
 
-          {/* Background mode banner */}
-          {autopilotPhase === 'background' && (
-            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3 mb-4 text-xs text-yellow-300">
+          {/* Running info banner */}
+          {autopilotJob.status === 'running' && (
+            <div className="bg-purple-900/30 border border-purple-700 rounded-lg p-3 mb-4 text-xs text-purple-300">
               <p className="font-medium mb-1">Ejecutándose en el servidor</p>
-              <p className="text-yellow-400/80">El autopilot sigue corriendo aunque cierres esta página. Los resultados aparecerán automáticamente cuando termine.</p>
+              <p className="text-purple-400/80">
+                Podés cerrar esta página o cambiar de app. El progreso se guarda automáticamente.
+              </p>
             </div>
           )}
 
-          {/* Evaluation conversations progress */}
-          {autopilotConvs.length > 0 && (
+          {/* Conversation scores (from DB) */}
+          {autopilotJob.conversation_scores?.length > 0 && (
             <div className="mb-4">
-              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Evaluación</p>
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">
+                {autopilotJob.phase === 'reeval' ? 'Re-evaluación' : 'Evaluación'}
+                {' '}({autopilotJob.current_conversation}/{autopilotJob.total_conversations})
+              </p>
               <div className="space-y-1">
-                {autopilotConvs.map((conv) => (
-                  <div key={conv.index} className="flex items-center gap-2 text-xs">
+                {(autopilotJob.conversation_scores as Array<{ name: string; score: number }>).map((conv: { name: string; score: number }, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
                     <span className="w-5 text-center shrink-0">
-                      {conv.status === 'pending' && <span className="text-gray-600">-</span>}
-                      {conv.status === 'running' && (
-                        conv.totalMessages ? (
-                          <span className="text-purple-400 text-[10px] font-mono">{conv.completedMessages}/{conv.totalMessages}</span>
-                        ) : (
-                          <Loader2 size={10} className="animate-spin text-purple-400" />
-                        )
-                      )}
-                      {conv.status === 'done' && (
-                        <span>{(conv.score ?? 0) >= 0.9 ? '✅' : (conv.score ?? 0) >= 0.6 ? '⚠️' : '❌'}</span>
-                      )}
-                      {conv.status === 'error' && '💥'}
+                      {conv.score >= 0.9 ? '✅' : conv.score >= 0.6 ? '⚠️' : '❌'}
                     </span>
-                    <span className={`flex-1 truncate ${conv.status === 'running' ? 'text-purple-300' : conv.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
-                      {conv.name}
+                    <span className="flex-1 truncate text-gray-300">{conv.name}</span>
+                    <span className={`font-mono shrink-0 ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {Math.round(conv.score * 100)}%
                     </span>
-                    {conv.score !== undefined && (
-                      <span className={`font-mono shrink-0 ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
-                        {Math.round(conv.score * 100)}%
-                      </span>
-                    )}
                   </div>
                 ))}
+                {/* Show pending indicator for current conversation */}
+                {autopilotJob.status === 'running' && autopilotJob.current_conversation < autopilotJob.total_conversations && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="w-5 text-center shrink-0">
+                      <Loader2 size={10} className="animate-spin text-purple-400" />
+                    </span>
+                    <span className="flex-1 truncate text-purple-300">En progreso...</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Diagnosis info */}
-          {autopilotDiagnosis && (
+          {/* Diagnosis summary */}
+          {autopilotJob.diagnosis_summary && (
             <div className="mb-4">
               <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Diagnóstico</p>
-              <p className="text-xs text-gray-300 mb-1">{autopilotDiagnosis.summary}</p>
-              <div className="flex gap-3 text-[10px] text-gray-500">
-                <span>{autopilotDiagnosis.failurePatterns} patrones de fallo</span>
-                <span>{autopilotDiagnosis.proposedAdjustments} ajustes propuestos</span>
+              <p className="text-xs text-gray-300">{autopilotJob.diagnosis_summary}</p>
+              {autopilotJob.adjustments_applied > 0 && (
+                <p className="text-[10px] text-purple-400 mt-1">{autopilotJob.adjustments_applied} ajustes aplicados</p>
+              )}
+            </div>
+          )}
+
+          {/* Re-evaluation result */}
+          {autopilotJob.reeval_pre_score != null && (
+            <div className={`rounded-lg p-2.5 text-xs mb-4 ${
+              autopilotJob.reeval_rolled_back ? 'bg-red-900/30 border border-red-800 text-red-300'
+                : autopilotJob.reeval_improved ? 'bg-green-900/30 border border-green-800 text-green-300'
+                : 'bg-gray-800 text-gray-300'
+            }`}>
+              <div className="flex items-center gap-2">
+                {autopilotJob.reeval_improved ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                <span>
+                  {Math.round(autopilotJob.reeval_pre_score * 100)}% → {Math.round((autopilotJob.reeval_post_score ?? 0) * 100)}%
+                  {autopilotJob.reeval_rolled_back && ' (rollback aplicado)'}
+                </span>
               </div>
             </div>
           )}
 
-          {/* Adjustments progress */}
-          {autopilotAdjustments.length > 0 && (
-            <div className="mb-4">
-              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Ajustes al prompt</p>
-              <div className="space-y-1">
-                {autopilotAdjustments.map((adj) => (
-                  <div key={adj.index} className="flex items-center gap-2 text-xs">
-                    <span className="w-5 text-center shrink-0">
-                      {adj.status === 'pending' && <span className="text-gray-600">-</span>}
-                      {adj.status === 'applying' && <Loader2 size={10} className="animate-spin text-purple-400" />}
-                      {adj.status === 'done' && '✅'}
-                      {adj.status === 'skipped' && '⏭️'}
-                      {adj.status === 'error' && '❌'}
-                    </span>
-                    <span className={`flex-1 truncate ${adj.status === 'applying' ? 'text-purple-300' : adj.status === 'pending' ? 'text-gray-600' : 'text-gray-300'}`}>
-                      {adj.pattern || `Ajuste ${adj.index + 1}`}
-                    </span>
-                    {adj.version && <span className="text-green-400 text-[10px] font-mono">{adj.version}</span>}
-                    {(adj.status === 'skipped' || adj.status === 'error') && adj.reason && (
-                      <span className={`text-[10px] truncate max-w-[140px] ${adj.status === 'error' ? 'text-red-500' : 'text-gray-600'}`}>{adj.reason}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Re-evaluation status */}
-          {autopilotReeval && (
-            <div className="mb-4">
-              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Re-evaluaci&oacute;n</p>
-              <div className={`rounded-lg p-2.5 text-xs ${
-                autopilotReeval.status === 'running' ? 'bg-blue-900/30 border border-blue-800 text-blue-300' :
-                autopilotReeval.status === 'improved' ? 'bg-green-900/30 border border-green-800 text-green-300' :
-                autopilotReeval.status === 'regressed' || autopilotReeval.status === 'rollback' ? 'bg-red-900/30 border border-red-800 text-red-300' :
-                'bg-gray-800 text-gray-300'
-              }`}>
-                {autopilotReeval.status === 'running' && (
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>Verificando si los ajustes mejoraron el score...</span>
-                  </div>
-                )}
-                {autopilotReeval.status === 'improved' && (
-                  <div className="flex items-center gap-2">
-                    <TrendingUp size={14} />
-                    <span>Score mejor&oacute;: {Math.round(autopilotReeval.preScore * 100)}% &rarr; {Math.round((autopilotReeval.postScore ?? 0) * 100)}% (+{Math.round(((autopilotReeval.postScore ?? 0) - autopilotReeval.preScore) * 100)}%)</span>
-                  </div>
-                )}
-                {autopilotReeval.status === 'rollback' && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <TrendingDown size={14} />
-                      <span>Score baj&oacute;: {Math.round(autopilotReeval.preScore * 100)}% &rarr; {Math.round((autopilotReeval.postScore ?? 0) * 100)}%</span>
-                    </div>
-                    <p className="text-[10px] text-red-400">Prompt revertido a versi&oacute;n anterior autom&aacute;ticamente.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Final result */}
-          {autopilotResult && (
-            <div className="border-t border-purple-800 pt-3">
+          {/* Final scores */}
+          {autopilotJob.aggregate_scores && autopilotJob.status !== 'running' && (
+            <div className="border-t border-purple-800 pt-3 mb-3">
               <div className="space-y-1.5 mb-3">
-                <ScoreBar value={autopilotResult.aggregate.precision} label="Precision" />
-                <ScoreBar value={autopilotResult.aggregate.recall} label="Recall" />
-                <ScoreBar value={autopilotResult.aggregate.ambiguityHandling} label="Ambiguedad" />
-                <ScoreBar value={autopilotResult.aggregate.behaviorScore} label="Comportamiento" />
-                <ScoreBar value={1 - (autopilotResult.aggregate.falsePositiveRate ?? 0)} label="Sin FPs" />
-                <ScoreBar value={autopilotResult.aggregate.overall} label="Overall" />
+                <ScoreBar value={autopilotJob.aggregate_scores.precision ?? 0} label="Precision" />
+                <ScoreBar value={autopilotJob.aggregate_scores.recall ?? 0} label="Recall" />
+                <ScoreBar value={autopilotJob.aggregate_scores.overall ?? 0} label="Overall" />
               </div>
-              {autopilotResult.aggregate.fieldAccuracy && (
-                <div className="mb-3 bg-gray-800/50 rounded-lg p-2.5">
-                  <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Precisi&oacute;n por campo</p>
-                  <div className="space-y-1">
-                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.dateAccuracy} label="Fecha/hora" />
-                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.ownerAccuracy} label="Responsable" />
-                    <ScoreBar value={autopilotResult.aggregate.fieldAccuracy.typeAccuracy} label="Tipo evento" />
-                  </div>
-                </div>
-              )}
-              {autopilotResult.reeval && (
-                <div className={`text-xs text-center mb-2 py-1.5 rounded ${
-                  autopilotResult.reeval.rolledBack ? 'bg-red-900/30 text-red-300' : 'bg-green-900/30 text-green-300'
-                }`}>
-                  {autopilotResult.reeval.rolledBack
-                    ? `Ajustes revertidos: ${Math.round(autopilotResult.reeval.preScore * 100)}% → ${Math.round(autopilotResult.reeval.postScore * 100)}%`
-                    : `Validado: ${Math.round(autopilotResult.reeval.preScore * 100)}% → ${Math.round(autopilotResult.reeval.postScore * 100)}%`
-                  }
-                </div>
-              )}
-              <p className="text-xs text-purple-300 text-center mb-2">
-                {autopilotResult.adjustmentsApplied} ajustes aplicados al prompt
+            </div>
+          )}
+
+          {/* Status message for completed/error */}
+          {autopilotJob.status !== 'running' && (
+            <div className="space-y-2">
+              <p className={`text-xs text-center ${autopilotJob.status === 'error' ? 'text-red-400' : 'text-purple-300'}`}>
+                {autopilotJob.message}
               </p>
-              {autopilotResult.runId && (
+              {autopilotJob.eval_run_id && (
                 <SafeLink
-                  href={`/admin/testing/${autopilotResult.runId}`}
+                  href={`/admin/testing/${autopilotJob.eval_run_id}`}
                   locked={processRunning}
-                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mb-2"
+                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300"
                 >
                   Ver detalle completo →
                 </SafeLink>
               )}
               <button
-                onClick={() => {
-                  setAutopilotResult(null);
-                  setAutopilotConvs([]);
-                  setAutopilotDiagnosis(null);
-                  setAutopilotAdjustments([]);
-                  setAutopilotReeval(null);
-                  setAutopilotPhase('');
-                  setAutopilotMessage('');
-                }}
+                onClick={dismissAutopilot}
                 className="w-full text-xs text-gray-500 hover:text-gray-400"
               >
                 Cerrar
