@@ -345,6 +345,21 @@ export default function TestingDashboard() {
             if (pollingRef.current) clearInterval(pollingRef.current);
             pollingRef.current = null;
             loadRuns();
+            return;
+          }
+
+          // Stale job recovery: if updated_at is >45s old and still running,
+          // the chain may have broken — re-trigger it
+          if (data.job.status === 'running' && data.job.updated_at) {
+            const age = Date.now() - new Date(data.job.updated_at).getTime();
+            if (age > 45_000) {
+              console.log('[autopilot] Job stale, re-triggering chunk...');
+              fetch('/api/eval/autopilot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jobId: data.job.id }),
+              }).catch(() => {});
+            }
           }
         }
       } catch {
