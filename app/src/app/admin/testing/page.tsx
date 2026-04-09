@@ -134,6 +134,17 @@ export default function TestingDashboard() {
 
   useEffect(() => { checkAutopilotStatus(); }, [checkAutopilotStatus]);
 
+  // Re-check status when the tab becomes visible again (user returns from another app)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible') {
+        checkAutopilotStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [checkAutopilotStatus]);
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -315,7 +326,14 @@ export default function TestingDashboard() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || `HTTP ${res.status}`);
+        // 409 = already running. Load the existing job so the user can see it and cancel.
+        if (res.status === 409) {
+          await checkAutopilotStatus();
+          startPolling();
+          setError('Ya hay un autopilot en ejecución. Podés cancelarlo con el botón Detener.');
+        } else {
+          setError(data.error || `HTTP ${res.status}`);
+        }
         return;
       }
 
@@ -324,6 +342,30 @@ export default function TestingDashboard() {
       startPolling();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error iniciando autopilot');
+    }
+  }
+
+  async function forceCancelAutopilot() {
+    setError(null);
+    try {
+      // Get the current running job first
+      const statusRes = await fetch('/api/eval/autopilot');
+      const statusData = await statusRes.json();
+      if (statusData.job?.id) {
+        await fetch('/api/eval/autopilot', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: statusData.job.id }),
+        });
+      }
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      setAutopilotJob(null);
+      loadRuns();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error cancelando');
     }
   }
 
@@ -442,7 +484,13 @@ export default function TestingDashboard() {
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-sm text-red-300">
-          {error}
+          <p>{error}</p>
+          <button
+            onClick={forceCancelAutopilot}
+            className="mt-2 text-xs text-red-200 underline hover:text-white"
+          >
+            Forzar cancelación del job en ejecución
+          </button>
         </div>
       )}
 
