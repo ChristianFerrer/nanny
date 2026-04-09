@@ -87,9 +87,13 @@ export async function DELETE(req: NextRequest) {
 // Creates the job in DB and processes the first batch inline (~50s) for immediate UX.
 // After this returns, the Vercel Cron (every minute) takes over and continues processing
 // until the job completes. This runs 100% server-side, independent of browser state.
-export async function POST() {
+//
+// Body: { force?: boolean } — if force=true, cancels any existing running job first.
+export async function POST(req: NextRequest) {
   try {
     await ensureTable();
+    const body = await req.json().catch(() => ({}));
+    const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
     // Check for existing running job
@@ -101,12 +105,14 @@ export async function POST() {
       .limit(1);
 
     if (existing && existing.length > 0) {
-      // Auto-expire if >20 min old
-      const age = Date.now() - new Date(existing[0].created_at).getTime();
-      if (age > 20 * 60 * 1000) {
+      const createdAge = Date.now() - new Date(existing[0].created_at).getTime();
+      const updatedAge = Date.now() - new Date(existing[0].updated_at).getTime();
+      // Auto-expire if created >20 min ago OR updated >3 min ago (cron runs every minute, so >3min = stuck)
+      // Or if force=true, always replace
+      if (force || createdAge > 20 * 60 * 1000 || updatedAge > 3 * 60 * 1000) {
         await sb.from('autopilot_jobs').update({
           status: 'error',
-          message: 'Job anterior expiró por timeout.',
+          message: force ? 'Reemplazado por nueva ejecución.' : 'Job anterior estancado — cancelado.',
           updated_at: new Date().toISOString(),
         }).eq('id', existing[0].id);
       } else {

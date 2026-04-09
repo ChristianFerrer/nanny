@@ -313,24 +313,27 @@ export default function TestingDashboard() {
     abortRef.current = true;
   }
 
-  async function startAutopilot() {
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+
+  async function startAutopilot(force = false) {
     setError(null);
+    setShowReplaceConfirm(false);
 
     try {
       const res = await fetch('/api/eval/autopilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(force ? { force: true } : {}),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        // 409 = already running. Load the existing job so the user can see it and cancel.
+        // 409 = already running. Load the existing job + offer to replace it.
         if (res.status === 409) {
           await checkAutopilotStatus();
           startPolling();
-          setError('Ya hay un autopilot en ejecución. Podés cancelarlo con el botón Detener.');
+          setShowReplaceConfirm(true);
         } else {
           setError(data.error || `HTTP ${res.status}`);
         }
@@ -347,6 +350,7 @@ export default function TestingDashboard() {
 
   async function forceCancelAutopilot() {
     setError(null);
+    setShowReplaceConfirm(false);
     try {
       // Get the current running job first
       const statusRes = await fetch('/api/eval/autopilot');
@@ -450,7 +454,7 @@ export default function TestingDashboard() {
           ) : (
             <>
               <button
-                onClick={startAutopilot}
+                onClick={() => startAutopilot(false)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors"
               >
                 <Zap size={14} />
@@ -485,12 +489,35 @@ export default function TestingDashboard() {
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-sm text-red-300">
           <p>{error}</p>
-          <button
-            onClick={forceCancelAutopilot}
-            className="mt-2 text-xs text-red-200 underline hover:text-white"
-          >
-            Forzar cancelación del job en ejecución
-          </button>
+        </div>
+      )}
+
+      {showReplaceConfirm && (
+        <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3 mb-4 text-sm text-yellow-200">
+          <p className="font-medium mb-2">Ya hay un autopilot en ejecución</p>
+          <p className="text-xs text-yellow-300/80 mb-3">
+            Podés cancelarlo y empezar uno nuevo, o esperar a que termine.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => startAutopilot(true)}
+              className="flex-1 px-3 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-xs font-medium text-white transition-colors"
+            >
+              Cancelar y empezar uno nuevo
+            </button>
+            <button
+              onClick={forceCancelAutopilot}
+              className="flex-1 px-3 py-2 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-medium text-white transition-colors"
+            >
+              Solo cancelar
+            </button>
+            <button
+              onClick={() => setShowReplaceConfirm(false)}
+              className="px-3 py-2 text-xs text-yellow-300/80 hover:text-yellow-200"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
 
