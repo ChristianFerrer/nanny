@@ -332,7 +332,7 @@ export default function TestingDashboard() {
 
     pollingRef.current = setInterval(async () => {
       try {
-        // Poll job status
+        // Poll job status — the Vercel Cron handles all processing server-side
         const res = await fetch('/api/eval/autopilot');
         if (!res.ok) return;
         const data = await res.json();
@@ -345,21 +345,6 @@ export default function TestingDashboard() {
             if (pollingRef.current) clearInterval(pollingRef.current);
             pollingRef.current = null;
             loadRuns();
-            return;
-          }
-
-          // Stale job recovery: if updated_at is >20s old and still running,
-          // the chain may have broken — re-trigger it
-          if (data.job.status === 'running' && data.job.updated_at) {
-            const age = Date.now() - new Date(data.job.updated_at).getTime();
-            if (age > 20_000) {
-              console.log('[autopilot] Job stale (' + Math.round(age/1000) + 's), re-triggering...');
-              fetch('/api/eval/autopilot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jobId: data.job.id }),
-              }).catch(() => {});
-            }
           }
         }
       } catch {
