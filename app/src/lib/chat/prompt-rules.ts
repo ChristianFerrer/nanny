@@ -1,13 +1,16 @@
 /**
  * Sistema de reglas adicionales para los prompts del pipeline.
  *
- * Las reglas se almacenan en memoria durante la sesión del servidor.
- * El autopilot puede agregar/quitar reglas, y el pipeline las lee al procesar.
+ * Las reglas se persisten en la tabla `prompt_rules_state` de Supabase
+ * (fila singleton id=1). Cada proceso serverless mantiene un cache
+ * en memoria con TTL corto (10s) para evitar hacer fetch a Supabase
+ * en cada mensaje del chat.
  *
- * En producción (Vercel), las reglas persisten mientras el serverless function
- * esté "warm". Se pierden en cold starts, lo cual es aceptable porque
- * los ajustes importantes se incorporan al código en el siguiente deploy.
+ * Antes vivían solo en memoria, lo cual rompía el autopilot entre
+ * invocaciones serverless (las reglas agregadas en `diagnosis` se perdían
+ * en la fase `reeval` cuando corría en otra instancia).
  */
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export interface PromptRule {
   id: string;
@@ -18,72 +21,164 @@ export interface PromptRule {
   version: number;
 }
 
-// In-memory store — persiste mientras el serverless esté warm
-let activeRules: PromptRule[] = [];
-let versionCounter = 0;
-let preAdjustmentSnapshot: PromptRule[] | null = null;
+interface StateRow {
+  active_rules: PromptRule[];
+  snapshot: PromptRule[] | null;
+  version_counter: number;
+}
+
+// ─── Cache en memoria ───
+const CACHE_TTL_MS = 10_000;
+let cached: StateRow | null = null;
+let cachedAt = 0;
+
+function invalidateCache() {
+  cached = null;
+  cachedAt = 0;
+}
+
+async function loadState(force = false): Promise<StateRow> {
+  if (!force && cached && Date.now() - cachedAt < CACHE_TTL_MS) {
+    return cached;
+  }
+
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from('prompt_rules_state')
+    .select('active_rules, snapshot, version_counter')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    // Tabla puede no existir todavía si la migración no corrió;
+    // devolver estado vacío para no romper el chat.
+    console.warn('[prompt-rules] loadState error:', error.message);
+    const empty: StateRow = { active_rules: [], snapshot: null, version_counter: 0 };
+    cached = empty;
+    cachedAt = Date.now();
+    return empty;
+  }
+
+  const state: StateRow = data
+    ? {
+        active_rules: (data.active_rules as PromptRule[]) || [],
+        snapshot: (data.snapshot as PromptRule[] | null) ?? null,
+        version_counter: (data.version_counter as number) || 0,
+      }
+    : { active_rules: [], snapshot: null, version_counter: 0 };
+
+  cached = state;
+  cachedAt = Date.now();
+  return state;
+}
+
+async function saveState(state: StateRow): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { error } = await sb
+    .from('prompt_rules_state')
+    .upsert({
+      id: 1,
+      active_rules: state.active_rules,
+      snapshot: state.snapshot,
+      version_counter: state.version_counter,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('[prompt-rules] saveState error:', error.message);
+    throw new Error(`No se pudo persistir prompt_rules_state: ${error.message}`);
+  }
+
+  cached = state;
+  cachedAt = Date.now();
+}
+
+// ─── API pública ───
 
 /**
  * Obtiene todas las reglas activas para un target específico.
  */
-export function getRulesForTarget(target: 'classifier' | 'extractor'): PromptRule[] {
-  return activeRules.filter(r => r.target === target);
+export async function getRulesForTarget(target: 'classifier' | 'extractor'): Promise<PromptRule[]> {
+  const state = await loadState();
+  return state.active_rules.filter(r => r.target === target);
 }
 
 /**
  * Obtiene todas las reglas activas.
  */
-export function getAllRules(): PromptRule[] {
-  return [...activeRules];
+export async function getAllRules(): Promise<PromptRule[]> {
+  const state = await loadState();
+  return [...state.active_rules];
 }
 
 /**
  * Agrega una nueva regla.
  */
-export function addRule(target: 'classifier' | 'extractor', rule: string, description: string): PromptRule {
-  versionCounter++;
+export async function addRule(
+  target: 'classifier' | 'extractor',
+  rule: string,
+  description: string,
+): Promise<PromptRule> {
+  const state = await loadState(true);
+  const nextVersion = state.version_counter + 1;
   const newRule: PromptRule = {
-    id: `rule-${versionCounter}-${Date.now()}`,
+    id: `rule-${nextVersion}-${Date.now()}`,
     target,
     rule,
     description,
     createdAt: new Date().toISOString(),
-    version: versionCounter,
+    version: nextVersion,
   };
-  activeRules.push(newRule);
+  const nextState: StateRow = {
+    active_rules: [...state.active_rules, newRule],
+    snapshot: state.snapshot,
+    version_counter: nextVersion,
+  };
+  await saveState(nextState);
   return newRule;
 }
 
 /**
  * Guarda un snapshot de las reglas actuales (para rollback).
  */
-export function saveSnapshot(): void {
-  preAdjustmentSnapshot = [...activeRules];
+export async function saveSnapshot(): Promise<void> {
+  const state = await loadState(true);
+  await saveState({
+    ...state,
+    snapshot: [...state.active_rules],
+  });
 }
 
 /**
  * Restaura el snapshot guardado (rollback).
  */
-export function rollbackToSnapshot(): boolean {
-  if (!preAdjustmentSnapshot) return false;
-  activeRules = [...preAdjustmentSnapshot];
-  preAdjustmentSnapshot = null;
+export async function rollbackToSnapshot(): Promise<boolean> {
+  const state = await loadState(true);
+  if (!state.snapshot) return false;
+  await saveState({
+    active_rules: [...state.snapshot],
+    snapshot: null,
+    version_counter: state.version_counter,
+  });
   return true;
 }
 
 /**
  * Limpia todas las reglas.
  */
-export function clearAllRules(): void {
-  activeRules = [];
-  versionCounter = 0;
+export async function clearAllRules(): Promise<void> {
+  await saveState({
+    active_rules: [],
+    snapshot: null,
+    version_counter: 0,
+  });
 }
 
 /**
  * Genera el texto de reglas adicionales para inyectar en un prompt.
  */
-export function buildRulesText(target: 'classifier' | 'extractor'): string {
-  const rules = getRulesForTarget(target);
+export async function buildRulesText(target: 'classifier' | 'extractor'): Promise<string> {
+  const rules = await getRulesForTarget(target);
   if (rules.length === 0) return '';
 
   const rulesText = rules.map((r, i) => `${i + 1}. ${r.rule}`).join('\n');
@@ -96,18 +191,26 @@ ${rulesText}`;
 /**
  * Información del estado actual.
  */
-export function getStatus(): {
+export async function getStatus(): Promise<{
   totalRules: number;
   classifierRules: number;
   extractorRules: number;
   currentVersion: number;
   hasSnapshot: boolean;
-} {
+}> {
+  const state = await loadState();
   return {
-    totalRules: activeRules.length,
-    classifierRules: activeRules.filter(r => r.target === 'classifier').length,
-    extractorRules: activeRules.filter(r => r.target === 'extractor').length,
-    currentVersion: versionCounter,
-    hasSnapshot: preAdjustmentSnapshot !== null,
+    totalRules: state.active_rules.length,
+    classifierRules: state.active_rules.filter(r => r.target === 'classifier').length,
+    extractorRules: state.active_rules.filter(r => r.target === 'extractor').length,
+    currentVersion: state.version_counter,
+    hasSnapshot: state.snapshot !== null,
   };
+}
+
+/**
+ * Fuerza invalidación del cache (para tests o después de modificaciones externas).
+ */
+export function invalidatePromptRulesCache(): void {
+  invalidateCache();
 }

@@ -14,7 +14,7 @@ import {
  */
 export async function DELETE() {
   try {
-    const restored = rollbackToSnapshot();
+    const restored = await rollbackToSnapshot();
     if (!restored) {
       return NextResponse.json(
         { error: 'No hay snapshot para hacer rollback' },
@@ -22,7 +22,7 @@ export async function DELETE() {
       );
     }
 
-    const status = getStatus();
+    const status = await getStatus();
     return NextResponse.json({
       success: true,
       message: 'Rollback completado',
@@ -39,10 +39,10 @@ export async function DELETE() {
  */
 export async function GET() {
   try {
-    const status = getStatus();
-    const rules = getAllRules();
-    const classifierExtra = buildRulesText('classifier');
-    const extractorExtra = buildRulesText('extractor');
+    const status = await getStatus();
+    const rules = await getAllRules();
+    const classifierExtra = await buildRulesText('classifier');
+    const extractorExtra = await buildRulesText('extractor');
 
     return NextResponse.json({
       id: null,
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
 
     const validTarget = target === 'classifier' ? 'classifier' : 'extractor';
-    const rule = addRule(
+    const rule = await addRule(
       validTarget as 'classifier' | 'extractor',
       ruleText,
       description || 'Ajuste desde diagnóstico'
@@ -117,12 +117,12 @@ export async function PUT(req: NextRequest) {
     const { action } = await req.json();
 
     if (action === 'snapshot') {
-      saveSnapshot();
+      await saveSnapshot();
       return NextResponse.json({ success: true, message: 'Snapshot guardado' });
     }
 
     if (action === 'clear') {
-      clearAllRules();
+      await clearAllRules();
       return NextResponse.json({ success: true, message: 'Reglas limpiadas' });
     }
 

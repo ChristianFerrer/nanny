@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { allConversations } from '@/lib/eval/conversations/index';
-import { processUntilBudget } from '@/lib/eval/autopilot-worker';
+import {
+  processUntilBudget,
+  getLatestJobStatus,
+  findRunningJob,
+} from '@/lib/eval/autopilot-worker';
 
 export const maxDuration = 60;
 
@@ -23,39 +27,15 @@ async function ensureTable() {
 }
 
 // ─── GET: Return current job status ───
+// Single source of truth via getLatestJobStatus (handles auto-expiry).
 export async function GET() {
   try {
     await ensureTable();
-    const sb = getSupabaseAdmin();
-    const { data, error } = await sb
-      .from('autopilot_jobs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !data) {
+    const status = await getLatestJobStatus();
+    if (!status.job) {
       return NextResponse.json({ active: false });
     }
-
-    // Auto-expire jobs older than 20 minutes
-    if (data.status === 'running') {
-      const age = Date.now() - new Date(data.created_at).getTime();
-      if (age > 20 * 60 * 1000) {
-        await sb.from('autopilot_jobs').update({
-          status: 'error',
-          message: 'Timeout: el job excedió el tiempo máximo',
-          updated_at: new Date().toISOString(),
-        }).eq('id', data.id);
-        data.status = 'error';
-        data.message = 'Timeout: el job excedió el tiempo máximo';
-      }
-    }
-
-    return NextResponse.json({
-      active: data.status === 'running',
-      job: data,
-    });
+    return NextResponse.json(status);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -75,6 +55,7 @@ export async function DELETE(req: NextRequest) {
     await sb.from('autopilot_jobs').update({
       status: 'error',
       message: 'Cancelado por el usuario',
+      locked_until: null,
       updated_at: new Date().toISOString(),
     }).eq('id', body.jobId).eq('status', 'running');
     return NextResponse.json({ ok: true });
@@ -84,9 +65,13 @@ export async function DELETE(req: NextRequest) {
 }
 
 // ─── POST: Start a new autopilot job ───
-// Creates the job in DB and processes the first batch inline (~50s) for immediate UX.
-// After this returns, the Vercel Cron (every minute) takes over and continues processing
-// until the job completes. This runs 100% server-side, independent of browser state.
+// Creates the job in DB and processes ONE conversation inline (~25s) for
+// immediate UX feedback. After this returns, the Vercel Cron (every minute)
+// takes over and continues processing until the job completes.
+//
+// The `processUntilBudget` call uses job locking (compare-and-swap on
+// locked_until) so if the cron happens to fire during our inline processing,
+// it will not enter the same job — no race, no double-increment.
 //
 // Body: { force?: boolean } — if force=true, cancels any existing running job first.
 export async function POST(req: NextRequest) {
@@ -96,34 +81,27 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Check for existing running job
-    const { data: existing } = await sb
-      .from('autopilot_jobs')
-      .select('id, updated_at, created_at')
-      .eq('status', 'running')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    // Check for an active running job (auto-expires stale ones internally).
+    const existing = await findRunningJob();
 
-    if (existing && existing.length > 0) {
-      const createdAge = Date.now() - new Date(existing[0].created_at).getTime();
-      const updatedAge = Date.now() - new Date(existing[0].updated_at).getTime();
-      // Auto-expire if created >20 min ago OR updated >3 min ago (cron runs every minute, so >3min = stuck)
-      // Or if force=true, always replace
-      if (force || createdAge > 20 * 60 * 1000 || updatedAge > 3 * 60 * 1000) {
+    if (existing) {
+      if (force) {
         await sb.from('autopilot_jobs').update({
           status: 'error',
-          message: force ? 'Reemplazado por nueva ejecución.' : 'Job anterior estancado — cancelado.',
+          message: 'Reemplazado por nueva ejecución.',
+          locked_until: null,
           updated_at: new Date().toISOString(),
-        }).eq('id', existing[0].id);
+        }).eq('id', existing.id);
       } else {
         return NextResponse.json(
-          { error: 'Ya hay un autopilot en ejecución', jobId: existing[0].id },
+          { error: 'Ya hay un autopilot en ejecución', jobId: existing.id },
           { status: 409 },
         );
       }
     }
 
     const jobId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
     const { error } = await sb.from('autopilot_jobs').insert({
       id: jobId,
       status: 'running',
@@ -132,21 +110,26 @@ export async function POST(req: NextRequest) {
       total_conversations: allConversations.length,
       message: `Evaluando conversación 1/${allConversations.length}...`,
       conversation_scores: [],
+      last_heartbeat: nowIso,
     });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Process the first batch inline (~50s) so the user sees immediate progress.
+    console.log(`[autopilot] created job ${jobId}, processing first batch inline`);
+
+    // Process ~30s worth of work inline so the user sees immediate progress.
+    // (One conversation ~ 25s; 30s budget covers 1 conversation + overhead.)
     // The Vercel Cron (every minute) will continue from where this leaves off.
     try {
-      await processUntilBudget(jobId, 50_000);
+      await processUntilBudget(jobId, 30_000);
     } catch (e) {
       console.error('[autopilot] first batch error:', e);
       await sb.from('autopilot_jobs').update({
         status: 'error',
         message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
+        locked_until: null,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
     }

@@ -129,7 +129,7 @@ export async function extractData(
     ? `ACTIVA: ${JSON.stringify(input.pendingDetection)}\nSi el mensaje complementa esta detección, COMPLÉTALA.`
     : 'Ninguna';
 
-  const extraRules = buildRulesText('extractor');
+  const extraRules = await buildRulesText('extractor');
   const prompt = (EXTRACTOR_PROMPT + extraRules)
     .replace(/{sender_name}/g, input.senderName)
     .replace(/{sender_role}/g, input.senderRole)

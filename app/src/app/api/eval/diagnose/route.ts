@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Guardar snapshot antes de diagnosticar (para posible rollback)
-    saveSnapshot();
+    await saveSnapshot();
 
     const results = run.conversation_results;
     const diagnosis = await diagnoseResults(results, {

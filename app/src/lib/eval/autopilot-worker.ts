@@ -5,6 +5,20 @@ import { profiles, buildFamilyContext } from '@/lib/eval/profiles';
 import { scoreConversation } from '@/lib/eval/scorer';
 import type { MessageResult, ConversationResult } from '@/lib/eval/types';
 
+// ─── Configuración central ───
+// Un job se considera "stuck" si no actualizó su heartbeat en STUCK_AFTER_MS.
+// Un job se considera "expired" si se creó hace más de MAX_JOB_AGE_MS.
+// El lock de un worker dura LOCK_DURATION_MS (debe ser mayor que maxDuration
+// de Vercel para evitar que otro worker entre mientras el primero sigue vivo).
+const STUCK_AFTER_MS = 3 * 60 * 1000; // 3 minutos sin heartbeat → stuck
+const MAX_JOB_AGE_MS = 20 * 60 * 1000; // 20 minutos máximos de vida total
+const LOCK_DURATION_MS = 70 * 1000; // 70s de lock por worker (maxDuration=60s)
+
+function log(jobId: string, msg: string, meta?: Record<string, unknown>) {
+  const metaStr = meta ? ' ' + JSON.stringify(meta) : '';
+  console.log(`[autopilot ${jobId.slice(0, 8)}] ${msg}${metaStr}`);
+}
+
 // ─── Process a single conversation ───
 async function processConversation(convIndex: number): Promise<ConversationResult | null> {
   const conversation = allConversations[convIndex];
@@ -91,7 +105,80 @@ async function processConversation(convIndex: number): Promise<ConversationResul
 
 type ScoreEntry = { name: string; score: number; result: ConversationResult };
 
+// ─── Auto-expire stale job (used by both GET and claim) ───
+async function expireIfStale(
+  jobId: string,
+  createdAt: string,
+  lastHeartbeat: string | null,
+): Promise<{ expired: boolean; reason?: string }> {
+  const createdAge = Date.now() - new Date(createdAt).getTime();
+  const heartbeatAge = lastHeartbeat
+    ? Date.now() - new Date(lastHeartbeat).getTime()
+    : createdAge;
+
+  let reason: string | null = null;
+  if (createdAge > MAX_JOB_AGE_MS) {
+    reason = `Timeout: el job excedió los ${Math.round(MAX_JOB_AGE_MS / 60000)} minutos máximos`;
+  } else if (heartbeatAge > STUCK_AFTER_MS) {
+    reason = `Job colgado: sin heartbeat por ${Math.round(heartbeatAge / 1000)}s`;
+  }
+
+  if (!reason) return { expired: false };
+
+  const sb = getSupabaseAdmin();
+  await sb.from('autopilot_jobs').update({
+    status: 'error',
+    message: reason,
+    locked_until: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', jobId);
+
+  log(jobId, `expired: ${reason}`);
+  return { expired: true, reason };
+}
+
+// ─── Try to claim exclusive lock on the job ───
+// Returns true if this worker now owns the job and can process it.
+// Uses compare-and-swap on `locked_until` to prevent POST+Cron race.
+async function claimJob(jobId: string): Promise<boolean> {
+  const sb = getSupabaseAdmin();
+  const nowIso = new Date().toISOString();
+  const lockUntilIso = new Date(Date.now() + LOCK_DURATION_MS).toISOString();
+
+  // Update only if: status=running AND (locked_until IS NULL OR locked_until < now())
+  // Supabase doesn't support OR in .match, so we use .or() filter.
+  const { data, error } = await sb
+    .from('autopilot_jobs')
+    .update({
+      locked_until: lockUntilIso,
+      last_heartbeat: nowIso,
+      updated_at: nowIso,
+    })
+    .eq('id', jobId)
+    .eq('status', 'running')
+    .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+    .select('id');
+
+  if (error) {
+    log(jobId, `claim error: ${error.message}`);
+    return false;
+  }
+
+  return !!(data && data.length > 0);
+}
+
+// ─── Release lock (allow other workers to pick up next iteration) ───
+async function releaseLock(jobId: string): Promise<void> {
+  const sb = getSupabaseAdmin();
+  await sb.from('autopilot_jobs').update({
+    locked_until: null,
+    last_heartbeat: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', jobId);
+}
+
 // ─── Process ONE unit of work for a job ───
+// Assumes caller already holds the lock. Does NOT re-claim.
 // Returns: 'continue' if more work is pending, 'done' if job finished, 'stop' if job not running.
 async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'stop'> {
   const sb = getSupabaseAdmin();
@@ -113,6 +200,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
 
   if (phase === 'evaluation') {
     if (convIndex < totalConvs) {
+      log(jobId, `eval conversation ${convIndex + 1}/${totalConvs}`);
       const result = await processConversation(convIndex);
 
       const newScores = [...scores];
@@ -134,6 +222,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
           ? 'Evaluación completada. Guardando resultados...'
           : `Evaluando conversación ${nextConv + 1}/${totalConvs}...`,
         phase: isLast ? 'saving' : 'evaluation',
+        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
@@ -142,11 +231,13 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
   }
 
   if (phase === 'saving') {
+    log(jobId, 'saving results');
     const results = scores.map(s => s.result).filter(Boolean);
     if (results.length === 0) {
       await sb.from('autopilot_jobs').update({
         status: 'error',
         message: 'No se obtuvieron resultados',
+        locked_until: null,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -175,7 +266,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
     await sb.from('evaluation_runs').insert({
       id: runId,
       timestamp: new Date().toISOString(),
-      prompt_version: 'current',
+      prompt_version: 'autopilot-pre',
       model: 'gpt-4o-mini',
       conversation_results: results,
       aggregate_scores: aggregate,
@@ -193,6 +284,8 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
         eval_run_id: runId,
         aggregate_scores: aggregate,
         message: 'Score perfecto. No se requieren cambios.',
+        locked_until: null,
+        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -203,6 +296,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
       eval_run_id: runId,
       aggregate_scores: aggregate,
       message: 'Ejecutando diagnóstico AI...',
+      last_heartbeat: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
@@ -210,6 +304,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
   }
 
   if (phase === 'diagnosis') {
+    log(jobId, 'running AI diagnosis');
     const results = scores.map(s => s.result).filter(Boolean);
 
     let diagnosis;
@@ -226,6 +321,8 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
         phase: 'complete',
         message: `Diagnóstico falló: ${e instanceof Error ? e.message : 'Error'}`,
         diagnosis_summary: `Error: ${e instanceof Error ? e.message : 'Error'}`,
+        locked_until: null,
+        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -239,24 +336,28 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
         phase: 'complete',
         message: 'Diagnóstico completado. Sin ajustes propuestos.',
         diagnosis_summary: diagnosis.summary,
+        locked_until: null,
+        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
     }
 
     const { addRule, saveSnapshot } = await import('@/lib/chat/prompt-rules');
-    saveSnapshot();
+    await saveSnapshot();
 
     let appliedCount = 0;
     for (const adj of adjustments) {
       if (!adj.proposedChange) continue;
       try {
-        addRule(adj.target || 'extractor', adj.proposedChange, `Autopilot: ${adj.pattern}`);
+        await addRule(adj.target || 'extractor', adj.proposedChange, `Autopilot: ${adj.pattern}`);
         appliedCount++;
-      } catch {
-        // skip
+      } catch (e) {
+        log(jobId, `addRule failed: ${e instanceof Error ? e.message : 'err'}`);
       }
     }
+
+    log(jobId, `diagnosis done, ${appliedCount} rules applied`);
 
     await sb.from('autopilot_jobs').update({
       phase: appliedCount > 0 ? 'reeval' : 'complete',
@@ -268,6 +369,8 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
       adjustments_applied: appliedCount,
       current_conversation: 0,
       conversation_scores: [],
+      locked_until: null,
+      last_heartbeat: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
@@ -276,6 +379,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
 
   if (phase === 'reeval') {
     if (convIndex < totalConvs) {
+      log(jobId, `reeval conversation ${convIndex + 1}/${totalConvs}`);
       const result = await processConversation(convIndex);
       const newScores = [...scores];
       if (result) {
@@ -291,6 +395,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
         message: isLast
           ? 'Re-evaluación completada. Comparando scores...'
           : `Re-evaluando ${nextConv + 1}/${totalConvs}...`,
+        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
@@ -303,8 +408,9 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
         const preScore = (job.aggregate_scores as { overall: number })?.overall ?? 0;
 
         if (postScore < preScore) {
+          log(jobId, `reeval worse: ${preScore} → ${postScore}, rolling back`);
           const { rollbackToSnapshot } = await import('@/lib/chat/prompt-rules');
-          rollbackToSnapshot();
+          await rollbackToSnapshot();
 
           await sb.from('autopilot_jobs').update({
             status: 'completed',
@@ -315,9 +421,12 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
             reeval_improved: false,
             reeval_rolled_back: true,
             adjustments_applied: 0,
+            locked_until: null,
+            last_heartbeat: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }).eq('id', jobId);
         } else {
+          log(jobId, `reeval improved: ${preScore} → ${postScore}`);
           const reAggregate = {
             precision: avg(reResults.map(r => r.scores.precision)),
             recall: avg(reResults.map(r => r.scores.recall)),
@@ -336,7 +445,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
           await sb.from('evaluation_runs').insert({
             id: reRunId,
             timestamp: new Date().toISOString(),
-            prompt_version: 'current',
+            prompt_version: 'autopilot-post',
             model: 'gpt-4o-mini',
             conversation_results: reResults,
             aggregate_scores: reAggregate,
@@ -357,6 +466,8 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
             reeval_post_score: postScore,
             reeval_improved: true,
             reeval_rolled_back: false,
+            locked_until: null,
+            last_heartbeat: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }).eq('id', jobId);
         }
@@ -371,6 +482,7 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
 }
 
 // ─── Process as many units as fit within the time budget ───
+// Claims the lock ONCE at the start and holds it for the whole budget window.
 // Returns number of units processed and final status.
 export async function processUntilBudget(
   jobId: string,
@@ -380,52 +492,100 @@ export async function processUntilBudget(
   let processed = 0;
   let lastStatus: 'continue' | 'done' | 'stop' = 'continue';
 
-  while (Date.now() - startedAt < maxMs) {
-    try {
-      lastStatus = await processOneUnit(jobId);
-    } catch (e) {
-      console.error(`[autopilot-worker] Job ${jobId} error:`, e);
-      const sb = getSupabaseAdmin();
-      await sb.from('autopilot_jobs').update({
-        status: 'error',
-        message: `Error: ${e instanceof Error ? e.message : 'Error desconocido'}`,
-        updated_at: new Date().toISOString(),
-      }).eq('id', jobId);
-      return { processed, finalStatus: 'stop' };
+  // Try to claim the lock before doing any work.
+  const claimed = await claimJob(jobId);
+  if (!claimed) {
+    log(jobId, 'could not claim lock — another worker owns it');
+    return { processed: 0, finalStatus: 'stop' };
+  }
+
+  try {
+    while (Date.now() - startedAt < maxMs) {
+      try {
+        lastStatus = await processOneUnit(jobId);
+      } catch (e) {
+        console.error(`[autopilot-worker] Job ${jobId} error:`, e);
+        const sb = getSupabaseAdmin();
+        await sb.from('autopilot_jobs').update({
+          status: 'error',
+          message: `Error: ${e instanceof Error ? e.message : 'Error desconocido'}`,
+          locked_until: null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return { processed, finalStatus: 'stop' };
+      }
+
+      processed++;
+
+      if (lastStatus !== 'continue') {
+        // Clear lock on terminal states (done/stop)
+        if (lastStatus === 'stop') {
+          await releaseLock(jobId);
+        }
+        // 'done' already updated the row with locked_until=null
+        return { processed, finalStatus: lastStatus };
+      }
     }
 
-    processed++;
-
-    if (lastStatus !== 'continue') {
-      return { processed, finalStatus: lastStatus };
-    }
+    // Budget exhausted — release lock so next cron tick can continue.
+    await releaseLock(jobId);
+    log(jobId, `budget exhausted, processed ${processed} units`);
+  } catch (e) {
+    await releaseLock(jobId).catch(() => {});
+    throw e;
   }
 
   return { processed, finalStatus: lastStatus };
 }
 
-// ─── Find the currently running job (if any) ───
+// ─── Find the currently running job (if any), auto-expiring stale ones ───
+// Used by GET endpoint (status) AND by cron (claim decision).
 export async function findRunningJob(): Promise<{ id: string } | null> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from('autopilot_jobs')
-    .select('id, updated_at, created_at')
+    .select('id, created_at, last_heartbeat, locked_until')
     .eq('status', 'running')
     .order('created_at', { ascending: false })
     .limit(1);
 
   if (!data || data.length === 0) return null;
 
-  // Auto-expire jobs older than 20 minutes
-  const age = Date.now() - new Date(data[0].created_at).getTime();
-  if (age > 20 * 60 * 1000) {
-    await sb.from('autopilot_jobs').update({
-      status: 'error',
-      message: 'Timeout: el job excedió el tiempo máximo',
-      updated_at: new Date().toISOString(),
-    }).eq('id', data[0].id);
-    return null;
+  const row = data[0];
+  const { expired } = await expireIfStale(row.id, row.created_at, row.last_heartbeat);
+  if (expired) return null;
+
+  return { id: row.id };
+}
+
+// ─── Public helper: detailed status of the latest job ───
+// Handles auto-expiry so GET/POST don't duplicate the logic.
+export async function getLatestJobStatus(): Promise<{
+  active: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  job: any | null;
+}> {
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from('autopilot_jobs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return { active: false, job: null };
+
+  if (data.status === 'running') {
+    const { expired, reason } = await expireIfStale(
+      data.id,
+      data.created_at,
+      data.last_heartbeat,
+    );
+    if (expired) {
+      data.status = 'error';
+      data.message = reason || 'Job expirado';
+    }
   }
 
-  return { id: data[0].id };
+  return { active: data.status === 'running', job: data };
 }

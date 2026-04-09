@@ -417,6 +417,10 @@ export default function TestingDashboard() {
   }
 
   function dismissAutopilot() {
+    // Only allow dismissing terminal states (completed/error). If the job
+    // is still running we refuse to hide it to avoid inconsistent UI state
+    // where the panel is gone but the job keeps running on the server.
+    if (autopilotJob?.status === 'running') return;
     setAutopilotJob(null);
     if (pollingRef.current) {
       clearInterval(pollingRef.current);

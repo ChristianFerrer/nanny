@@ -126,7 +126,7 @@ export async function classifyMessage(
     ? `ACTIVA: ${JSON.stringify(input.pendingDetection)}`
     : 'Ninguna';
 
-  const extraRules = buildRulesText('classifier');
+  const extraRules = await buildRulesText('classifier');
   const prompt = (CLASSIFIER_PROMPT + extraRules)
     .replace('{sender_name}', input.senderName)
     .replace('{sender_role}', input.senderRole)
