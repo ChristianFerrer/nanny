@@ -10,7 +10,7 @@ import type { MessageResult, ConversationResult } from '@/lib/eval/types';
 // Un job se considera "expired" si se creó hace más de MAX_JOB_AGE_MS.
 // El lock de un worker dura LOCK_DURATION_MS (debe ser mayor que maxDuration
 // de Vercel para evitar que otro worker entre mientras el primero sigue vivo).
-const STUCK_AFTER_MS = 3 * 60 * 1000; // 3 minutos sin heartbeat → stuck
+const STUCK_AFTER_MS = 5 * 60 * 1000; // 5 minutos sin heartbeat → stuck
 const MAX_JOB_AGE_MS = 20 * 60 * 1000; // 20 minutos máximos de vida total
 const LOCK_DURATION_MS = 70 * 1000; // 70s de lock por worker (maxDuration=60s)
 
@@ -559,7 +559,9 @@ export async function findRunningJob(): Promise<{ id: string } | null> {
 }
 
 // ─── Public helper: detailed status of the latest job ───
-// Handles auto-expiry so GET/POST don't duplicate the logic.
+// READ-ONLY: does NOT expire jobs. Only the cron (via findRunningJob) expires
+// stale jobs. This prevents the client polling (every 5s via GET /api/eval/autopilot)
+// from killing a job that the cron is about to pick up.
 export async function getLatestJobStatus(): Promise<{
   active: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -574,18 +576,6 @@ export async function getLatestJobStatus(): Promise<{
     .single();
 
   if (error || !data) return { active: false, job: null };
-
-  if (data.status === 'running') {
-    const { expired, reason } = await expireIfStale(
-      data.id,
-      data.created_at,
-      data.last_heartbeat,
-    );
-    if (expired) {
-      data.status = 'error';
-      data.message = reason || 'Job expirado';
-    }
-  }
 
   return { active: data.status === 'running', job: data };
 }
