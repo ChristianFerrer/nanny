@@ -11,7 +11,7 @@ import type { MessageResult, ConversationResult } from '@/lib/eval/types';
 // El lock de un worker dura LOCK_DURATION_MS (debe ser mayor que maxDuration
 // de Vercel para evitar que otro worker entre mientras el primero sigue vivo).
 const STUCK_AFTER_MS = 5 * 60 * 1000; // 5 minutos sin heartbeat → stuck
-const MAX_JOB_AGE_MS = 20 * 60 * 1000; // 20 minutos máximos de vida total
+const MAX_JOB_AGE_MS = 30 * 60 * 1000; // 30 minutos máximos de vida total
 const LOCK_DURATION_MS = 70 * 1000; // 70s de lock por worker (maxDuration=60s)
 
 function log(jobId: string, msg: string, meta?: Record<string, unknown>) {
@@ -203,8 +203,16 @@ async function releaseLock(jobId: string): Promise<void> {
 
 // ─── Process ONE unit of work for a job ───
 // Assumes caller already holds the lock. Does NOT re-claim.
-// Returns: 'continue' if more work is pending, 'done' if job finished, 'stop' if job not running.
-async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'stop'> {
+// Returns:
+//   'continue' — more work pending, keep looping.
+//   'done'     — job is complete (or terminal error).
+//   'stop'     — job not running or can't proceed.
+//   'yield'    — phase transition done, release lock and let the NEXT cron
+//                invocation continue. Prevents a heavy phase (diagnosis ~40s)
+//                from cascading into reeval in the same invocation and exceeding
+//                Vercel's maxDuration (60s).
+type UnitResult = 'continue' | 'done' | 'stop' | 'yield';
+async function processOneUnit(jobId: string): Promise<UnitResult> {
   const sb = getSupabaseAdmin();
 
   const { data: job, error: jobError } = await sb
@@ -338,7 +346,9 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
-    return 'continue';
+    // Yield: diagnosis is a heavy OpenAI call (~30-40s). Start it in a fresh
+    // cron invocation with full budget instead of the tail end of this one.
+    return 'yield';
   }
 
   if (phase === 'diagnosis') {
@@ -412,7 +422,11 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
-    return appliedCount > 0 ? 'continue' : 'done';
+    // Yield so reeval starts in a fresh cron invocation with full budget.
+    // Diagnosis itself can take 30-40s (OpenAI call). If we returned 'continue'
+    // here, processUntilBudget would immediately start reeval conv 0 (~25s),
+    // pushing total to ~65s — exceeding Vercel maxDuration (60s).
+    return appliedCount > 0 ? 'yield' : 'done';
   }
 
   if (phase === 'reeval') {
@@ -528,7 +542,7 @@ export async function processUntilBudget(
 ): Promise<{ processed: number; finalStatus: 'continue' | 'done' | 'stop' }> {
   const startedAt = Date.now();
   let processed = 0;
-  let lastStatus: 'continue' | 'done' | 'stop' = 'continue';
+  let lastStatus: UnitResult = 'continue';
 
   // Try to claim the lock before doing any work.
   const claimed = await claimJob(jobId);
@@ -554,6 +568,14 @@ export async function processUntilBudget(
       }
 
       processed++;
+
+      if (lastStatus === 'yield') {
+        // Phase transition — release lock and let the next cron pick it up.
+        // This prevents heavy phases from cascading in the same invocation.
+        await releaseLock(jobId);
+        log(jobId, `yielding after phase transition, processed ${processed} units`);
+        return { processed, finalStatus: 'continue' };
+      }
 
       if (lastStatus !== 'continue') {
         // Clear lock on terminal states (done/stop)

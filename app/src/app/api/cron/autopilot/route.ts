@@ -28,8 +28,10 @@ export async function GET(req: NextRequest) {
   console.log(`[cron/autopilot] Processing job ${job.id}...`);
   const startedAt = Date.now();
 
-  // Process units until we've used ~50s of budget
-  const result = await processUntilBudget(job.id, 50_000);
+  // Process units until we've used ~45s of budget.
+  // Reduced from 50s to leave margin when diagnosis (OpenAI call, ~30-40s)
+  // and reeval conv happen in the same invocation. maxDuration=60s on Vercel.
+  const result = await processUntilBudget(job.id, 45_000);
 
   const elapsed = Date.now() - startedAt;
   console.log(
