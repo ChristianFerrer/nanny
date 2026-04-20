@@ -146,25 +146,49 @@ async function claimJob(jobId: string): Promise<boolean> {
   const lockUntilIso = new Date(Date.now() + LOCK_DURATION_MS).toISOString();
 
   // Update only if: status=running AND (locked_until IS NULL OR locked_until < now())
-  // Supabase doesn't support OR in .match, so we use .or() filter.
-  const { data, error } = await sb
+  //
+  // We can't use `.or()` with an ISO timestamp value because PostgREST parses
+  // colons/dots as filter separators and chokes. Instead we do two atomic
+  // UPDATEs: first try to claim an unlocked job (locked_until IS NULL), then
+  // try to claim an expired one (locked_until < now). Each UPDATE is atomic
+  // thanks to Postgres row-level locking; at most one of the two will claim.
+  const updatePayload = {
+    locked_until: lockUntilIso,
+    last_heartbeat: nowIso,
+    updated_at: nowIso,
+  };
+
+  // Attempt 1: unlocked (NULL)
+  const { data: data1, error: err1 } = await sb
     .from('autopilot_jobs')
-    .update({
-      locked_until: lockUntilIso,
-      last_heartbeat: nowIso,
-      updated_at: nowIso,
-    })
+    .update(updatePayload)
     .eq('id', jobId)
     .eq('status', 'running')
-    .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+    .is('locked_until', null)
     .select('id');
 
-  if (error) {
-    log(jobId, `claim error: ${error.message}`);
+  if (err1) {
+    log(jobId, `claim attempt 1 error: ${err1.message}`);
     return false;
   }
 
-  return !!(data && data.length > 0);
+  if (data1 && data1.length > 0) return true;
+
+  // Attempt 2: expired lock
+  const { data: data2, error: err2 } = await sb
+    .from('autopilot_jobs')
+    .update(updatePayload)
+    .eq('id', jobId)
+    .eq('status', 'running')
+    .lt('locked_until', nowIso)
+    .select('id');
+
+  if (err2) {
+    log(jobId, `claim attempt 2 error: ${err2.message}`);
+    return false;
+  }
+
+  return !!(data2 && data2.length > 0);
 }
 
 // ─── Release lock (allow other workers to pick up next iteration) ───
@@ -232,6 +256,20 @@ async function processOneUnit(jobId: string): Promise<'continue' | 'done' | 'sto
 
   if (phase === 'saving') {
     log(jobId, 'saving results');
+    // Idempotencia: si eval_run_id ya está seteado, este job ya fue guardado
+    // antes (probablemente por un worker anterior que murió sin actualizar
+    // el phase). Saltar directo a diagnosis para no duplicar la fila.
+    if (job.eval_run_id) {
+      log(jobId, 'eval_run already saved, skipping to diagnosis');
+      await sb.from('autopilot_jobs').update({
+        phase: 'diagnosis',
+        message: 'Ejecutando diagnóstico AI...',
+        last_heartbeat: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+      return 'continue';
+    }
+
     const results = scores.map(s => s.result).filter(Boolean);
     if (results.length === 0) {
       await sb.from('autopilot_jobs').update({
