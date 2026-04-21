@@ -617,7 +617,12 @@ export async function findRunningJob(): Promise<{ id: string } | null> {
 }
 
 // ─── Expire stale jobs (called before creating a new one) ───
-// Cancels any running job that's clearly abandoned so the new job can start.
+// More aggressive than the heartbeat-based expiry: any running job older than
+// 15 minutes is considered expired, even if the cron is still updating its
+// heartbeat. A full eval+diagnosis+reeval cycle should complete in ~10 min.
+// If it hasn't, it's stuck in a loop and should be replaced.
+const MAX_JOB_DURATION_FOR_REPLACEMENT_MS = 15 * 60 * 1000;
+
 export async function expireStaleJobs(): Promise<void> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
@@ -630,6 +635,20 @@ export async function expireStaleJobs(): Promise<void> {
   if (!data || data.length === 0) return;
 
   const row = data[0];
+  const createdAge = Date.now() - new Date(row.created_at).getTime();
+
+  if (createdAge > MAX_JOB_DURATION_FOR_REPLACEMENT_MS) {
+    log(row.id, `expiring: job is ${Math.round(createdAge / 60000)} min old`);
+    await sb.from('autopilot_jobs').update({
+      status: 'error',
+      message: `Expirado: el job llevaba ${Math.round(createdAge / 60000)} minutos.`,
+      locked_until: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', row.id);
+    return;
+  }
+
+  // Also expire if heartbeat is truly stale (>5 min without ANY update)
   await expireIfStale(row.id, row.created_at, row.last_heartbeat);
 }
 
