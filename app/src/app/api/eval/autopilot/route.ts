@@ -5,6 +5,7 @@ import {
   processUntilBudget,
   getLatestJobStatus,
   findRunningJob,
+  expireStaleJobs,
 } from '@/lib/eval/autopilot-worker';
 
 export const maxDuration = 60;
@@ -81,7 +82,10 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Check for an active running job (auto-expires stale ones internally).
+    // Expire truly abandoned jobs (>30 min old or >5 min without heartbeat).
+    await expireStaleJobs();
+
+    // Then check if there's still an active running job.
     const existing = await findRunningJob();
 
     if (existing) {

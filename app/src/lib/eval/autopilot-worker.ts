@@ -598,24 +598,39 @@ export async function processUntilBudget(
   return { processed, finalStatus: lastStatus };
 }
 
-// ─── Find the currently running job (if any), auto-expiring stale ones ───
-// Used by GET endpoint (status) AND by cron (claim decision).
+// ─── Find the currently running job (if any) ───
+// Used by the cron endpoint. Does NOT expire the job — the cron's purpose is
+// to PROCESS work, not to garbage-collect. If we expired here, a delayed cron
+// (common on Vercel Hobby) would kill the job instead of continuing it.
+// Expiry only happens via expireStaleJobs() when a NEW job is created (POST).
 export async function findRunningJob(): Promise<{ id: string } | null> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from('autopilot_jobs')
-    .select('id, created_at, last_heartbeat, locked_until')
+    .select('id')
     .eq('status', 'running')
     .order('created_at', { ascending: false })
     .limit(1);
 
   if (!data || data.length === 0) return null;
+  return { id: data[0].id };
+}
+
+// ─── Expire stale jobs (called before creating a new one) ───
+// Cancels any running job that's clearly abandoned so the new job can start.
+export async function expireStaleJobs(): Promise<void> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb
+    .from('autopilot_jobs')
+    .select('id, created_at, last_heartbeat')
+    .eq('status', 'running')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (!data || data.length === 0) return;
 
   const row = data[0];
-  const { expired } = await expireIfStale(row.id, row.created_at, row.last_heartbeat);
-  if (expired) return null;
-
-  return { id: row.id };
+  await expireIfStale(row.id, row.created_at, row.last_heartbeat);
 }
 
 // ─── Public helper: detailed status of the latest job ───
