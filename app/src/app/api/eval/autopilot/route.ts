@@ -9,6 +9,8 @@ import {
 
 export const maxDuration = 60;
 
+const CODE_VERSION = 'v4-679f927';
+
 // ─── Ensure table exists ───
 let tableVerified = false;
 async function ensureTable() {
@@ -35,7 +37,7 @@ export async function GET() {
     if (!status.job) {
       return NextResponse.json({ active: false });
     }
-    return NextResponse.json(status);
+    return NextResponse.json({ ...status, _v: CODE_VERSION });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

@@ -4,6 +4,8 @@ import { processUntilBudget, findRunningJob } from '@/lib/eval/autopilot-worker'
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+const CODE_VERSION = 'v4-679f927';
+
 // Vercel Cron endpoint: invoked every minute.
 // Finds the currently running autopilot job (if any) and processes as many
 // units of work as fit within 50 seconds (leaving 10s margin before Vercel kills the function).
@@ -39,6 +41,7 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json({
+    _v: CODE_VERSION,
     jobId: job.id,
     processed: result.processed,
     finalStatus: result.finalStatus,

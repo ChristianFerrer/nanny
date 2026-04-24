@@ -97,6 +97,7 @@ export default function TestingDashboard() {
   // Autopilot state — driven by DB job status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [autopilotJob, setAutopilotJob] = useState<Record<string, any> | null>(null);
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -121,6 +122,7 @@ export default function TestingDashboard() {
       const res = await fetch('/api/eval/autopilot');
       if (!res.ok) return;
       const data = await res.json();
+      if (data._v) setServerVersion(data._v);
       if (data.job) {
         setAutopilotJob(data.job);
         if (data.active && !pollingRef.current) {
@@ -383,6 +385,7 @@ export default function TestingDashboard() {
         if (!res.ok) return;
         const data = await res.json();
 
+        if (data._v) setServerVersion(data._v);
         if (data.job) {
           setAutopilotJob(data.job);
 
@@ -445,6 +448,7 @@ export default function TestingDashboard() {
             <ArrowLeft size={20} />
           </SafeLink>
           <h1 className="text-xl font-bold">🧪 Testing Nanny</h1>
+          {serverVersion && <span className="text-[10px] text-gray-500">{serverVersion}</span>}
         </div>
         <div className="flex items-center gap-2">
           {(running || autopilotRunning) ? (
