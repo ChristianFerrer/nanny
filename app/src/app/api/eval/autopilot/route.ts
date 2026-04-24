@@ -68,9 +68,9 @@ export async function DELETE(req: NextRequest) {
 // immediate UX feedback. After this returns, the Vercel Cron (every minute)
 // takes over and continues processing until the job completes.
 //
-// The `processUntilBudget` call uses job locking (compare-and-swap on
-// locked_until) so if the cron happens to fire during our inline processing,
-// it will not enter the same job — no race, no double-increment.
+// The `processUntilBudget` call uses job locking (compare-and-swap) so if the
+// cron happens to fire during our inline processing, it will not enter the same
+// job — no race, no double-increment.
 //
 // Body: { force?: boolean } — if force=true, cancels any existing running job first.
 export async function POST(req: NextRequest) {
@@ -112,7 +112,6 @@ export async function POST(req: NextRequest) {
     }
 
     const jobId = crypto.randomUUID();
-    const nowIso = new Date().toISOString();
     const { error } = await sb.from('autopilot_jobs').insert({
       id: jobId,
       status: 'running',
@@ -121,7 +120,6 @@ export async function POST(req: NextRequest) {
       total_conversations: allConversations.length,
       message: `Evaluando conversación 1/${allConversations.length}...`,
       conversation_scores: [],
-      last_heartbeat: nowIso,
     });
 
     if (error) {
@@ -140,7 +138,6 @@ export async function POST(req: NextRequest) {
       await sb.from('autopilot_jobs').update({
         status: 'error',
         message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
-        locked_until: null,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
     }

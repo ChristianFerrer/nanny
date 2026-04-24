@@ -5,14 +5,8 @@ import { profiles, buildFamilyContext } from '@/lib/eval/profiles';
 import { scoreConversation } from '@/lib/eval/scorer';
 import type { MessageResult, ConversationResult } from '@/lib/eval/types';
 
-// ─── Configuración central ───
-// Un job se considera "stuck" si no actualizó su heartbeat en STUCK_AFTER_MS.
-// Un job se considera "expired" si se creó hace más de MAX_JOB_AGE_MS.
-// El lock de un worker dura LOCK_DURATION_MS (debe ser mayor que maxDuration
-// de Vercel para evitar que otro worker entre mientras el primero sigue vivo).
-const STUCK_AFTER_MS = 5 * 60 * 1000; // 5 minutos sin heartbeat → stuck
-const MAX_JOB_AGE_MS = 30 * 60 * 1000; // 30 minutos máximos de vida total
-const LOCK_DURATION_MS = 70 * 1000; // 70s de lock por worker (maxDuration=60s)
+// Lock duration for compare-and-swap locking (must be > Vercel maxDuration).
+const LOCK_DURATION_MS = 70 * 1000;
 
 function log(jobId: string, msg: string, meta?: Record<string, unknown>) {
   const metaStr = meta ? ' ' + JSON.stringify(meta) : '';
@@ -105,53 +99,16 @@ async function processConversation(convIndex: number): Promise<ConversationResul
 
 type ScoreEntry = { name: string; score: number; result: ConversationResult };
 
-// ─── Auto-expire stale job (used by both GET and claim) ───
-async function expireIfStale(
-  jobId: string,
-  createdAt: string,
-  lastHeartbeat: string | null,
-): Promise<{ expired: boolean; reason?: string }> {
-  const createdAge = Date.now() - new Date(createdAt).getTime();
-  const heartbeatAge = lastHeartbeat
-    ? Date.now() - new Date(lastHeartbeat).getTime()
-    : createdAge;
-
-  let reason: string | null = null;
-  if (createdAge > MAX_JOB_AGE_MS) {
-    reason = `Timeout: el job excedió los ${Math.round(MAX_JOB_AGE_MS / 60000)} minutos máximos`;
-  } else if (heartbeatAge > STUCK_AFTER_MS) {
-    reason = `Job colgado: sin heartbeat por ${Math.round(heartbeatAge / 1000)}s`;
-  }
-
-  if (!reason) return { expired: false };
-
-  const sb = getSupabaseAdmin();
-  await sb.from('autopilot_jobs').update({
-    status: 'error',
-    message: reason,
-    locked_until: null,
-    updated_at: new Date().toISOString(),
-  }).eq('id', jobId);
-
-  log(jobId, `expired: ${reason}`);
-  return { expired: true, reason };
-}
-
 // ─── Try to claim exclusive lock on the job ───
 // Returns true if this worker now owns the job and can process it.
 // Uses compare-and-swap on `locked_until` to prevent POST+Cron race.
+// Falls back to processing without lock if the column doesn't exist
+// (migration 20260409_autopilot_jobs_lock.sql not applied).
 async function claimJob(jobId: string): Promise<boolean> {
   const sb = getSupabaseAdmin();
   const nowIso = new Date().toISOString();
   const lockUntilIso = new Date(Date.now() + LOCK_DURATION_MS).toISOString();
 
-  // Update only if: status=running AND (locked_until IS NULL OR locked_until < now())
-  //
-  // We can't use `.or()` with an ISO timestamp value because PostgREST parses
-  // colons/dots as filter separators and chokes. Instead we do two atomic
-  // UPDATEs: first try to claim an unlocked job (locked_until IS NULL), then
-  // try to claim an expired one (locked_until < now). Each UPDATE is atomic
-  // thanks to Postgres row-level locking; at most one of the two will claim.
   const updatePayload = {
     locked_until: lockUntilIso,
     last_heartbeat: nowIso,
@@ -167,12 +124,14 @@ async function claimJob(jobId: string): Promise<boolean> {
     .is('locked_until', null)
     .select('id');
 
-  if (err1) {
-    log(jobId, `claim attempt 1 error: ${err1.message}`);
-    return false;
-  }
+  if (!err1 && data1 && data1.length > 0) return true;
 
-  if (data1 && data1.length > 0) return true;
+  // If the error mentions a missing column, the lock migration wasn't applied.
+  // Fall through to processing without lock — better than silently failing.
+  if (err1 && /locked_until|last_heartbeat|column/i.test(err1.message)) {
+    log(jobId, `lock columns missing, proceeding without lock: ${err1.message}`);
+    return true;
+  }
 
   // Attempt 2: expired lock
   const { data: data2, error: err2 } = await sb
@@ -183,22 +142,26 @@ async function claimJob(jobId: string): Promise<boolean> {
     .lt('locked_until', nowIso)
     .select('id');
 
-  if (err2) {
-    log(jobId, `claim attempt 2 error: ${err2.message}`);
-    return false;
+  if (!err2 && data2 && data2.length > 0) return true;
+
+  if (err2 && /locked_until|last_heartbeat|column/i.test(err2.message)) {
+    log(jobId, `lock columns missing, proceeding without lock: ${err2.message}`);
+    return true;
   }
 
-  return !!(data2 && data2.length > 0);
+  if (err1) log(jobId, `claim attempt 1 error: ${err1.message}`);
+  if (err2) log(jobId, `claim attempt 2 error: ${err2.message}`);
+  return false;
 }
 
 // ─── Release lock (allow other workers to pick up next iteration) ───
 async function releaseLock(jobId: string): Promise<void> {
   const sb = getSupabaseAdmin();
-  await sb.from('autopilot_jobs').update({
+  const { error } = await sb.from('autopilot_jobs').update({
     locked_until: null,
-    last_heartbeat: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('id', jobId);
+  if (error) log(jobId, `releaseLock warning: ${error.message}`);
 }
 
 // ─── Process ONE unit of work for a job ───
@@ -247,32 +210,28 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       const nextConv = convIndex + 1;
       const isLast = nextConv >= totalConvs;
 
-      await sb.from('autopilot_jobs').update({
+      const { error: updateErr } = await sb.from('autopilot_jobs').update({
         current_conversation: nextConv,
         conversation_scores: newScores,
         message: isLast
           ? 'Evaluación completada. Guardando resultados...'
           : `Evaluando conversación ${nextConv + 1}/${totalConvs}...`,
         phase: isLast ? 'saving' : 'evaluation',
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
+      if (updateErr) log(jobId, `eval update error: ${updateErr.message}`);
       return 'continue';
     }
   }
 
   if (phase === 'saving') {
     log(jobId, 'saving results');
-    // Idempotencia: si eval_run_id ya está seteado, este job ya fue guardado
-    // antes (probablemente por un worker anterior que murió sin actualizar
-    // el phase). Saltar directo a diagnosis para no duplicar la fila.
     if (job.eval_run_id) {
       log(jobId, 'eval_run already saved, skipping to diagnosis');
       await sb.from('autopilot_jobs').update({
         phase: 'diagnosis',
         message: 'Ejecutando diagnóstico AI...',
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'continue';
@@ -283,7 +242,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       await sb.from('autopilot_jobs').update({
         status: 'error',
         message: 'No se obtuvieron resultados',
-        locked_until: null,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -330,8 +288,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
         eval_run_id: runId,
         aggregate_scores: aggregate,
         message: 'Score perfecto. No se requieren cambios.',
-        locked_until: null,
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -342,7 +298,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       eval_run_id: runId,
       aggregate_scores: aggregate,
       message: 'Ejecutando diagnóstico AI...',
-      last_heartbeat: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
@@ -369,8 +324,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
         phase: 'complete',
         message: `Diagnóstico falló: ${e instanceof Error ? e.message : 'Error'}`,
         diagnosis_summary: `Error: ${e instanceof Error ? e.message : 'Error'}`,
-        locked_until: null,
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -384,8 +337,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
         phase: 'complete',
         message: 'Diagnóstico completado. Sin ajustes propuestos.',
         diagnosis_summary: diagnosis.summary,
-        locked_until: null,
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       return 'done';
@@ -417,8 +368,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       adjustments_applied: appliedCount,
       current_conversation: 0,
       conversation_scores: [],
-      locked_until: null,
-      last_heartbeat: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
@@ -447,7 +396,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
         message: isLast
           ? 'Re-evaluación completada. Comparando scores...'
           : `Re-evaluando ${nextConv + 1}/${totalConvs}...`,
-        last_heartbeat: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
@@ -473,8 +421,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
             reeval_improved: false,
             reeval_rolled_back: true,
             adjustments_applied: 0,
-            locked_until: null,
-            last_heartbeat: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }).eq('id', jobId);
         } else {
@@ -518,8 +464,6 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
             reeval_post_score: postScore,
             reeval_improved: true,
             reeval_rolled_back: false,
-            locked_until: null,
-            last_heartbeat: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }).eq('id', jobId);
         }
@@ -561,7 +505,6 @@ export async function processUntilBudget(
         await sb.from('autopilot_jobs').update({
           status: 'error',
           message: `Error: ${e instanceof Error ? e.message : 'Error desconocido'}`,
-          locked_until: null,
           updated_at: new Date().toISOString(),
         }).eq('id', jobId);
         return { processed, finalStatus: 'stop' };
@@ -578,11 +521,7 @@ export async function processUntilBudget(
       }
 
       if (lastStatus !== 'continue') {
-        // Clear lock on terminal states (done/stop)
-        if (lastStatus === 'stop') {
-          await releaseLock(jobId);
-        }
-        // 'done' already updated the row with locked_until=null
+        await releaseLock(jobId);
         return { processed, finalStatus: lastStatus };
       }
     }
@@ -600,9 +539,8 @@ export async function processUntilBudget(
 
 // ─── Find the currently running job (if any) ───
 // Used by the cron endpoint. Does NOT expire the job — the cron's purpose is
-// to PROCESS work, not to garbage-collect. If we expired here, a delayed cron
-// (common on Vercel Hobby) would kill the job instead of continuing it.
-// Expiry only happens via expireStaleJobs() when a NEW job is created (POST).
+// to PROCESS work, not to garbage-collect. Expiry of old jobs (>10 min) happens
+// in the POST handler via direct SQL before creating a new job.
 export async function findRunningJob(): Promise<{ id: string } | null> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
@@ -616,46 +554,8 @@ export async function findRunningJob(): Promise<{ id: string } | null> {
   return { id: data[0].id };
 }
 
-// ─── Expire stale jobs (called before creating a new one) ───
-// More aggressive than the heartbeat-based expiry: any running job older than
-// 15 minutes is considered expired, even if the cron is still updating its
-// heartbeat. A full eval+diagnosis+reeval cycle should complete in ~10 min.
-// If it hasn't, it's stuck in a loop and should be replaced.
-const MAX_JOB_DURATION_FOR_REPLACEMENT_MS = 15 * 60 * 1000;
-
-export async function expireStaleJobs(): Promise<void> {
-  const sb = getSupabaseAdmin();
-  const { data } = await sb
-    .from('autopilot_jobs')
-    .select('id, created_at, last_heartbeat')
-    .eq('status', 'running')
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (!data || data.length === 0) return;
-
-  const row = data[0];
-  const createdAge = Date.now() - new Date(row.created_at).getTime();
-
-  if (createdAge > MAX_JOB_DURATION_FOR_REPLACEMENT_MS) {
-    log(row.id, `expiring: job is ${Math.round(createdAge / 60000)} min old`);
-    await sb.from('autopilot_jobs').update({
-      status: 'error',
-      message: `Expirado: el job llevaba ${Math.round(createdAge / 60000)} minutos.`,
-      locked_until: null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', row.id);
-    return;
-  }
-
-  // Also expire if heartbeat is truly stale (>5 min without ANY update)
-  await expireIfStale(row.id, row.created_at, row.last_heartbeat);
-}
-
 // ─── Public helper: detailed status of the latest job ───
-// READ-ONLY: does NOT expire jobs. Only the cron (via findRunningJob) expires
-// stale jobs. This prevents the client polling (every 5s via GET /api/eval/autopilot)
-// from killing a job that the cron is about to pick up.
+// READ-ONLY: never modifies DB. Used by GET /api/eval/autopilot for UI polling.
 export async function getLatestJobStatus(): Promise<{
   active: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
