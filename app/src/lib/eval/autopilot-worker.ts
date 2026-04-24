@@ -206,7 +206,12 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
   if (phase === 'evaluation') {
     if (convIndex < totalConvs) {
       log(jobId, `eval conversation ${convIndex + 1}/${totalConvs}`);
-      const result = await processConversation(convIndex);
+      let result: ConversationResult | null = null;
+      try {
+        result = await processConversation(convIndex);
+      } catch (e) {
+        log(jobId, `eval conv ${convIndex} error: ${e instanceof Error ? e.message : 'err'}`);
+      }
 
       const newScores = [...scores];
       if (result) {
@@ -231,6 +236,14 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       if (err) return failJob(jobId, `Error guardando progreso eval: ${err}`);
       return 'continue';
     }
+    // Defensive: convIndex >= totalConvs but phase still 'evaluation'
+    log(jobId, `eval phase with convIndex=${convIndex} >= total=${totalConvs}, forcing transition to saving`);
+    const err = await updateJob(jobId, {
+      phase: 'saving',
+      message: 'Evaluación completada. Guardando resultados...',
+    });
+    if (err) return failJob(jobId, `Error transición eval→saving: ${err}`);
+    return 'continue';
   }
 
   // ── Saving phase ──
@@ -386,7 +399,12 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
   if (phase === 'reeval') {
     if (convIndex < totalConvs) {
       log(jobId, `reeval conversation ${convIndex + 1}/${totalConvs}`);
-      const result = await processConversation(convIndex);
+      let result: ConversationResult | null = null;
+      try {
+        result = await processConversation(convIndex);
+      } catch (e) {
+        log(jobId, `reeval conv ${convIndex} error: ${e instanceof Error ? e.message : 'err'}`);
+      }
       const newScores = [...scores];
       if (result) {
         newScores.push({ name: result.conversationName, score: result.scores.overall, result });
@@ -483,6 +501,22 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
 
       return 'continue';
     }
+    // Defensive: convIndex >= totalConvs but phase still 'reeval'
+    log(jobId, `reeval phase with convIndex=${convIndex} >= total=${totalConvs}, forcing completion`);
+    const preScore = (job.aggregate_scores as { overall: number })?.overall ?? 0;
+    const postScore = scores.length > 0
+      ? Math.round((scores.reduce((a, s) => a + s.score, 0) / scores.length) * 100) / 100
+      : 0;
+    await updateJob(jobId, {
+      status: 'completed',
+      phase: 'complete',
+      message: `Re-evaluación completada: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`,
+      reeval_pre_score: preScore,
+      reeval_post_score: postScore,
+      reeval_improved: postScore >= preScore,
+      reeval_rolled_back: false,
+    });
+    return 'done';
   }
 
   return 'done';

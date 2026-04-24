@@ -25,7 +25,7 @@ export async function diagnoseResults(
   const apiKey = options?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY requerida para diagnóstico');
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 40_000 });
 
   // Collect all failures
   const failures = collectFailures(results);
