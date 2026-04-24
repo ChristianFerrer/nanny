@@ -5,7 +5,6 @@ import {
   processUntilBudget,
   getLatestJobStatus,
   findRunningJob,
-  expireStaleJobs,
 } from '@/lib/eval/autopilot-worker';
 
 export const maxDuration = 60;
@@ -56,7 +55,6 @@ export async function DELETE(req: NextRequest) {
     await sb.from('autopilot_jobs').update({
       status: 'error',
       message: 'Cancelado por el usuario',
-      locked_until: null,
       updated_at: new Date().toISOString(),
     }).eq('id', body.jobId).eq('status', 'running');
     return NextResponse.json({ ok: true });
@@ -82,10 +80,20 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Expire truly abandoned jobs (>30 min old or >5 min without heartbeat).
-    await expireStaleJobs();
+    // Step 1: Cancel all running jobs older than 10 minutes.
+    // A full cycle (eval 10 + diagnosis + reeval 10) takes ~10 min.
+    // Anything older is stuck. Single SQL, no auxiliary functions.
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await sb.from('autopilot_jobs')
+      .update({
+        status: 'error',
+        message: 'Expirado automáticamente (>10 min).',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('status', 'running')
+      .lt('created_at', tenMinAgo);
 
-    // Then check if there's still an active running job.
+    // Step 2: Check if there's still a recent running job.
     const existing = await findRunningJob();
 
     if (existing) {
@@ -93,7 +101,6 @@ export async function POST(req: NextRequest) {
         await sb.from('autopilot_jobs').update({
           status: 'error',
           message: 'Reemplazado por nueva ejecución.',
-          locked_until: null,
           updated_at: new Date().toISOString(),
         }).eq('id', existing.id);
       } else {
