@@ -80,18 +80,18 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Step 1: Cancel all running jobs older than 10 minutes.
-    // A full cycle (eval 10 + diagnosis + reeval 10) takes ~10 min.
-    // Anything older is stuck. Single SQL, no auxiliary functions.
-    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    // Step 1: Cancel all running jobs older than 20 minutes.
+    // A full cycle (eval 10 + diagnosis + reeval 10) takes ~12 min with
+    // cron delays. 20 min gives ample margin. Anything older is stuck.
+    const expiryAgo = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     await sb.from('autopilot_jobs')
       .update({
         status: 'error',
-        message: 'Expirado automáticamente (>10 min).',
+        message: 'Expirado automáticamente (>20 min sin completar).',
         updated_at: new Date().toISOString(),
       })
       .eq('status', 'running')
-      .lt('created_at', tenMinAgo);
+      .lt('created_at', expiryAgo);
 
     // Step 2: Check if there's still a recent running job.
     const existing = await findRunningJob();
