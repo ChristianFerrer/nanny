@@ -9,7 +9,7 @@ import {
 
 export const maxDuration = 60;
 
-const CODE_VERSION = 'v7-chain';
+const CODE_VERSION = 'v8-parallel';
 
 // ─── Ensure table exists ───
 let tableVerified = false;

@@ -202,27 +202,37 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
   const totalConvs = job.total_conversations as number;
   const scores = (job.conversation_scores || []) as ScoreEntry[];
 
-  // ── Evaluation phase ──
+  // ── Evaluation phase (2 conversations in parallel) ──
   if (phase === 'evaluation') {
     if (convIndex < totalConvs) {
-      log(jobId, `eval conversation ${convIndex + 1}/${totalConvs}`);
-      let result: ConversationResult | null = null;
-      try {
-        result = await processConversation(convIndex);
-      } catch (e) {
-        log(jobId, `eval conv ${convIndex} error: ${e instanceof Error ? e.message : 'err'}`);
-      }
+      const indices = [convIndex];
+      if (convIndex + 1 < totalConvs) indices.push(convIndex + 1);
+
+      log(jobId, `eval conversations ${indices.map(i => i + 1).join(',')}/${totalConvs}`);
+
+      const results = await Promise.all(
+        indices.map(async (idx) => {
+          try {
+            return await processConversation(idx);
+          } catch (e) {
+            log(jobId, `eval conv ${idx} error: ${e instanceof Error ? e.message : 'err'}`);
+            return null;
+          }
+        }),
+      );
 
       const newScores = [...scores];
-      if (result) {
-        newScores.push({
-          name: result.conversationName,
-          score: result.scores.overall,
-          result,
-        });
+      for (const result of results) {
+        if (result) {
+          newScores.push({
+            name: result.conversationName,
+            score: result.scores.overall,
+            result,
+          });
+        }
       }
 
-      const nextConv = convIndex + 1;
+      const nextConv = convIndex + indices.length;
       const isLast = nextConv >= totalConvs;
 
       const err = await updateJob(jobId, {
@@ -395,22 +405,33 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
     return appliedCount > 0 ? 'yield' : 'done';
   }
 
-  // ── Reeval phase ──
+  // ── Reeval phase (2 conversations in parallel) ──
   if (phase === 'reeval') {
     if (convIndex < totalConvs) {
-      log(jobId, `reeval conversation ${convIndex + 1}/${totalConvs}`);
-      let result: ConversationResult | null = null;
-      try {
-        result = await processConversation(convIndex);
-      } catch (e) {
-        log(jobId, `reeval conv ${convIndex} error: ${e instanceof Error ? e.message : 'err'}`);
-      }
+      const indices = [convIndex];
+      if (convIndex + 1 < totalConvs) indices.push(convIndex + 1);
+
+      log(jobId, `reeval conversations ${indices.map(i => i + 1).join(',')}/${totalConvs}`);
+
+      const results = await Promise.all(
+        indices.map(async (idx) => {
+          try {
+            return await processConversation(idx);
+          } catch (e) {
+            log(jobId, `reeval conv ${idx} error: ${e instanceof Error ? e.message : 'err'}`);
+            return null;
+          }
+        }),
+      );
+
       const newScores = [...scores];
-      if (result) {
-        newScores.push({ name: result.conversationName, score: result.scores.overall, result });
+      for (const result of results) {
+        if (result) {
+          newScores.push({ name: result.conversationName, score: result.scores.overall, result });
+        }
       }
 
-      const nextConv = convIndex + 1;
+      const nextConv = convIndex + indices.length;
       const isLast = nextConv >= totalConvs;
 
       const progressErr = await updateJob(jobId, {

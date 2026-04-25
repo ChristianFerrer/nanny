@@ -1,15 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { processUntilBudget, findRunningJob } from '@/lib/eval/autopilot-worker';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-const CODE_VERSION = 'v7-chain';
+const CODE_VERSION = 'v8-parallel';
 
-// Cron endpoint: invoked every minute by external cron service (cron-job.org).
-// After processing a batch, if work remains, self-invokes to continue
-// immediately — no waiting for the next cron tick. The cron acts as a
-// safety net that restarts the chain if it breaks.
 export async function GET(req: NextRequest) {
   const depth = parseInt(req.nextUrl.searchParams.get('d') || '0');
 
@@ -28,14 +24,19 @@ export async function GET(req: NextRequest) {
     `[cron/autopilot] Job ${job.id}: ${result.processed} units in ${elapsed}ms, status=${result.finalStatus}`,
   );
 
-  // Self-invoke to continue immediately if there's more work.
-  // Max depth=30 prevents runaway chains (~30 min of processing).
-  // The external cron restarts the chain every minute if it breaks.
+  // Use after() so the self-invoke fires reliably after response is sent.
+  // fire-and-forget fetch() was being killed by Vercel before completing.
   if (result.finalStatus === 'continue' && depth < 30) {
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const host = req.headers.get('host') || '';
     const nextUrl = `${proto}://${host}/api/cron/autopilot?d=${depth + 1}`;
-    fetch(nextUrl).catch(() => {});
+    after(async () => {
+      try {
+        await fetch(nextUrl);
+      } catch (e) {
+        console.error('[cron/autopilot] self-invoke failed:', e);
+      }
+    });
   }
 
   return NextResponse.json({
