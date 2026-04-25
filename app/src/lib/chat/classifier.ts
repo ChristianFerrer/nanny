@@ -153,11 +153,10 @@ export async function classifyMessage(
     }
     return JSON.parse(clean);
   } catch {
-    // Fallback: asumir accionable para no perder detecciones
     return {
-      is_actionable: true,
+      is_actionable: false,
       intent: 'CHAT',
-      should_respond: true,
+      should_respond: false,
       is_direct_to_nanny: false,
       is_question_nanny_can_answer: false,
       can_add_value: false,

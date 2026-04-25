@@ -370,10 +370,9 @@ function scoreFalsePositives(
     return { count: 0, total: 0, rate: 0 };
   }
 
-  // Las confirmaciones "matcheadas" son las que corresponden a detecciones esperadas con score >= 0.3
   const matchedActuals = new Set<string>();
   for (const dm of detectionMatches) {
-    if (dm.actual && dm.score >= 0.3) {
+    if (dm.actual && dm.score >= 0.5) {
       // Crear key única para esta confirmación
       matchedActuals.add(JSON.stringify(dm.actual.data));
     }

@@ -31,8 +31,11 @@ export function postProcessResponse(input: PostProcessInput): ChatResponse {
   // 3. Validate against false positives
   response = validateConfirmation(response, input);
 
-  // 4. Ensure additional_confirmations passes through
-  response.additional_confirmations = response.additional_confirmations || [];
+  // 4. Filter additional_confirmations through same quality checks, cap at 1
+  response.additional_confirmations = filterAdditionalConfirmations(
+    response.additional_confirmations || [],
+    input,
+  );
 
   return response;
 }
@@ -238,5 +241,76 @@ function validateConfirmation(response: ChatResponse, input: PostProcessInput): 
     return { ...response, confirmation: null };
   }
 
+  // FP 7: Síntomas sin tratamiento/cita → no crear evento
+  if (conf.type === 'event' && data.title) {
+    const titleLower = String(data.title).toLowerCase();
+    const symptomWords = ['fiebre', 'tos', 'vómito', 'vomito', 'diarrea', 'malestar', 'dolor de', 'gripe', 'resfriado', 'mocos', 'estornudo'];
+    const isSymptom = symptomWords.some(w => titleLower.includes(w));
+    const hasTreatmentOrAppt = data.date_start || data.location || (data.event_type && String(data.event_type).includes('medical'));
+    if (isSymptom && !hasTreatmentOrAppt) {
+      return { ...response, confirmation: null };
+    }
+  }
+
+  // FP 8: Calidad mínima — requiere al menos 2 de 3 campos clave
+  if (conf.type === 'event' || conf.type === 'task') {
+    const hasDate = !!(data.date_start || data.due_date);
+    const hasOwner = !!(data.assigned_to);
+    const hasChild = !!(data.child);
+    const keyFieldCount = [hasDate, hasOwner, hasChild].filter(Boolean).length;
+    const titleWords = String(data.title || '').trim().split(/\s+/).filter(w => w.length > 2);
+    if (titleWords.length < 2 && keyFieldCount < 2) {
+      return { ...response, confirmation: null };
+    }
+  }
+
   return response;
+}
+
+function filterAdditionalConfirmations(
+  confirmations: Array<{ type: string; data: Record<string, unknown> }>,
+  input: PostProcessInput,
+): Array<{ type: string; data: Record<string, unknown> }> {
+  if (!confirmations || confirmations.length === 0) return [];
+
+  const filtered = confirmations.filter(conf => {
+    const data = conf.data;
+    const title = String(data.title || '').trim();
+
+    if ((conf.type === 'event' || conf.type === 'task') && title.length < 3) return false;
+    if (conf.type === 'medication' && (!data.medication_name || String(data.medication_name).trim().length < 2)) return false;
+
+    if (conf.type === 'event' && title) {
+      const titleLower = title.toLowerCase();
+      const symptomWords = ['fiebre', 'tos', 'vómito', 'vomito', 'diarrea', 'malestar', 'dolor de', 'gripe', 'resfriado', 'mocos'];
+      const isSymptom = symptomWords.some(w => titleLower.includes(w));
+      if (isSymptom && !data.date_start && !data.location) return false;
+    }
+
+    if (conf.type === 'event' || conf.type === 'task') {
+      const hasDate = !!(data.date_start || data.due_date);
+      const hasOwner = !!(data.assigned_to);
+      const hasChild = !!(data.child);
+      const keyFieldCount = [hasDate, hasOwner, hasChild].filter(Boolean).length;
+      const titleWords = title.split(/\s+/).filter(w => w.length > 2);
+      if (titleWords.length < 2 && keyFieldCount < 2) return false;
+    }
+
+    if (conf.type === 'event' && title && input.existingEvents) {
+      const titleWords = title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const existingLower = input.existingEvents.toLowerCase();
+      const matchedWords = titleWords.filter(w => existingLower.includes(w));
+      if (titleWords.length > 0 && matchedWords.length >= Math.ceil(titleWords.length * 0.6)) return false;
+    }
+    if (conf.type === 'task' && title && input.existingTasks) {
+      const titleWords = title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const existingLower = input.existingTasks.toLowerCase();
+      const matchedWords = titleWords.filter(w => existingLower.includes(w));
+      if (titleWords.length > 0 && matchedWords.length >= Math.ceil(titleWords.length * 0.6)) return false;
+    }
+
+    return true;
+  });
+
+  return filtered.slice(0, 1);
 }
