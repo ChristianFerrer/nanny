@@ -9,7 +9,7 @@ import {
 
 export const maxDuration = 60;
 
-const CODE_VERSION = 'v5-polling';
+const CODE_VERSION = 'v6-extcron';
 
 // ─── Ensure table exists ───
 let tableVerified = false;
@@ -29,13 +29,12 @@ async function ensureTable() {
 }
 
 // ─── GET: Return current job status ───
-// Single source of truth via getLatestJobStatus (handles auto-expiry).
 export async function GET() {
   try {
     await ensureTable();
     const status = await getLatestJobStatus();
     if (!status.job) {
-      return NextResponse.json({ active: false });
+      return NextResponse.json({ active: false, _v: CODE_VERSION });
     }
     return NextResponse.json({ ...status, _v: CODE_VERSION });
   } catch (e) {
@@ -65,40 +64,10 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// ─── PATCH: Continue processing a running job ───
-// Called by the browser's polling loop every ~5s. Processes one chunk of work
-// (~45s budget) then returns. This replaces the Vercel Cron approach which
-// requires Pro plan for sub-daily schedules.
-export async function PATCH() {
-  try {
-    const job = await findRunningJob();
-    if (!job) {
-      return NextResponse.json({ idle: true, _v: CODE_VERSION });
-    }
-
-    const result = await processUntilBudget(job.id, 45_000);
-    const status = await getLatestJobStatus();
-
-    return NextResponse.json({
-      ...status,
-      _v: CODE_VERSION,
-      processed: result.processed,
-      finalStatus: result.finalStatus,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 },
-    );
-  }
-}
-
 // ─── POST: Start a new autopilot job ───
-// Creates the job in DB and processes ONE conversation inline (~45s) for
-// immediate UX feedback. After this returns, the browser's polling loop
-// calls PATCH to continue processing until the job completes.
-//
-// Body: { force?: boolean } — if force=true, cancels any existing running job first.
+// Creates the job in DB and processes one batch inline (~45s).
+// An external cron service (cron-job.org) calls /api/cron/autopilot every
+// minute to continue processing server-side until the job completes.
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
@@ -106,7 +75,7 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Step 1: Cancel all running jobs older than 30 minutes.
+    // Cancel all running jobs older than 30 minutes.
     const expiryAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     await sb.from('autopilot_jobs')
       .update({
@@ -117,7 +86,6 @@ export async function POST(req: NextRequest) {
       .eq('status', 'running')
       .lt('created_at', expiryAgo);
 
-    // Step 2: Check if there's still a recent running job.
     const existing = await findRunningJob();
 
     if (existing) {
