@@ -9,7 +9,7 @@ import {
 
 export const maxDuration = 60;
 
-const CODE_VERSION = 'v6-extcron';
+const CODE_VERSION = 'v7-chain';
 
 // ─── Ensure table exists ───
 let tableVerified = false;

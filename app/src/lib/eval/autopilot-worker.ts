@@ -524,7 +524,7 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
 
 // ─── Process as many units as fit within the time budget ───
 // Claims the lock ONCE at the start and holds it for the whole budget window.
-const MIN_UNIT_MS = 15_000;
+const MIN_UNIT_MS = 10_000;
 export async function processUntilBudget(
   jobId: string,
   maxMs: number,
