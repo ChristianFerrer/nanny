@@ -321,6 +321,17 @@ export default function TestingDashboard() {
     setError(null);
     setShowReplaceConfirm(false);
 
+    // Show progress panel immediately — don't wait for the POST (takes ~45s)
+    setAutopilotJob({
+      status: 'running',
+      phase: 'evaluation',
+      current_conversation: 0,
+      total_conversations: 10,
+      message: 'Iniciando autopilot...',
+      conversation_scores: [],
+    });
+    startPolling();
+
     try {
       const res = await fetch('/api/eval/autopilot', {
         method: 'POST',
@@ -329,24 +340,23 @@ export default function TestingDashboard() {
       });
 
       const data = await res.json();
+      if (data._v) setServerVersion(data._v);
 
       if (!res.ok) {
-        // 409 = already running. Load the existing job + offer to replace it.
         if (res.status === 409) {
           await checkAutopilotStatus();
-          startPolling();
           setShowReplaceConfirm(true);
         } else {
           setError(data.error || `HTTP ${res.status}`);
+          setAutopilotJob(null);
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         }
         return;
       }
-
-      // Immediately fetch job status and start polling
-      await checkAutopilotStatus();
-      startPolling();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error iniciando autopilot');
+      setAutopilotJob(null);
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     }
   }
 

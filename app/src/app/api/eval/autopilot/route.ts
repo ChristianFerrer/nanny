@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { allConversations } from '@/lib/eval/conversations/index';
 import {
-  processUntilBudget,
   getLatestJobStatus,
   findRunningJob,
 } from '@/lib/eval/autopilot-worker';
@@ -65,9 +64,8 @@ export async function DELETE(req: NextRequest) {
 }
 
 // ─── POST: Start a new autopilot job ───
-// Creates the job in DB and processes one batch inline (~45s).
-// An external cron service (cron-job.org) calls /api/cron/autopilot every
-// minute to continue processing server-side until the job completes.
+// Creates the job in DB and returns immediately (<1s).
+// Triggers the cron chain via after() to start processing.
 export async function POST(req: NextRequest) {
   try {
     await ensureTable();
@@ -97,7 +95,7 @@ export async function POST(req: NextRequest) {
         }).eq('id', existing.id);
       } else {
         return NextResponse.json(
-          { error: 'Ya hay un autopilot en ejecución', jobId: existing.id },
+          { error: 'Ya hay un autopilot en ejecución', jobId: existing.id, _v: CODE_VERSION },
           { status: 409 },
         );
       }
@@ -118,21 +116,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log(`[autopilot] created job ${jobId}, processing first batch inline`);
+    console.log(`[autopilot] created job ${jobId}, triggering cron chain`);
 
-    try {
-      await processUntilBudget(jobId, 45_000);
-    } catch (e) {
-      console.error('[autopilot] first batch error:', e);
-      await sb.from('autopilot_jobs').update({
-        status: 'error',
-        message: `Error: ${e instanceof Error ? e.message : 'Error'}`,
-        updated_at: new Date().toISOString(),
-      }).eq('id', jobId);
-    }
+    // Trigger the cron chain after response is sent — processing starts immediately
+    const proto = req.headers.get('x-forwarded-proto') || 'https';
+    const host = req.headers.get('host') || '';
+    after(async () => {
+      try {
+        await fetch(`${proto}://${host}/api/cron/autopilot?d=0`);
+      } catch (e) {
+        console.error('[autopilot] trigger cron failed:', e);
+      }
+    });
 
-    const status = await getLatestJobStatus();
-    return NextResponse.json({ started: true, jobId, ...status, _v: CODE_VERSION });
+    return NextResponse.json({ started: true, jobId, _v: CODE_VERSION });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
