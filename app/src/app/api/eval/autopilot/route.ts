@@ -9,7 +9,7 @@ import {
 
 export const maxDuration = 60;
 
-const CODE_VERSION = 'v4-679f927';
+const CODE_VERSION = 'v5-polling';
 
 // ─── Ensure table exists ───
 let tableVerified = false;
@@ -65,14 +65,38 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+// ─── PATCH: Continue processing a running job ───
+// Called by the browser's polling loop every ~5s. Processes one chunk of work
+// (~45s budget) then returns. This replaces the Vercel Cron approach which
+// requires Pro plan for sub-daily schedules.
+export async function PATCH() {
+  try {
+    const job = await findRunningJob();
+    if (!job) {
+      return NextResponse.json({ idle: true, _v: CODE_VERSION });
+    }
+
+    const result = await processUntilBudget(job.id, 45_000);
+    const status = await getLatestJobStatus();
+
+    return NextResponse.json({
+      ...status,
+      _v: CODE_VERSION,
+      processed: result.processed,
+      finalStatus: result.finalStatus,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 },
+    );
+  }
+}
+
 // ─── POST: Start a new autopilot job ───
-// Creates the job in DB and processes ONE conversation inline (~25s) for
-// immediate UX feedback. After this returns, the Vercel Cron (every minute)
-// takes over and continues processing until the job completes.
-//
-// The `processUntilBudget` call uses job locking (compare-and-swap) so if the
-// cron happens to fire during our inline processing, it will not enter the same
-// job — no race, no double-increment.
+// Creates the job in DB and processes ONE conversation inline (~45s) for
+// immediate UX feedback. After this returns, the browser's polling loop
+// calls PATCH to continue processing until the job completes.
 //
 // Body: { force?: boolean } — if force=true, cancels any existing running job first.
 export async function POST(req: NextRequest) {
@@ -82,14 +106,12 @@ export async function POST(req: NextRequest) {
     const force = body?.force === true;
     const sb = getSupabaseAdmin();
 
-    // Step 1: Cancel all running jobs older than 20 minutes.
-    // A full cycle (eval 10 + diagnosis + reeval 10) takes ~12 min with
-    // cron delays. 20 min gives ample margin. Anything older is stuck.
-    const expiryAgo = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    // Step 1: Cancel all running jobs older than 30 minutes.
+    const expiryAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     await sb.from('autopilot_jobs')
       .update({
         status: 'error',
-        message: 'Expirado automáticamente (>20 min sin completar).',
+        message: 'Expirado automáticamente (>30 min sin completar).',
         updated_at: new Date().toISOString(),
       })
       .eq('status', 'running')
@@ -130,11 +152,8 @@ export async function POST(req: NextRequest) {
 
     console.log(`[autopilot] created job ${jobId}, processing first batch inline`);
 
-    // Process ~30s worth of work inline so the user sees immediate progress.
-    // (One conversation ~ 25s; 30s budget covers 1 conversation + overhead.)
-    // The Vercel Cron (every minute) will continue from where this leaves off.
     try {
-      await processUntilBudget(jobId, 30_000);
+      await processUntilBudget(jobId, 45_000);
     } catch (e) {
       console.error('[autopilot] first batch error:', e);
       await sb.from('autopilot_jobs').update({
@@ -144,7 +163,8 @@ export async function POST(req: NextRequest) {
       }).eq('id', jobId);
     }
 
-    return NextResponse.json({ started: true, jobId });
+    const status = await getLatestJobStatus();
+    return NextResponse.json({ started: true, jobId, ...status, _v: CODE_VERSION });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

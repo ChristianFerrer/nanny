@@ -375,31 +375,46 @@ export default function TestingDashboard() {
     }
   }
 
-  function startPolling() {
-    if (pollingRef.current) return; // Already polling
+  const processingRef = useRef(false);
 
-    pollingRef.current = setInterval(async () => {
+  function startPolling() {
+    if (pollingRef.current) return;
+
+    async function processLoop() {
+      if (!pollingRef.current || processingRef.current) return;
+      processingRef.current = true;
       try {
-        // Poll job status — the Vercel Cron handles all processing server-side
-        const res = await fetch('/api/eval/autopilot');
-        if (!res.ok) return;
+        // PATCH triggers server-side processing (~45s) AND returns status
+        const res = await fetch('/api/eval/autopilot', { method: 'PATCH' });
+        if (!res.ok) { processingRef.current = false; return; }
         const data = await res.json();
 
         if (data._v) setServerVersion(data._v);
         if (data.job) {
           setAutopilotJob(data.job);
-
-          // If completed or error, stop polling and refresh runs
           if (!data.active) {
             if (pollingRef.current) clearInterval(pollingRef.current);
             pollingRef.current = null;
+            processingRef.current = false;
             loadRuns();
+            return;
           }
+        }
+        if (data.idle) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          processingRef.current = false;
+          return;
         }
       } catch {
         // Ignore — retry next interval
       }
-    }, 5000);
+      processingRef.current = false;
+    }
+
+    // Poll every 3s; processLoop skips if a PATCH is already in-flight
+    pollingRef.current = setInterval(processLoop, 3000);
+    processLoop();
   }
 
   async function stopAutopilot() {
