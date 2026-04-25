@@ -8,7 +8,7 @@ import {
 
 export const maxDuration = 60;
 
-const CODE_VERSION = 'v8-parallel';
+const CODE_VERSION = 'v9-iterative';
 
 // ─── Ensure table exists ───
 let tableVerified = false;

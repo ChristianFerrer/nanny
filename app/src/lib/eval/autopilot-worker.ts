@@ -343,9 +343,13 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
     try {
       const { diagnoseResults } = await import('@/lib/eval/diagnosis');
       const { CLASSIFIER_PROMPT_TEXT, EXTRACTOR_PROMPT_TEXT } = await import('@/app/api/eval/prompt/prompt-texts');
+      const { getAllRules } = await import('@/lib/chat/prompt-rules');
+      const currentRules = await getAllRules();
       diagnosis = await diagnoseResults(results, {
         classifier: CLASSIFIER_PROMPT_TEXT,
         extractor: EXTRACTOR_PROMPT_TEXT,
+      }, {
+        activeRules: currentRules.map(r => ({ target: r.target, rule: r.rule })),
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error';
@@ -360,25 +364,57 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
 
     const adjustments = diagnosis.proposedAdjustments || [];
 
+    // Track iteration count in diagnosis_summary
+    const prevSummary = (job.diagnosis_summary as string) || '';
+    const iterCount = (prevSummary.match(/\[Ciclo \d+\]/g) || []).length + 1;
+    const iterSummary = prevSummary
+      ? `${prevSummary}\n[Ciclo ${iterCount}] ${diagnosis.summary}`
+      : `[Ciclo ${iterCount}] ${diagnosis.summary}`;
+
     if (adjustments.length === 0) {
       await updateJob(jobId, {
         status: 'completed',
         phase: 'complete',
-        message: 'Diagnóstico completado. Sin ajustes propuestos.',
-        diagnosis_summary: diagnosis.summary,
+        message: `Diagnóstico completado (ciclo ${iterCount}). Sin ajustes propuestos.`,
+        diagnosis_summary: iterSummary,
       });
       return 'done';
     }
 
-    const { addRule, saveSnapshot } = await import('@/lib/chat/prompt-rules');
+    const { addRule, saveSnapshot, clearAllRules } = await import('@/lib/chat/prompt-rules');
     try {
       await saveSnapshot();
     } catch (e) {
       log(jobId, `saveSnapshot warning: ${e instanceof Error ? e.message : 'err'}`);
     }
 
+    // Clear old rules before applying new ones — prevents accumulation across runs
+    try {
+      await clearAllRules();
+      log(jobId, 'cleared old rules before applying new diagnosis');
+    } catch (e) {
+      log(jobId, `clearRules warning: ${e instanceof Error ? e.message : 'err'}`);
+    }
+
     let appliedCount = 0;
     for (const adj of adjustments) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const action = (adj as any).action || 'add';
+      if (action === 'remove') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ruleId = (adj as any).ruleId;
+        if (ruleId) {
+          const { removeRule } = await import('@/lib/chat/prompt-rules');
+          try {
+            await removeRule(ruleId);
+            appliedCount++;
+            log(jobId, `removed rule ${ruleId}`);
+          } catch (e) {
+            log(jobId, `removeRule failed: ${e instanceof Error ? e.message : 'err'}`);
+          }
+        }
+        continue;
+      }
       if (!adj.proposedChange) continue;
       try {
         await addRule(adj.target || 'extractor', adj.proposedChange, `Autopilot: ${adj.pattern}`);
@@ -396,7 +432,7 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
       message: appliedCount > 0
         ? `${appliedCount} ajustes aplicados. Re-evaluando...`
         : 'Sin ajustes aplicables.',
-      diagnosis_summary: diagnosis.summary,
+      diagnosis_summary: iterSummary,
       adjustments_applied: appliedCount,
       current_conversation: 0,
       conversation_scores: [],
@@ -451,6 +487,11 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
         const postScore = avg(reResults.map(r => r.scores.overall));
         const preScore = (job.aggregate_scores as { overall: number })?.overall ?? 0;
 
+        // Count iterations from diagnosis_summary
+        const prevSummary = (job.diagnosis_summary as string) || '';
+        const iterCount = (prevSummary.match(/\[Ciclo \d+\]/g) || []).length;
+        const MAX_ITERATIONS = 3;
+
         if (postScore < preScore) {
           log(jobId, `reeval worse: ${preScore} → ${postScore}, rolling back`);
           try {
@@ -470,8 +511,35 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
             reeval_rolled_back: true,
             adjustments_applied: 0,
           });
+        } else if (postScore > preScore && iterCount < MAX_ITERATIONS) {
+          // Score improved and we have iterations left — loop back for another diagnosis cycle
+          log(jobId, `reeval improved: ${preScore} → ${postScore}, starting cycle ${iterCount + 2}/${MAX_ITERATIONS + 1}`);
+          const reAggregate = {
+            precision: avg(reResults.map(r => r.scores.precision)),
+            recall: avg(reResults.map(r => r.scores.recall)),
+            ambiguityHandling: avg(reResults.map(r => r.scores.ambiguityHandling)),
+            behaviorScore: avg(reResults.map(r => r.scores.behaviorScore)),
+            falsePositiveRate: avg(reResults.map(r => r.scores.falsePositiveRate ?? 0)),
+            fieldAccuracy: {
+              dateAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
+              ownerAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
+              typeAccuracy: avg(reResults.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
+            },
+            overall: postScore,
+          };
+          await updateJob(jobId, {
+            phase: 'diagnosis',
+            aggregate_scores: reAggregate,
+            current_conversation: 0,
+            conversation_scores: newScores,
+            message: `Ciclo ${iterCount + 2}: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%. Diagnosticando de nuevo...`,
+            reeval_pre_score: preScore,
+            reeval_post_score: postScore,
+            reeval_improved: true,
+          });
+          return 'yield';
         } else {
-          log(jobId, `reeval improved: ${preScore} → ${postScore}`);
+          log(jobId, `reeval final: ${preScore} → ${postScore} (${iterCount + 1} cycles)`);
           const reAggregate = {
             precision: avg(reResults.map(r => r.scores.precision)),
             recall: avg(reResults.map(r => r.scores.recall)),
@@ -490,7 +558,7 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
           const { error: reInsertErr } = await sb.from('evaluation_runs').insert({
             id: reRunId,
             timestamp: new Date().toISOString(),
-            prompt_version: 'autopilot-post',
+            prompt_version: `autopilot-post-cycle${iterCount + 1}`,
             model: 'gpt-4o-mini',
             conversation_results: reResults,
             aggregate_scores: reAggregate,
@@ -510,10 +578,10 @@ async function processOneUnit(jobId: string): Promise<UnitResult> {
             phase: 'complete',
             eval_run_id: reInsertErr ? undefined : reRunId,
             aggregate_scores: reAggregate,
-            message: `Score mejoró: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}%`,
+            message: `Score mejoró: ${Math.round(preScore * 100)}% → ${Math.round(postScore * 100)}% (${iterCount + 1} ciclos)`,
             reeval_pre_score: preScore,
             reeval_post_score: postScore,
-            reeval_improved: true,
+            reeval_improved: postScore >= preScore,
             reeval_rolled_back: false,
           });
         }

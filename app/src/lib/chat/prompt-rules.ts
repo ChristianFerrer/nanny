@@ -114,6 +114,8 @@ export async function getAllRules(): Promise<PromptRule[]> {
 /**
  * Agrega una nueva regla.
  */
+const MAX_RULES_PER_TARGET = 5;
+
 export async function addRule(
   target: 'classifier' | 'extractor',
   rule: string,
@@ -129,13 +131,56 @@ export async function addRule(
     createdAt: new Date().toISOString(),
     version: nextVersion,
   };
+
+  let rules = [...state.active_rules, newRule];
+  const targetRules = rules.filter(r => r.target === target);
+  if (targetRules.length > MAX_RULES_PER_TARGET) {
+    const oldest = targetRules.slice(0, targetRules.length - MAX_RULES_PER_TARGET);
+    const oldIds = new Set(oldest.map(r => r.id));
+    rules = rules.filter(r => !oldIds.has(r.id));
+  }
+
   const nextState: StateRow = {
-    active_rules: [...state.active_rules, newRule],
+    active_rules: rules,
     snapshot: state.snapshot,
     version_counter: nextVersion,
   };
   await saveState(nextState);
   return newRule;
+}
+
+export async function removeRule(ruleId: string): Promise<boolean> {
+  const state = await loadState(true);
+  const before = state.active_rules.length;
+  const nextState: StateRow = {
+    active_rules: state.active_rules.filter(r => r.id !== ruleId),
+    snapshot: state.snapshot,
+    version_counter: state.version_counter,
+  };
+  if (nextState.active_rules.length === before) return false;
+  await saveState(nextState);
+  return true;
+}
+
+export async function replaceAllRules(rules: Array<{ target: 'classifier' | 'extractor'; rule: string; description: string }>): Promise<void> {
+  const state = await loadState(true);
+  let version = state.version_counter;
+  const newRules: PromptRule[] = rules.map(r => {
+    version++;
+    return {
+      id: `rule-${version}-${Date.now()}`,
+      target: r.target,
+      rule: r.rule,
+      description: r.description,
+      createdAt: new Date().toISOString(),
+      version,
+    };
+  });
+  await saveState({
+    active_rules: newRules,
+    snapshot: state.snapshot,
+    version_counter: version,
+  });
 }
 
 /**

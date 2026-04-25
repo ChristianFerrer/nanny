@@ -4,7 +4,7 @@ import { processUntilBudget, findRunningJob } from '@/lib/eval/autopilot-worker'
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-const CODE_VERSION = 'v8-parallel';
+const CODE_VERSION = 'v9-iterative';
 
 export async function GET(req: NextRequest) {
   const depth = parseInt(req.nextUrl.searchParams.get('d') || '0');

@@ -20,7 +20,7 @@ import type {
 export async function diagnoseResults(
   results: ConversationResult[],
   pipelinePrompts: { classifier: string; extractor: string },
-  options?: { apiKey?: string }
+  options?: { apiKey?: string; activeRules?: Array<{ target: string; rule: string }> }
 ): Promise<DiagnosisResult> {
   const apiKey = options?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY requerida para diagnóstico');
@@ -41,7 +41,7 @@ export async function diagnoseResults(
   }
 
   // Build diagnosis prompt
-  const diagnosisPrompt = buildDiagnosisPrompt(failures, pipelinePrompts, results);
+  const diagnosisPrompt = buildDiagnosisPrompt(failures, pipelinePrompts, results, options?.activeRules);
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -67,26 +67,32 @@ IMPORTANTE sobre los ajustes propuestos:
 - El campo "target" debe ser "classifier" o "extractor" según a cuál prompt aplica:
   - "classifier": si el problema es que Nanny NO DETECTA algo (falso negativo) o detecta de más (falso positivo en clasificación)
   - "extractor": si el problema es que los CAMPOS EXTRAÍDOS son incorrectos (fecha, assigned_to, título, etc.)
-- Escríbela como regla clara, ej: "REGLA: Cuando se mencionan dos actividades en un mensaje, detected_items_count debe ser 2"
+- Escríbela como regla clara y ESPECÍFICA al patrón de fallo, ej: "REGLA: Si el mensaje contiene 'yo lo llevo' o 'yo me encargo', assigned_to = sender_role (quien escribió el mensaje)"
+- NO propongas reglas genéricas como "mejorar detección de fechas". Sé específico sobre QUÉ PATRÓN corregir.
+- Se te muestran las REGLAS ACTIVAS actuales. NO propongas reglas que dupliquen las existentes.
+- Puedes proponer action="remove" con ruleId para ELIMINAR reglas existentes que sean ineficaces o contradictorias.
+- Máximo 5 ajustes (los más impactantes).
 
 Responde SIEMPRE en JSON válido con esta estructura:
 {
   "patterns": [
     {
       "category": "nombre descriptivo del patrón",
-      "description": "descripción clara del problema",
+      "description": "descripción clara del problema con EJEMPLO CONCRETO del fallo",
       "failureCount": número,
       "affectedConversations": ["id1", "id2"]
     }
   ],
   "adjustments": [
     {
+      "action": "add|remove",
+      "ruleId": "solo para action=remove, el id de la regla a eliminar",
       "pattern": "nombre del patrón que resuelve",
       "target": "classifier|extractor",
-      "currentPromptSection": "área del prompt relacionada (descripción corta)",
-      "proposedChange": "REGLA NUEVA COMPLETA a agregar al prompt.",
+      "currentPromptSection": "área del prompt relacionada",
+      "proposedChange": "REGLA NUEVA COMPLETA y ESPECÍFICA al patrón de fallo.",
       "riskLevel": "bajo|medio|alto",
-      "expectedImpact": "qué mejora esperamos"
+      "expectedImpact": "qué mejora esperamos y en cuáles conversaciones"
     }
   ],
   "summary": "resumen ejecutivo en 2-3 oraciones"
@@ -163,23 +169,38 @@ function collectFailures(results: ConversationResult[]): Failure[] {
   const failures: Failure[] = [];
 
   for (const r of results) {
-    // Detection failures
+    // Detection failures — include relevant message text for context
     for (const dm of r.detectionMatches) {
+      // Find the message(s) that should have triggered this detection
+      const relevantMsgIdx = dm.expected.detectedAtMessage;
+      const relevantMsg = relevantMsgIdx !== undefined ? r.messageResults[relevantMsgIdx] : undefined;
+      const msgContext = relevantMsg
+        ? `[msg ${relevantMsgIdx}: "${relevantMsg.senderName}: ${relevantMsg.messageText.substring(0, 120)}"]`
+        : '';
+
       if (!dm.actual) {
         failures.push({
           conversationId: r.conversationId,
           conversationName: r.conversationName,
           type: 'detection_missed',
-          description: `No se detectó ${dm.expected.type}: ${JSON.stringify(dm.expected.data).substring(0, 100)}`,
+          description: `No se detectó ${dm.expected.type}: ${JSON.stringify(dm.expected.data).substring(0, 150)} ${msgContext}`,
+          messageIndex: relevantMsgIdx,
+          messageText: relevantMsg?.messageText,
           expected: JSON.stringify(dm.expected.data),
           actual: 'null (no detectado)',
         });
       } else if (dm.score < 0.7) {
+        // Include per-field diff for more actionable diagnosis
+        const fieldDiff = dm.incorrectFields
+          .map(f => `${f.field}: esperado=${JSON.stringify(f.expected)} actual=${JSON.stringify(f.actual)}`)
+          .join('; ');
         failures.push({
           conversationId: r.conversationId,
           conversationName: r.conversationName,
           type: 'detection_incorrect',
-          description: `Detección parcial (${Math.round(dm.score * 100)}%): campos incorrectos: ${dm.incorrectFields.map(f => f.field).join(', ')}`,
+          description: `Detección parcial (${Math.round(dm.score * 100)}%): ${fieldDiff} ${msgContext}`,
+          messageIndex: relevantMsgIdx,
+          messageText: relevantMsg?.messageText,
           expected: JSON.stringify(dm.expected.data),
           actual: JSON.stringify(dm.actual.data),
         });
@@ -207,7 +228,8 @@ function collectFailures(results: ConversationResult[]): Failure[] {
 function buildDiagnosisPrompt(
   failures: Failure[],
   pipelinePrompts: { classifier: string; extractor: string },
-  results: ConversationResult[]
+  results: ConversationResult[],
+  activeRules?: Array<{ target: string; rule: string }>,
 ): string {
   const failuresByConversation = new Map<string, Failure[]>();
   for (const f of failures) {
@@ -216,19 +238,30 @@ function buildDiagnosisPrompt(
     failuresByConversation.set(f.conversationId, existing);
   }
 
-  let prompt = `## PROMPT DEL CLASSIFIER (paso 1 — clasifica si es accionable):
+  let prompt = `## PROMPT DEL CLASSIFIER:
 \`\`\`
-${pipelinePrompts.classifier.substring(0, 2000)}
-\`\`\`
-
-## PROMPT DEL EXTRACTOR (paso 2 — extrae datos estructurados):
-\`\`\`
-${pipelinePrompts.extractor.substring(0, 3000)}
+${pipelinePrompts.classifier}
 \`\`\`
 
-## RESULTADOS DE EVALUACIÓN:
+## PROMPT DEL EXTRACTOR:
+\`\`\`
+${pipelinePrompts.extractor}
+\`\`\`
+`;
+
+  if (activeRules && activeRules.length > 0) {
+    prompt += `\n## REGLAS ACTIVAS (ya aplicadas en los prompts — NO duplicar):
+${activeRules.map((r, i) => `${i + 1}. [${r.target}] ${r.rule}`).join('\n')}
+`;
+  } else {
+    prompt += `\n## REGLAS ACTIVAS: ninguna\n`;
+  }
+
+  prompt += `\n## RESULTADOS DE EVALUACIÓN:
 Total conversaciones: ${results.length}
 Score global: ${Math.round(results.reduce((a, r) => a + r.scores.overall, 0) / results.length * 100)}%
+Precision: ${Math.round(results.reduce((a, r) => a + r.scores.precision, 0) / results.length * 100)}%
+Recall: ${Math.round(results.reduce((a, r) => a + r.scores.recall, 0) / results.length * 100)}%
 Total fallos: ${failures.length}
 
 ## FALLOS POR CONVERSACIÓN:
@@ -236,18 +269,27 @@ Total fallos: ${failures.length}
 
   for (const [convId, convFailures] of failuresByConversation) {
     const result = results.find(r => r.conversationId === convId);
-    prompt += `\n### ${result?.conversationName || convId} (score: ${result?.scores.overall || 0})\n`;
+    prompt += `\n### ${result?.conversationName || convId} (score: ${result?.scores.overall || 0}, precision: ${result?.scores.precision || 0}, recall: ${result?.scores.recall || 0})\n`;
     for (const f of convFailures) {
-      prompt += `- [${f.type}] ${f.description}\n  Esperado: ${f.expected.substring(0, 150)}\n  Actual: ${f.actual.substring(0, 150)}\n`;
+      prompt += `- [${f.type}] ${f.description}\n`;
+      if (f.messageText) {
+        prompt += `  Mensaje original: "${f.messageText.substring(0, 200)}"\n`;
+      }
+      prompt += `  Esperado: ${f.expected.substring(0, 300)}\n  Actual: ${f.actual.substring(0, 300)}\n`;
     }
   }
 
-  prompt += `\n## CATEGORÍAS DE FALLOS:
-- detection_missed: ${failures.filter(f => f.type === 'detection_missed').length} (→ ajustar CLASSIFIER para que detecte, o EXTRACTOR para que no descarte)
-- detection_incorrect: ${failures.filter(f => f.type === 'detection_incorrect').length} (→ ajustar EXTRACTOR para mejorar campos)
-- behavior_failed: ${failures.filter(f => f.type === 'behavior_failed').length} (→ ajustar CLASSIFIER para should_respond/pending)
+  prompt += `\n## RESUMEN DE FALLOS:
+- detection_missed: ${failures.filter(f => f.type === 'detection_missed').length}
+- detection_incorrect: ${failures.filter(f => f.type === 'detection_incorrect').length}
+- behavior_failed: ${failures.filter(f => f.type === 'behavior_failed').length}
 
-Para cada ajuste, indica si va al CLASSIFIER o al EXTRACTOR.`;
+INSTRUCCIONES:
+1. Identifica los 3-5 patrones de fallo más frecuentes
+2. Propón reglas ESPECÍFICAS (con ejemplos concretos del fallo)
+3. Enfócate en los campos que más fallan: assigned_to, date_start, detecciones perdidas
+4. NO propongas reglas genéricas — cada regla debe resolver un patrón concreto
+5. Máximo 5 ajustes, priorizados por impacto`;
 
   return prompt;
 }

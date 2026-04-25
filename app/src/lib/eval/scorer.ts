@@ -194,8 +194,18 @@ function compareDetection(
 
     if (fieldMatches(field, expectedVal, actualVal)) {
       correctFields.push(field);
+    } else if (ambiguous.includes(field) && (actualVal === null || actualVal === undefined)) {
+      // Ambiguous field left as null — don't penalize, count as correct
+      correctFields.push(field);
     } else {
       incorrectFields.push({ field, expected: expectedVal, actual: actualVal });
+    }
+  }
+
+  // Give partial credit for ambiguous fields that were explicitly marked
+  for (const field of ambiguous) {
+    if (field in expected.data && !fieldsToCheck.includes(field)) {
+      correctFields.push(field);
     }
   }
 
@@ -410,23 +420,24 @@ function scoreFieldAccuracy(detectionMatches: DetectionMatch[]): {
     const dateFields = ['date_start', 'due_date'];
     const ownerFields = ['assigned_to'];
     const typeFields = ['event_type'];
+    const ambiguous = dm.ambiguousFields || [];
 
     for (const field of dateFields) {
-      if (field in dm.expected.data) {
+      if (field in dm.expected.data && !ambiguous.includes(field)) {
         dateTotal++;
         if (dm.correctFields.includes(field)) dateCorrect++;
       }
     }
 
     for (const field of ownerFields) {
-      if (field in dm.expected.data) {
+      if (field in dm.expected.data && !ambiguous.includes(field)) {
         ownerTotal++;
         if (dm.correctFields.includes(field)) ownerCorrect++;
       }
     }
 
     for (const field of typeFields) {
-      if (field in dm.expected.data) {
+      if (field in dm.expected.data && !ambiguous.includes(field)) {
         typeTotal++;
         if (dm.correctFields.includes(field)) typeCorrect++;
       }

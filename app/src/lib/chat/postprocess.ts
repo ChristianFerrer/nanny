@@ -25,10 +25,13 @@ export function postProcessResponse(input: PostProcessInput): ChatResponse {
   // 1. Fix assigned_to
   response = fixAssignedTo(response, input.senderRole);
 
-  // 2. Validate against false positives
+  // 2. Fix relative dates to ISO
+  response = fixDates(response);
+
+  // 3. Validate against false positives
   response = validateConfirmation(response, input);
 
-  // 3. Ensure additional_confirmations passes through
+  // 4. Ensure additional_confirmations passes through
   response.additional_confirmations = response.additional_confirmations || [];
 
   return response;
@@ -55,16 +58,17 @@ function fixAssignedTo(response: ChatResponse, senderRole: 'mama' | 'papa'): Cha
   }
 
   // Mapear variaciones comunes
-  if (['sender', 'yo', 'quien escribe', 'el que escribe', 'la que escribe'].includes(assignedStr)) {
+  if (['sender', 'yo', 'quien escribe', 'el que escribe', 'la que escribe', 'yo lo hago', 'yo me encargo', 'me encargo'].includes(assignedStr)) {
     data.assigned_to = senderRole;
-  } else if (['other', 'otro', 'otra', 'el otro', 'la otra', 'otro padre', 'otra madre'].includes(assignedStr)) {
+  } else if (['other', 'otro', 'otra', 'el otro', 'la otra', 'otro padre', 'otra madre', 'tú', 'tu', 'you'].includes(assignedStr)) {
     data.assigned_to = otherRole;
   } else if (['mamá', 'mama', 'madre', 'mami', 'mom', 'mother'].some(v => assignedStr.includes(v))) {
     data.assigned_to = 'mama';
   } else if (['papá', 'papa', 'padre', 'papi', 'dad', 'father'].some(v => assignedStr.includes(v))) {
     data.assigned_to = 'papa';
+  } else if (['ambos', 'los dos', 'both', 'juntos'].some(v => assignedStr.includes(v))) {
+    data.assigned_to = null;
   } else {
-    // Si no podemos determinar, dejarlo como null mejor que algo incorrecto
     data.assigned_to = null;
   }
 
@@ -75,6 +79,96 @@ function fixAssignedTo(response: ChatResponse, senderRole: 'mama' | 'papa'): Cha
       data,
     },
   };
+}
+
+/**
+ * Normaliza fechas relativas a ISO 8601.
+ * El LLM a veces emite "mañana", "lunes", "en 2 semanas" en vez de ISO.
+ */
+function fixDates(response: ChatResponse): ChatResponse {
+  if (!response.confirmation?.data) return response;
+
+  const data = { ...response.confirmation.data };
+  const dateFields = ['date_start', 'due_date'];
+
+  for (const field of dateFields) {
+    const val = data[field];
+    if (!val || typeof val !== 'string') continue;
+    const normalized = normalizeDate(val);
+    if (normalized) data[field] = normalized;
+  }
+
+  return {
+    ...response,
+    confirmation: { ...response.confirmation, data },
+  };
+}
+
+function normalizeDate(raw: string): string | null {
+  const lower = raw.toLowerCase().trim();
+  const now = new Date();
+
+  // Already ISO format — leave as is
+  if (/^\d{4}-\d{2}-\d{2}/.test(lower)) return null;
+
+  const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+  // Extract time component if present (e.g. "a las 10:00", "10am", "16:00")
+  let time = '';
+  const timeMatch = lower.match(/(\d{1,2}):(\d{2})/);
+  const ampmMatch = lower.match(/(\d{1,2})\s*(am|pm)/i);
+  if (timeMatch) {
+    time = `T${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}:00`;
+  } else if (ampmMatch) {
+    let h = parseInt(ampmMatch[1]);
+    if (ampmMatch[2].toLowerCase() === 'pm' && h < 12) h += 12;
+    if (ampmMatch[2].toLowerCase() === 'am' && h === 12) h = 0;
+    time = `T${String(h).padStart(2, '0')}:00:00`;
+  }
+
+  // "mañana"
+  if (lower.includes('mañana') && !lower.includes('por la mañana')) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0] + (time || 'T10:00:00');
+  }
+
+  // "pasado mañana"
+  if (lower.includes('pasado mañana')) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0] + (time || 'T10:00:00');
+  }
+
+  // "en X semanas/días"
+  const relMatch = lower.match(/en\s+(\d+)\s+(semana|día|dia|mes)/);
+  if (relMatch) {
+    const n = parseInt(relMatch[1]);
+    const unit = relMatch[2];
+    const d = new Date(now);
+    if (unit.startsWith('semana')) d.setDate(d.getDate() + n * 7);
+    else if (unit.startsWith('día') || unit.startsWith('dia')) d.setDate(d.getDate() + n);
+    else if (unit.startsWith('mes')) d.setMonth(d.getMonth() + n);
+    return d.toISOString().split('T')[0] + (time || 'T10:00:00');
+  }
+
+  // "el lunes", "este viernes", "próximo martes"
+  const dayMatch = dayNames.findIndex(d => lower.includes(d));
+  if (dayMatch >= 0) {
+    const d = new Date(now);
+    const currentDay = d.getDay();
+    let diff = dayMatch - currentDay;
+    if (diff <= 0) diff += 7;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().split('T')[0] + (time || 'T10:00:00');
+  }
+
+  // "hoy"
+  if (lower === 'hoy' || lower.startsWith('hoy ')) {
+    return now.toISOString().split('T')[0] + (time || 'T10:00:00');
+  }
+
+  return null;
 }
 
 /**
