@@ -1279,9 +1279,9 @@ export default function ChatPage() {
 
       {/* Push notification prompt */}
       {pushStatus === 'prompt' && (
-        <div className="mx-4 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-bg)] rounded-xl px-4 py-3">
+        <div className="mx-3 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-tint)] rounded-xl px-4 py-3 border border-[var(--nanny-purple-soft)] animate-slide-up">
           <Bell size={20} className="text-[var(--nanny-purple)] shrink-0" />
-          <p className="text-sm text-[var(--nanny-purple)] flex-1">
+          <p className="text-footnote text-[var(--text-primary)] flex-1">
             Activa las notificaciones para no perderte mensajes
           </p>
           <button
@@ -1289,12 +1289,12 @@ export default function ChatPage() {
               const ok = await registerPushNotifications();
               setPushStatus(ok ? 'granted' : 'denied');
             }}
-            className="text-xs font-semibold text-white bg-[var(--nanny-purple)] px-3 py-1.5 rounded-lg shrink-0"
+            className="btn btn-primary btn-sm shrink-0"
           >
             Activar
           </button>
-          <button onClick={() => setPushStatus('denied')} className="text-[var(--nanny-gray)] shrink-0">
-            <X size={16} />
+          <button onClick={() => setPushStatus('denied')} aria-label="Descartar" className="w-7 h-7 rounded-full hover:bg-white/40 flex items-center justify-center text-[var(--text-secondary)] shrink-0">
+            <X size={14} />
           </button>
         </div>
       )}
@@ -1307,11 +1307,11 @@ export default function ChatPage() {
         >
           <button
             onClick={() => { setToast(null); router.push(toast.href); }}
-            className="w-full flex items-center gap-2 bg-[var(--nanny-purple)] text-white rounded-xl px-4 py-3 shadow-lg"
+            className="w-full flex items-center gap-2 glass-dark rounded-2xl px-4 py-3 shadow-lg"
           >
-            <CheckSquare size={16} />
-            <span className="text-sm font-medium flex-1 text-left">{toast.text}</span>
-            <span className="text-xs opacity-80">Ver &rarr;</span>
+            <CheckSquare size={16} className="text-[var(--success)]" />
+            <span className="text-subhead text-white flex-1 text-left">{toast.text}</span>
+            <span className="text-caption text-white/80">Ver →</span>
           </button>
         </div>
       )}
