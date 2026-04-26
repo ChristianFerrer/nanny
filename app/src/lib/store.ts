@@ -319,3 +319,8 @@ export async function deleteTask(taskId: string): Promise<void> {
   await writeData('tasks', 'delete', undefined, taskId);
   notify();
 }
+
+export async function deleteChild(childId: string): Promise<void> {
+  await writeData('children', 'delete', undefined, childId);
+  notify();
+}

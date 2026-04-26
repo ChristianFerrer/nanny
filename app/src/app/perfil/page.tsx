@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2, User as UserIcon } from 'lucide-react';
-import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, resetFamilyCache } from '@/lib/store';
+import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2, User as UserIcon, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, deleteChild as deleteChildStore, resetFamilyCache } from '@/lib/store';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
 
@@ -67,6 +67,15 @@ function PerfilInner() {
 
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Child | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmToast, setConfirmToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setConfirmToast(msg);
+    setTimeout(() => setConfirmToast(null), 2400);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -166,6 +175,7 @@ function PerfilInner() {
     await loadData();
     setEditSection(null);
     setSaving(false);
+    showToast('Familia actualizada');
   };
 
   const saveParent = async () => {
@@ -180,6 +190,7 @@ function PerfilInner() {
     await loadData();
     setEditSection(null);
     setSaving(false);
+    showToast('Cambios guardados');
   };
 
   const saveChild = async () => {
@@ -200,6 +211,7 @@ function PerfilInner() {
     await loadData();
     setEditSection(null);
     setSaving(false);
+    showToast('Cambios guardados');
   };
 
   const saveNewChild = async () => {
@@ -221,6 +233,18 @@ function PerfilInner() {
     await loadData();
     setEditSection(null);
     setSaving(false);
+    showToast('Hijo agregado');
+  };
+
+  const handleDeleteChild = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    await deleteChildStore(confirmDelete.id);
+    await loadData();
+    setDeleting(false);
+    setConfirmDelete(null);
+    setEditSection(null);
+    showToast('Hijo eliminado');
   };
 
   if (loading || !family) return <PerfilSkeleton />;
@@ -342,7 +366,7 @@ function PerfilInner() {
 
         {/* Logout */}
         <button
-          onClick={handleLogout}
+          onClick={() => setConfirmLogout(true)}
           disabled={loggingOut}
           className="btn btn-block mt-2"
           style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}
@@ -414,7 +438,13 @@ function PerfilInner() {
                   </div>
                   <div>
                     <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Teléfono</label>
-                    <input type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Opcional" />
+                    <input
+                      type="tel"
+                      value={parentPhone}
+                      onChange={e => setParentPhone(formatPhone(e.target.value))}
+                      placeholder="Opcional"
+                      inputMode="tel"
+                    />
                   </div>
                   <div>
                     <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Email</label>
@@ -464,14 +494,125 @@ function PerfilInner() {
                   >
                     <Save size={18} /> {saving ? 'Guardando…' : 'Guardar'}
                   </button>
+                  {editSection === 'child' && (
+                    <button
+                      onClick={() => {
+                        const c = children.find(x => x.id === editId);
+                        if (c) setConfirmDelete(c);
+                      }}
+                      className="btn btn-block mt-1"
+                      style={{ background: 'transparent', color: 'var(--danger)' }}
+                    >
+                      <Trash2 size={16} /> Eliminar hijo
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </div>
         </>
       )}
+
+      {/* Confirm logout dialog */}
+      {confirmLogout && (
+        <>
+          <div className="sheet-backdrop" onClick={() => setConfirmLogout(false)} />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[62] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+          >
+            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+              <LogOut size={20} className="text-[var(--danger)]" />
+            </div>
+            <h3 id="logout-title" className="text-headline text-center text-[var(--text-primary)]">
+              ¿Cerrar sesión?
+            </h3>
+            <p className="text-footnote text-center text-[var(--text-tertiary)] mt-1">
+              Tendrás que volver a iniciar sesión para acceder a tu familia.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setConfirmLogout(false)}
+                className="btn btn-secondary flex-1"
+                disabled={loggingOut}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="btn btn-destructive flex-1"
+              >
+                {loggingOut ? 'Saliendo…' : 'Cerrar sesión'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Confirm delete child dialog (doble confirm) */}
+      {confirmDelete && (
+        <>
+          <div className="sheet-backdrop z-[63]" onClick={() => setConfirmDelete(null)} />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[64] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+          >
+            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+              <AlertTriangle size={20} className="text-[var(--danger)]" />
+            </div>
+            <h3 id="delete-title" className="text-headline text-center text-[var(--text-primary)]">
+              ¿Eliminar a {confirmDelete.name}?
+            </h3>
+            <p className="text-footnote text-center text-[var(--text-tertiary)] mt-1">
+              Se borrarán también sus rutinas, eventos y tareas asociados. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setConfirmDelete(null)} className="btn btn-secondary flex-1" disabled={deleting}>
+                Cancelar
+              </button>
+              <button onClick={handleDeleteChild} disabled={deleting} className="btn btn-destructive flex-1">
+                {deleting ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Toast de confirmacion */}
+      {confirmToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] animate-slide-up" style={{ maxWidth: '380px', width: '90%' }}>
+          <div className="flex items-center gap-2 glass-dark rounded-2xl px-4 py-3 shadow-lg">
+            <CheckCircle2 size={16} className="text-[var(--success)] shrink-0" />
+            <span className="text-subhead text-white flex-1">{confirmToast}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatPhone(value: string): string {
+  // Mexico/LatAm formato: +52 55 1234 5678 o 555 123 4567
+  const digits = value.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) {
+    // International: +XX YY YYYY YYYY
+    const rest = digits.slice(1).replace(/\D/g, '');
+    const cc = rest.slice(0, 2);
+    const a = rest.slice(2, 4);
+    const b = rest.slice(4, 8);
+    const c = rest.slice(8, 12);
+    return ['+' + cc, a, b, c].filter(Boolean).join(' ');
+  }
+  // Local: XXX XXX XXXX
+  const a = digits.slice(0, 3);
+  const b = digits.slice(3, 6);
+  const c = digits.slice(6, 10);
+  return [a, b, c].filter(Boolean).join(' ');
 }
 
 function calcAge(birthDate: string): number {
