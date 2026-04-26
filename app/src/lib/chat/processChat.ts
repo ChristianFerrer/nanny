@@ -1,6 +1,17 @@
 import OpenAI from 'openai';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+/**
+ * SYSTEM_PROMPT — Legacy monolítico, NO se usa en producción.
+ *
+ * El chat de producción usa `processChatPipeline` (classifier + extractor +
+ * responder modulares en este mismo directorio). Este prompt se mantiene
+ * solo para `processChatLegacy` y para el runner de evaluación offline
+ * (`run-eval-offline.ts` y `run-eval.ts`).
+ *
+ * Si modificás reglas del comportamiento de Nanny en chat real, hacelo en
+ * los prompts modulares (classifier.ts, extractor.ts, responder.ts) — NO acá.
+ */
 export const SYSTEM_PROMPT = `Eres Nanny, una asistente de IA para coordinación familiar. Estás en un chat grupal entre mamá y papá. Tu trabajo es escuchar su conversación y capturar TODO lo accionable: eventos, citas, tareas, compras, medicamentos, logística. Eres como un asistente de reuniones que detecta action items automáticamente.
 
 PERSONALIDAD:
@@ -459,6 +470,7 @@ export interface ChatInput {
   senderName: string;
   senderRole: 'mama' | 'papa';
   pendingDetection: Record<string, unknown> | null;
+  familyId?: string; // Opcional: usado para chequeo de cuotas anti-spam
 }
 
 export interface ChatResponse {
@@ -470,6 +482,7 @@ export interface ChatResponse {
   confirmation: { type: string; data: Record<string, unknown> } | null;
   additional_confirmations: { type: string; data: Record<string, unknown> }[];
   pending_detection: { type: string; partial_data: Record<string, unknown>; missing: string[]; summary: string } | null;
+  is_proactive?: boolean; // True si el mensaje no fue solicitado: cuenta para cuota anti-spam
 }
 
 /**

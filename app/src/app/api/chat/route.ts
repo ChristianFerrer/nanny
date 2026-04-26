@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       senderName: body.senderName || 'Padre',
       senderRole: body.senderRole || 'mama',
       pendingDetection: body.pendingDetection || null,
+      familyId: body.familyId,
     });
 
     return NextResponse.json(result);

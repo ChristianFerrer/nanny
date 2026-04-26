@@ -191,19 +191,28 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/eval/autopilot` | GET=status, POST=iniciar, DELETE=cancelar autopilot |
 | `/api/eval/diagnose` | Diagnóstico AI de resultados |
 | `/api/eval/prompt` | GET/POST/PUT/DELETE de reglas del prompt |
-| `/api/cron/autopilot` | Cron endpoint (Vercel, cada 1 min) |
+| `/api/cron/autopilot` | Cron endpoint (deprecado en Hobby plan; ahora client-driven via PATCH) |
+| `/api/cron/morning-brief` | Cron diario (11:00 UTC ≈ 8am ART): brief matutino por familia |
 
 ---
 
 ## 8. Pipeline de Chat AI (`app/src/lib/chat/`)
 
-1. `processChat.ts` — orquestador principal
-2. `classifier.ts` — clasifica intención del mensaje (gpt-4o-mini)
+1. `processChat.ts` — orquestador público; el `SYSTEM_PROMPT` exportado es legacy (solo eval offline)
+2. `classifier.ts` — clasifica intención + flags del mensaje (incluye `silent_action`)
 3. `extractor.ts` — extrae datos estructurados (eventos, tareas, medicamentos)
-4. `responder.ts` — genera respuesta de Nanny
-5. `postprocess.ts` — post-procesamiento
-6. `pipeline.ts` — pipeline completo
+4. `responder.ts` — genera respuesta de Nanny (tono profesional, default 1 oración, una pregunta máx)
+5. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación)
+6. `pipeline.ts` — orquestación: silent_action → extracción sin reply; un solo reply por turno; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm)
 7. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
+8. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
+
+**Convenciones de tono (vinculantes, viven en los prompts modulares):**
+- Default 1 oración, máximo 2 (3 solo en briefs)
+- Cero exclamaciones, cero efusividad
+- Una sola pregunta por turno (jerarquía: asignación > horario > ubicación)
+- `silent_action=true` cuando los padres cierran un loop sin médico/concern/correction → registra sin reply
+- `is_proactive=true` en mensajes no solicitados → cuentan para cuota diaria
 
 ---
 

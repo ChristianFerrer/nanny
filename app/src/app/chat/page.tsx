@@ -597,6 +597,7 @@ export default function ChatPage() {
           senderName: currentParentObj?.name || 'Padre',
           senderRole: currentParentObj?.role || 'mama',
           pendingDetection,
+          familyId,
         }),
       });
 
@@ -724,6 +725,7 @@ export default function ChatPage() {
               child: data.child || undefined,
               ...(medMsgId ? { medConfirmId: medMsgId } : {}),
               ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
+              ...((data as unknown as { is_proactive?: boolean }).is_proactive ? { proactive: true } : {}),
             },
           });
           if (medMsgId) {

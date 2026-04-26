@@ -25,6 +25,7 @@ export interface ClassifierOutput {
   is_question_nanny_can_answer: boolean;
   can_add_value: boolean;
   references_previous: boolean;
+  silent_action: boolean;
   complexity: 'simple' | 'ambiguous' | 'complex';
   detected_items_count: number;
   summary: string;
@@ -104,6 +105,18 @@ REGLAS DE CLASIFICACIÓN:
    - Es una CORRECCIÓN a algo que Nanny dijo mal
    - should_respond = false SOLO para: mensajes entre padres que son puramente personales/sentimentales, "ok/dale" sin contexto, emojis solos, conversación donde Nanny NO aporta nada
 
+11. silent_action = true cuando los padres cerraron un loop entre ellos y Nanny solo necesita REGISTRAR sin hablar. Casos:
+   - Un padre asume responsabilidad explícita ("yo lo recojo", "yo me encargo") como respuesta a algo del otro padre, y la asignación queda CLARA con datos suficientes (qué, cuándo, quién)
+   - El otro padre confirma con "dale/ok/perfecto" cerrando un acuerdo previo CON pending_detection ya completable
+   - No falta ningún dato crítico para crear el evento/tarea (asignación sí, horario implícito o ya conocido)
+   - NO hay conflicto detectado con eventos/tareas/medicamentos existentes
+   - NO es médico (medicación siempre confirma)
+   - NO es CONCERN ni CORRECTION ni pregunta directa
+
+   Si silent_action = true, el sistema registra la información pero Nanny NO responde. Es la opción correcta cuando los padres están coordinando bien y agregar un mensaje de confirmación solo aporta ruido.
+
+   silent_action es independiente de should_respond. Cuando silent_action=true, ignoramos should_respond.
+
 Responde SOLO JSON puro:
 {
   "is_actionable": boolean,
@@ -113,6 +126,7 @@ Responde SOLO JSON puro:
   "is_question_nanny_can_answer": boolean,
   "can_add_value": boolean,
   "references_previous": boolean,
+  "silent_action": boolean,
   "complexity": "simple|ambiguous|complex",
   "detected_items_count": number,
   "summary": "resumen en 10 palabras max de lo que contiene el mensaje"
@@ -161,6 +175,7 @@ export async function classifyMessage(
       is_question_nanny_can_answer: false,
       can_add_value: false,
       references_previous: false,
+      silent_action: false,
       complexity: 'ambiguous',
       detected_items_count: 0,
       summary: 'No se pudo clasificar',
