@@ -103,7 +103,7 @@ export default function SemanaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white page-enter">
       {/* Header — sticky, glass, Apple-style */}
       <header className="glass px-4 pt-12 pb-3 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-4">

@@ -661,6 +661,20 @@ body[data-keyboard="open"] .bottom-nav {
 .animate-scale-in { animation: scaleIn var(--duration-base) var(--ease-out); }
 .animate-spin-slow { animation: spin 1.4s linear infinite; }
 
+/* Page transitions — sutil fade + lift al montar cada pantalla */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: pageEnter 280ms var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .animate-slide-up,
+  .animate-fade-in,
+  .animate-scale-in { animation: none !important; }
+}
+
 /* ============================================
    UTILITIES
    ============================================ */

@@ -46,7 +46,7 @@ export default function HijosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white page-enter">
       <header className="px-5 pt-14 pb-4 flex items-end justify-between">
         <div>
           <h1 className="text-large-title text-[var(--text-primary)]">Hijos</h1>

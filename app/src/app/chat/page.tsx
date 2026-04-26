@@ -1132,7 +1132,7 @@ export default function ChatPage() {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col bg-[var(--nanny-bg)]"
+      className="flex flex-col bg-[var(--nanny-bg)] page-enter"
       style={{
         position: 'fixed',
         top: 0,

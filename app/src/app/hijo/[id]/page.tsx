@@ -75,7 +75,7 @@ export default function HijoDetailPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white page-enter">
       {/* Header limpio Apple-style */}
       <header className="px-4 pt-12 pb-5">
         <div className="flex items-center justify-between mb-5">

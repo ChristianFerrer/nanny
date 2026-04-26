@@ -219,7 +219,7 @@ export default function HoyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white page-enter">
       {/* Header — Apple-style large title */}
       <header className="px-5 pt-14 pb-4">
         <p className="text-footnote text-[var(--text-tertiary)] capitalize tracking-wide">{dayName}</p>

@@ -249,7 +249,7 @@ function PerfilInner() {
   if (loading || !family) return <PerfilSkeleton />;
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-white pb-24 page-enter">
       {/* Header limpio Apple */}
       <header className="px-5 pt-14 pb-4">
         <h1 className="text-large-title text-[var(--text-primary)]">{family.name}</h1>
