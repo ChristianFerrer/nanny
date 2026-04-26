@@ -14,19 +14,18 @@ const tabs = [
   { href: '/perfil', icon: User, label: 'Perfil' },
 ];
 
+const HIDE_ON = new Set(['/login', '/onboarding', '/', '/chat']);
+
 export default function BottomNav() {
   const pathname = usePathname();
   const [unreadChat, setUnreadChat] = useState(0);
   const [overdueTasks, setOverdueTasks] = useState(0);
 
-  // Track badges
   const checkBadges = useCallback(async () => {
     try {
       const [msgs, tasks] = await Promise.all([getMessages(), getTasks()]);
       const myId = getCurrentParentId();
 
-      // Unread: messages from other parent or nanny since last visit
-      // Simple heuristic: messages in the last 5 minutes not from current user
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       if (pathname !== '/chat') {
         const recentOthers = msgs.filter(m =>
@@ -37,14 +36,13 @@ export default function BottomNav() {
         setUnreadChat(0);
       }
 
-      // Overdue tasks
       const now = new Date();
       const overdue = tasks.filter(t =>
         t.status !== 'done' && t.due_date && new Date(t.due_date) < now
       );
       setOverdueTasks(overdue.length);
     } catch {
-      // Silently ignore — badges are non-critical
+      // badges non-critical
     }
   }, [pathname]);
 
@@ -54,14 +52,11 @@ export default function BottomNav() {
     return () => clearInterval(interval);
   }, [checkBadges]);
 
-  // Hide nav on auth, onboarding, and chat pages
-  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/' || pathname === '/chat' || pathname.startsWith('/admin')) {
-    return null;
-  }
+  if (HIDE_ON.has(pathname) || pathname.startsWith('/admin')) return null;
 
   return (
-    <nav className="bottom-nav">
-      <div className="flex justify-around items-center">
+    <nav className="bottom-nav" aria-label="Navegación principal">
+      <div className="flex justify-around items-stretch px-2">
         {tabs.map(({ href, icon: Icon, label }) => {
           const active = pathname.startsWith(href);
           const badge = href === '/chat' ? unreadChat
@@ -71,23 +66,36 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors relative ${
-                active
-                  ? 'text-[var(--nanny-purple)]'
-                  : 'text-[var(--nanny-gray)] hover:text-[var(--nanny-purple-light)]'
-              }`}
+              aria-label={label}
+              aria-current={active ? 'page' : undefined}
+              className="tap-highlight focus-ring flex-1 flex flex-col items-center justify-center gap-[3px] py-1.5 rounded-lg"
+              style={{
+                color: active ? 'var(--nanny-purple)' : 'var(--text-tertiary)',
+              }}
             >
               <div className="relative">
-                <Icon size={24} strokeWidth={active ? 2.5 : 1.5} />
+                <Icon
+                  size={26}
+                  strokeWidth={active ? 2.4 : 1.8}
+                  style={{ transition: 'stroke-width 200ms var(--ease-out)' }}
+                />
                 {badge > 0 && (
-                  <span className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1 ${
-                    href === '/chat' ? 'bg-[var(--nanny-purple)]' : 'bg-[var(--nanny-orange)]'
-                  }`}>
+                  <span
+                    aria-label={`${badge} nuevos`}
+                    className="absolute -top-1 -right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-white px-1 animate-scale-in"
+                    style={{
+                      background: href === '/chat' ? 'var(--nanny-purple)' : 'var(--warning)',
+                      boxShadow: '0 0 0 2px var(--bg-canvas)',
+                    }}
+                  >
                     {badge > 9 ? '9+' : badge}
                   </span>
                 )}
               </div>
-              <span className={`text-[11px] ${active ? 'font-semibold' : 'font-normal'}`}>
+              <span
+                className="text-caption-2"
+                style={{ fontWeight: active ? 600 : 500 }}
+              >
                 {label}
               </span>
             </Link>
