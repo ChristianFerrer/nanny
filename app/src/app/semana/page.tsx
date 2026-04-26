@@ -15,8 +15,14 @@ export default function SemanaPage() {
   const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
   const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  // Default: today selected (radio); user can switch to full-week via "Toda la semana"
+  const todayInitialIdx = (() => {
+    const d = new Date().getDay();
+    return d === 0 ? 6 : d - 1; // Monday=0 ... Sunday=6
+  })();
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(todayInitialIdx);
   const [detail, setDetail] = useState<DetailItem>(null);
+  const [loading, setLoading] = useState(!_snap);
 
   const loadData = useCallback(async () => {
     try {
@@ -28,6 +34,8 @@ export default function SemanaPage() {
       setParents(p);
     } catch {
       window.location.href = '/login';
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -67,89 +75,135 @@ export default function SemanaPage() {
   };
 
   const monthYear = startOfWeek.toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  const tasksWithoutDueCount = tasks.filter(t => !t.due_date).length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="px-4 pt-12 pb-4 border-b border-[var(--separator)]">
+          <div className="flex items-center justify-between mb-4">
+            <div className="skeleton h-8 w-8 rounded-full" />
+            <div className="skeleton h-5 w-32" />
+            <div className="skeleton h-8 w-8 rounded-full" />
+          </div>
+          <div className="flex justify-between gap-1">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="skeleton h-16 w-12 rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="skeleton h-20 w-full rounded-2xl" />
+          <div className="skeleton h-20 w-full rounded-2xl" />
+          <div className="skeleton h-20 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-white border-b px-4 pt-12 pb-4 sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-3">
+    <div className="min-h-screen bg-white">
+      {/* Header — sticky, glass, Apple-style */}
+      <header className="glass px-4 pt-12 pb-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between mb-4">
           <button
-            onClick={() => { setWeekOffset(w => w - 1); setSelectedDayIdx(null); }}
-            className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)]"
+            onClick={() => setWeekOffset(w => w - 1)}
+            aria-label="Semana anterior"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <ChevronLeft size={20} />
           </button>
           <div className="text-center">
-            <h1 className="font-semibold capitalize">{monthYear}</h1>
-            {weekOffset !== 0 && (
+            <h1 className="text-headline text-[var(--text-primary)] capitalize">{monthYear}</h1>
+            {weekOffset !== 0 ? (
               <button
-                onClick={() => { setWeekOffset(0); setSelectedDayIdx(null); }}
-                className="text-xs text-[var(--nanny-purple)] font-medium"
+                onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
+                className="text-caption text-[var(--nanny-purple)] font-semibold"
               >
                 Ir a esta semana
+              </button>
+            ) : (
+              <button
+                onClick={() => setSelectedDayIdx(prev => prev === null ? todayInitialIdx : null)}
+                className="text-caption text-[var(--text-tertiary)] font-medium hover:text-[var(--nanny-purple)] transition-colors"
+              >
+                {selectedDayIdx === null ? 'Vista de día' : 'Toda la semana'}
               </button>
             )}
           </div>
           <button
-            onClick={() => { setWeekOffset(w => w + 1); setSelectedDayIdx(null); }}
-            className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)]"
+            onClick={() => setWeekOffset(w => w + 1)}
+            aria-label="Semana siguiente"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <ChevronRight size={20} />
           </button>
         </div>
 
-        {/* Day pills — selectable */}
-        <div className="flex justify-between">
+        {/* Day pills — radio selection, 12px labels, 3-letter format */}
+        <div role="radiogroup" aria-label="Día de la semana" className="flex justify-between gap-1">
           {days.map((day, i) => {
             const isToday = day.toDateString() === today.toDateString();
             const isSelected = selectedDayIdx === i;
-            const dayEvents = events.filter(e => {
-              const ed = new Date(e.date_start);
-              return ed.toDateString() === day.toDateString();
-            });
-            const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+            const dayEvents = events.filter(e => new Date(e.date_start).toDateString() === day.toDateString());
+            const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
+            const hasItems = dayEvents.length > 0 || dayTasks.length > 0;
+            const dayLabel = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i];
             return (
               <button
                 key={i}
-                onClick={() => {
-                  // Toggle: deselect if already selected, otherwise select
-                  setSelectedDayIdx(prev => prev === i ? null : i);
-                }}
-                className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all min-w-[44px] ${
+                role="radio"
+                aria-checked={isSelected}
+                aria-label={`${dayLabel} ${day.getDate()}`}
+                onClick={() => setSelectedDayIdx(i)}
+                className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition-all min-w-0 ${
                   isSelected
-                    ? 'bg-[var(--nanny-purple)] text-white scale-105'
+                    ? 'bg-[var(--nanny-purple)] text-white shadow-sm'
                     : isToday
-                      ? 'bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] ring-2 ring-[var(--nanny-purple)]'
-                      : 'hover:bg-[var(--nanny-gray-light)]'
+                      ? 'bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--gray-100)]'
                 }`}
               >
-                <span className={`text-[10px] font-medium ${
-                  isSelected ? 'text-white/80' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
-                }`}>
-                  {dayNames[i]}
+                <span
+                  className="text-caption font-semibold leading-none"
+                  style={{ fontSize: '12px' }}
+                >
+                  {dayLabel}
                 </span>
-                <span className="text-base font-bold">
-                  {day.getDate()}
-                </span>
-                {(() => {
-                  const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
-                  const hasItems = dayEvents.length > 0 || dayTasks.length > 0;
-                  return hasItems ? (
-                    <div className="flex gap-0.5">
-                      {dayEvents.length > 0 && (
-                        <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[var(--nanny-purple)]'}`} />
-                      )}
-                      {dayTasks.length > 0 && (
-                        <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/60' : 'bg-[var(--nanny-orange)]'}`} />
-                      )}
-                    </div>
-                  ) : null;
-                })()}
+                <span className="text-headline font-semibold leading-none">{day.getDate()}</span>
+                {hasItems ? (
+                  <div className="flex gap-0.5 mt-0.5">
+                    {dayEvents.length > 0 && (
+                      <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-[var(--nanny-purple)]'}`} />
+                    )}
+                    {dayTasks.length > 0 && (
+                      <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white/70' : 'bg-[var(--warning)]'}`} />
+                    )}
+                  </div>
+                ) : (
+                  <span className="w-1 h-1" aria-hidden="true" />
+                )}
               </button>
             );
           })}
         </div>
-      </div>
+
+        {/* Tasks-sin-fecha como badge en header */}
+        {tasksWithoutDueCount > 0 && (
+          <button
+            onClick={() => {
+              setSelectedDayIdx(null);
+              setTimeout(() => {
+                document.getElementById('tasks-without-date')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+            className="mt-3 inline-flex items-center gap-1.5 text-footnote text-[var(--text-secondary)] hover:text-[var(--nanny-purple)] transition-colors"
+          >
+            <CheckSquare size={12} />
+            <span>{tasksWithoutDueCount} {tasksWithoutDueCount === 1 ? 'tarea sin fecha' : 'tareas sin fecha'}</span>
+          </button>
+        )}
+      </header>
 
       {/* Day-by-day events — filtered when a day is selected */}
       <div className="px-4 py-4 space-y-4 pb-20">
@@ -251,7 +305,7 @@ export default function SemanaPage() {
         })}
         {/* Tasks without due date */}
         {tasks.filter(t => !t.due_date).length > 0 && (
-          <div>
+          <div id="tasks-without-date">
             <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-gray)]">
               TAREAS SIN FECHA
             </h3>
