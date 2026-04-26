@@ -59,12 +59,18 @@
 
 ### Refactor del chat — ⏳ Pendiente (sesión dedicada)
 
-`app/src/app/chat/page.tsx` tiene 1609 líneas con 30 useStates. Plan en 7 fases para extraer componentes y hooks. **Alto riesgo si se hace de un saque** — requiere validación visual paso a paso. Plan completo en `CHAT-REFACTOR-PLAN.md`.
+`app/src/app/chat/page.tsx` tiene 1609 líneas con 30 useStates. Plan en 7 fases para extraer componentes y hooks. Plan completo en `CHAT-REFACTOR-PLAN.md`.
 
-**Pre-requisitos antes de arrancar:**
-- Playwright MCP disponible (configurado en `.mcp.json` del repo)
-- Branch nueva `claude/refactor-chat-into-components` desde producción
-- Plan B definido si Playwright no anda en el sandbox web (validación manual del usuario en Vercel preview)
+**Red de seguridad ya establecida (PR #1 mergeado, commit `7843a75`):**
+- Playwright + workflow GH Actions en `.github/workflows/e2e.yml` corre en cada push a `claude/**`
+- 5 tests E2E críticos del chat en `app/tests/chat.spec.ts` (verde en CI)
+- Mocks de Supabase + OpenAI en `app/tests/fixtures/` — sin secrets reales
+- Bypass de auth vía `E2E_TEST_MODE` y `NEXT_PUBLIC_E2E_TEST_MODE` (solo activas en CI, nunca en prod)
+
+**Pre-requisitos antes de arrancar el refactor:**
+- Branch nueva `claude/refactor-chat-into-components` desde `claude/continue-previous-session-OleqU`
+- Cada commit del refactor dispara los E2E tests automáticamente; si pasan los 5, fase OK
+- Si fallan, revertir esa fase con `git revert <hash>`
 
 ### Autopilot del pipeline AI — Estado activo, mejoras pendientes
 

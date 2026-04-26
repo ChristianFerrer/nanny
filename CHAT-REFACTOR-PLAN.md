@@ -347,14 +347,23 @@ manualmente en Vercel preview deploys.
 
 - ✅ `.mcp.json` creado y commiteado
 - ✅ `CHAT-REFACTOR-PLAN.md` creado (este archivo)
-- ⏳ Sesión dedicada **pendiente de iniciar**
-- ⏳ Fase 0-6: pendientes
+### Estado al cierre de la sesión 2026-04-26
+
+- ✅ `.mcp.json` creado y commiteado
+- ✅ `CHAT-REFACTOR-PLAN.md` creado (este archivo)
+- ✅ **Setup E2E completo** (PR #1 mergeado, commit `7843a75`):
+  - Playwright + workflow GitHub Actions corriendo en cada push a `claude/**`
+  - 5 tests E2E críticos del chat verde en CI
+  - Mocks de Supabase + OpenAI sin secrets reales
+  - Bypass de auth vía `E2E_TEST_MODE` / `NEXT_PUBLIC_E2E_TEST_MODE`
+- ⏳ Sesión dedicada de refactor **pendiente de iniciar**
+- ⏳ Fase 1-6: pendientes (Fase 0 ya cubierta por el setup E2E)
 
 ### Cierre por fase (a llenar durante la sesión dedicada)
 
 | Fase | Status | Commit | Validación |
 |---|---|---|---|
-| 0 — Smoke test | ⏳ | — | — |
+| 0 — Smoke test | ✅ | `7843a75` | CI verde, 6/6 tests pasaron |
 | 1 — MessageBubble | ⏳ | — | — |
 | 2 — IntentCard | ⏳ | — | — |
 | 3 — MedicationConfirmFlow | ⏳ | — | — |
