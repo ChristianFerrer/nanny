@@ -52,6 +52,12 @@ export default function HoyPage() {
   const [saving, setSaving] = useState(false);
   const [undoToast, setUndoToast] = useState<{ taskId: string; title: string } | null>(null);
   const [loading, setLoading] = useState(!_snap);
+  const [confirmToast, setConfirmToast] = useState<string | null>(null);
+
+  const showConfirmToast = (msg: string) => {
+    setConfirmToast(msg);
+    setTimeout(() => setConfirmToast(null), 2400);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -142,6 +148,7 @@ export default function HoyPage() {
     await loadData();
     setModal(null);
     setSaving(false);
+    showConfirmToast('Evento creado');
   };
 
   const saveTask = async () => {
@@ -164,6 +171,7 @@ export default function HoyPage() {
     await loadData();
     setModal(null);
     setSaving(false);
+    showConfirmToast('Tarea creada');
   };
 
   const today = new Date();
@@ -433,8 +441,15 @@ export default function HoyPage() {
             <CalendarDays size={14} /> HOY
           </h2>
           {todayEvents.length === 0 ? (
-            <div className="bg-white rounded-xl p-4 text-center text-sm text-[var(--nanny-gray)]">
-              No hay eventos programados para hoy
+            <div className="card-flat text-center py-8 px-5">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
+                <CalendarDays size={22} className="text-[var(--nanny-purple)]" />
+              </div>
+              <p className="text-subhead text-[var(--text-primary)]">Tu día está libre</p>
+              <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-4">Cuéntale a Nanny qué tienes hoy o agrégalo manualmente</p>
+              <button onClick={openEventModal} className="btn btn-tinted btn-sm">
+                <CalendarPlus size={14} /> Agregar evento
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -451,8 +466,15 @@ export default function HoyPage() {
             <CheckSquare size={14} /> TAREAS PENDIENTES ({tasks.length})
           </h2>
           {tasks.length === 0 ? (
-            <div className="bg-white rounded-xl p-4 text-center text-sm text-[var(--nanny-gray)]">
-              No hay tareas pendientes
+            <div className="card-flat text-center py-8 px-5">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--success-soft)] flex items-center justify-center mb-3">
+                <CheckCircle2 size={22} className="text-[var(--success)]" />
+              </div>
+              <p className="text-subhead text-[var(--text-primary)]">Todo al día</p>
+              <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-4">No tienes tareas pendientes</p>
+              <button onClick={openTaskModal} className="btn btn-tinted btn-sm">
+                <ListPlus size={14} /> Nueva tarea
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -615,6 +637,16 @@ export default function HoyPage() {
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation toast */}
+      {confirmToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-slide-up" style={{ maxWidth: '380px', width: '90%' }}>
+          <div className="flex items-center gap-2 glass-dark rounded-2xl px-4 py-3 shadow-lg">
+            <CheckCircle2 size={16} className="text-[var(--success)] shrink-0" />
+            <span className="text-subhead text-white flex-1">{confirmToast}</span>
           </div>
         </div>
       )}
