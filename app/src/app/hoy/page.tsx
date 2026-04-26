@@ -196,140 +196,6 @@ export default function HoyPage() {
   });
   const hasReminders = overdueTasks.length > 0 || soonEvents.length > 0;
 
-  // Event/Task creation modal
-  if (modal) {
-    return (
-      <div className="min-h-screen bg-white animate-fade-in">
-        <div className="px-5 pt-12 pb-24">
-          <button onClick={() => setModal(null)} className="mb-4 text-[var(--nanny-gray)]">
-            <X size={20} />
-          </button>
-
-          {modal === 'event' && (
-            <>
-              <h1 className="text-xl font-bold mb-1">Nuevo evento</h1>
-              <p className="text-sm text-[var(--nanny-gray)] mb-4">Agrega un evento al calendario familiar</p>
-              <div className="space-y-3">
-                <input type="text" value={eventTitle} onChange={e => setEventTitle(e.target.value)}
-                  placeholder="Título del evento *"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Tipo</label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {[
-                      { value: 'doctor', label: 'M\u00e9dico', icon: <Stethoscope size={12} /> },
-                      { value: 'school', label: 'Escuela', icon: <GraduationCap size={12} /> },
-                      { value: 'birthday', label: 'Cumple', icon: <Cake size={12} /> },
-                      { value: 'activity', label: 'Actividad', icon: <Trophy size={12} /> },
-                      { value: 'travel', label: 'Viaje', icon: <Plane size={12} /> },
-                      { value: 'other', label: 'Otro', icon: <MapPinAlt size={12} /> },
-                    ].map(t => (
-                      <button key={t.value} onClick={() => setEventType(t.value)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
-                          eventType === t.value ? 'bg-[var(--nanny-purple)] text-white' : 'bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)]'
-                        }`}>{t.icon} {t.label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Fecha *</label>
-                    <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Hora</label>
-                    <input type="time" value={eventTime} onChange={e => setEventTime(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                  </div>
-                </div>
-                <input type="text" value={eventLocation} onChange={e => setEventLocation(e.target.value)}
-                  placeholder="Lugar (opcional)"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                {children.length > 0 && (
-                  <div>
-                    <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Hijo (opcional)</label>
-                    <select value={eventChildId} onChange={e => setEventChildId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
-                      <option value="">Todos</option>
-                      {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-                <textarea value={eventDescription} onChange={e => setEventDescription(e.target.value)}
-                  placeholder="Descripción (opcional)" rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] resize-none" />
-                <button onClick={saveEvent} disabled={saving || !eventTitle.trim() || !eventDate}
-                  className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40">
-                  <CalendarPlus size={16} /> {saving ? 'Guardando...' : 'Crear evento'}
-                </button>
-              </div>
-            </>
-          )}
-
-          {modal === 'task' && (
-            <>
-              <h1 className="text-xl font-bold mb-1">Nueva tarea</h1>
-              <p className="text-sm text-[var(--nanny-gray)] mb-4">Agrega una tarea pendiente</p>
-              <div className="space-y-3">
-                <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)}
-                  placeholder="Título de la tarea *"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Prioridad</label>
-                  <div className="flex gap-1.5">
-                    {([
-                      { value: 'low' as const, label: 'Baja' },
-                      { value: 'normal' as const, label: 'Normal' },
-                      { value: 'high' as const, label: 'Alta' },
-                      { value: 'urgent' as const, label: 'Urgente' },
-                    ]).map(p => (
-                      <button key={p.value} onClick={() => setTaskPriority(p.value)}
-                        className={`flex-1 py-1.5 rounded-full text-xs font-medium ${
-                          taskPriority === p.value ? `priority-${p.value} ring-2 ring-offset-1 ring-[var(--nanny-purple-light)]` : 'bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)]'
-                        }`}>{p.label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Fecha límite</label>
-                  <input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                {parents.length > 0 && (
-                  <div>
-                    <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Asignar a</label>
-                    <select value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
-                      <option value="">Sin asignar</option>
-                      {parents.map(p => <option key={p.id} value={p.id}>{p.name} ({p.role === 'mama' ? 'Mamá' : 'Papá'})</option>)}
-                    </select>
-                  </div>
-                )}
-                {children.length > 0 && (
-                  <div>
-                    <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Relacionado a hijo</label>
-                    <select value={taskChildId} onChange={e => setTaskChildId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] bg-white">
-                      <option value="">Ninguno</option>
-                      {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-                <textarea value={taskDescription} onChange={e => setTaskDescription(e.target.value)}
-                  placeholder="Descripción (opcional)" rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] resize-none" />
-                <button onClick={saveTask} disabled={saving || !taskTitle.trim()}
-                  className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40">
-                  <ListPlus size={16} /> {saving ? 'Guardando...' : 'Crear tarea'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -698,38 +564,192 @@ export default function HoyPage() {
         </div>
       )}
 
-      {/* FAB */}
-      <div className="fixed bottom-20 right-4 z-30" style={{ maxWidth: '430px' }}>
+      {/* FAB con safe-area */}
+      <div
+        className="fixed right-4 z-30"
+        style={{ bottom: 'calc(var(--nav-h) + 12px)' }}
+      >
         {showFab && (
           <div className="mb-2 space-y-2 animate-slide-up">
-            <button onClick={openEventModal}
-              className="flex items-center gap-2 bg-white shadow-lg rounded-full px-4 py-2.5 text-sm font-medium text-[var(--nanny-purple)] w-full">
-              <CalendarPlus size={18} /> Nuevo evento
+            <button
+              onClick={openEventModal}
+              className="flex items-center gap-2 bg-white shadow-md rounded-full px-4 py-2.5 text-subhead text-[var(--text-primary)] w-full active:scale-[0.97] transition-transform border border-[var(--border-subtle)]"
+            >
+              <CalendarPlus size={18} className="text-[var(--nanny-purple)]" /> Nuevo evento
             </button>
-            <button onClick={openTaskModal}
-              className="flex items-center gap-2 bg-white shadow-lg rounded-full px-4 py-2.5 text-sm font-medium text-[var(--nanny-purple)] w-full">
-              <ListPlus size={18} /> Nueva tarea
+            <button
+              onClick={openTaskModal}
+              className="flex items-center gap-2 bg-white shadow-md rounded-full px-4 py-2.5 text-subhead text-[var(--text-primary)] w-full active:scale-[0.97] transition-transform border border-[var(--border-subtle)]"
+            >
+              <ListPlus size={18} className="text-[var(--nanny-purple)]" /> Nueva tarea
             </button>
           </div>
         )}
-        <button onClick={() => setShowFab(!showFab)}
-          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ml-auto ${
-            showFab ? 'bg-[var(--nanny-gray)] rotate-45' : 'bg-[var(--nanny-purple)]'
-          }`}>
+        <button
+          onClick={() => setShowFab(!showFab)}
+          aria-label={showFab ? 'Cerrar' : 'Crear'}
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ml-auto focus-ring ${
+            showFab
+              ? 'bg-[var(--gray-800)] rotate-45 shadow-md'
+              : 'bg-[var(--nanny-purple)] shadow-lg active:scale-95'
+          }`}
+        >
           <Plus size={24} className="text-white" />
         </button>
       </div>
+
+      {/* Bottom sheet — Crear evento / tarea */}
+      {modal && (
+        <>
+          <div className="sheet-backdrop" onClick={() => setModal(null)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={modal === 'event' ? 'Nuevo evento' : 'Nueva tarea'}>
+            <div className="sheet-handle" />
+            <div className="sheet-header flex items-center justify-between">
+              <h2 className="text-title-3 text-[var(--text-primary)]">
+                {modal === 'event' ? 'Nuevo evento' : 'Nueva tarea'}
+              </h2>
+              <button
+                onClick={() => setModal(null)}
+                aria-label="Cerrar"
+                className="w-9 h-9 rounded-full bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-secondary)] focus-ring"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="sheet-body space-y-4">
+              {modal === 'event' && (
+                <>
+                  <input
+                    type="text"
+                    value={eventTitle}
+                    onChange={e => setEventTitle(e.target.value)}
+                    placeholder="Título del evento"
+                    autoFocus
+                  />
+                  <div>
+                    <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Tipo</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {EVENT_TYPES.map(t => (
+                        <button
+                          key={t.value}
+                          onClick={() => setEventType(t.value)}
+                          className={`px-3 py-1.5 rounded-full text-footnote font-medium inline-flex items-center gap-1.5 transition-colors ${
+                            eventType === t.value
+                              ? 'bg-[var(--nanny-purple)] text-white'
+                              : 'bg-[var(--gray-100)] text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          {t.icon} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Fecha</label>
+                      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Hora</label>
+                      <input type="time" value={eventTime} onChange={e => setEventTime(e.target.value)} />
+                    </div>
+                  </div>
+                  <input type="text" value={eventLocation} onChange={e => setEventLocation(e.target.value)} placeholder="Lugar (opcional)" />
+                  {children.length > 0 && (
+                    <div>
+                      <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Hijo</label>
+                      <select value={eventChildId} onChange={e => setEventChildId(e.target.value)}>
+                        <option value="">Todos</option>
+                        {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <textarea value={eventDescription} onChange={e => setEventDescription(e.target.value)} placeholder="Descripción (opcional)" rows={2} />
+                  <button onClick={saveEvent} disabled={saving || !eventTitle.trim() || !eventDate} className="btn btn-primary btn-block">
+                    <CalendarPlus size={18} /> {saving ? 'Guardando…' : 'Crear evento'}
+                  </button>
+                </>
+              )}
+              {modal === 'task' && (
+                <>
+                  <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Título de la tarea" autoFocus />
+                  <div>
+                    <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Prioridad</label>
+                    <div className="flex gap-1.5">
+                      {TASK_PRIORITIES.map(p => (
+                        <button
+                          key={p.value}
+                          onClick={() => setTaskPriority(p.value)}
+                          className={`flex-1 py-2 rounded-full text-footnote font-medium transition-colors ${
+                            taskPriority === p.value
+                              ? `priority-${p.value}`
+                              : 'bg-[var(--gray-100)] text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Fecha límite</label>
+                    <input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
+                  </div>
+                  {parents.length > 0 && (
+                    <div>
+                      <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Asignar a</label>
+                      <select value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)}>
+                        <option value="">Sin asignar</option>
+                        {parents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {children.length > 0 && (
+                    <div>
+                      <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Hijo</label>
+                      <select value={taskChildId} onChange={e => setTaskChildId(e.target.value)}>
+                        <option value="">Ninguno</option>
+                        {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <textarea value={taskDescription} onChange={e => setTaskDescription(e.target.value)} placeholder="Descripción (opcional)" rows={2} />
+                  <button onClick={saveTask} disabled={saving || !taskTitle.trim()} className="btn btn-primary btn-block">
+                    <ListPlus size={18} /> {saving ? 'Guardando…' : 'Crear tarea'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
+const EVENT_TYPES = [
+  { value: 'doctor', label: 'Médico', icon: <Stethoscope size={14} /> },
+  { value: 'school', label: 'Escuela', icon: <GraduationCap size={14} /> },
+  { value: 'birthday', label: 'Cumple', icon: <Cake size={14} /> },
+  { value: 'activity', label: 'Actividad', icon: <Trophy size={14} /> },
+  { value: 'travel', label: 'Viaje', icon: <Plane size={14} /> },
+  { value: 'other', label: 'Otro', icon: <MapPinAlt size={14} /> },
+];
+
+const TASK_PRIORITIES: { value: 'low' | 'normal' | 'high' | 'urgent'; label: string }[] = [
+  { value: 'low', label: 'Baja' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'high', label: 'Alta' },
+  { value: 'urgent', label: 'Urgente' },
+];
+
 const EVENT_ICONS: Record<string, { icon: React.ReactNode; bg: string }> = {
-  doctor: { icon: <Stethoscope size={16} className="text-red-500" />, bg: 'bg-red-50' },
-  school: { icon: <GraduationCap size={16} className="text-blue-500" />, bg: 'bg-blue-50' },
-  birthday: { icon: <Cake size={16} className="text-pink-500" />, bg: 'bg-pink-50' },
-  activity: { icon: <Trophy size={16} className="text-green-500" />, bg: 'bg-green-50' },
-  travel: { icon: <Plane size={16} className="text-purple-500" />, bg: 'bg-purple-50' },
-  other: { icon: <MapPinAlt size={16} className="text-gray-500" />, bg: 'bg-gray-50' },
+  doctor: { icon: <Stethoscope size={18} className="text-red-500" />, bg: 'bg-red-50' },
+  school: { icon: <GraduationCap size={18} className="text-blue-500" />, bg: 'bg-blue-50' },
+  birthday: { icon: <Cake size={18} className="text-pink-500" />, bg: 'bg-pink-50' },
+  activity: { icon: <Trophy size={18} className="text-green-500" />, bg: 'bg-green-50' },
+  travel: { icon: <Plane size={18} className="text-purple-500" />, bg: 'bg-purple-50' },
+  other: { icon: <MapPinAlt size={18} className="text-gray-500" />, bg: 'bg-gray-50' },
 };
 
 function EventCard({ event, child, showDate, onClick }: { event: FamilyEvent; child?: Child; showDate?: boolean; onClick?: () => void }) {
