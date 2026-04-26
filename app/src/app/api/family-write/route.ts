@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-const ALLOWED_TABLES = ['families', 'parents', 'children', 'events', 'tasks', 'messages', 'routines', 'intervention_feedback', 'medications'];
+const ALLOWED_TABLES = ['families', 'parents', 'children', 'events', 'tasks', 'messages', 'routines', 'intervention_feedback', 'medications', 'medication_intakes'];
 
 async function getAuthFamilyId(req: NextRequest): Promise<{ userId: string; familyId: string } | null> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,7 +24,7 @@ async function getAuthFamilyId(req: NextRequest): Promise<{ userId: string; fami
     .select('family_id')
     .eq('auth_user_id', user.id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!parent) return null;
   return { userId: user.id, familyId: parent.family_id };

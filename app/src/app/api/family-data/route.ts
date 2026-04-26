@@ -24,7 +24,7 @@ async function getParentForUser(userId: string): Promise<{ family_id: string; pa
     .select('id, family_id')
     .eq('auth_user_id', userId)
     .limit(1)
-    .single();
+    .maybeSingle();
   if (!parent) return null;
   return { family_id: parent.family_id, parent_id: parent.id };
 }

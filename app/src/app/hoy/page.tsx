@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon, BellOff, BellRing } from 'lucide-react';
+import Link from 'next/link';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon, BellOff, BellRing, ChevronRight } from 'lucide-react';
 import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
@@ -308,18 +309,26 @@ export default function HoyPage() {
                 const progress = Math.min(100, Math.round((daysPassed / totalDays) * 100));
                 const daysLeft = Math.max(0, totalDays - daysPassed);
                 return (
-                  <div key={med.id} className="bg-white rounded-xl p-3 shadow-sm">
-                    <div className="flex items-start justify-between">
-                      <div>
+                  <Link
+                    key={med.id}
+                    href={`/tratamiento/${med.id}`}
+                    className="block bg-white rounded-xl p-3 shadow-sm tap-highlight focus-ring"
+                    aria-label={`Ver detalle del tratamiento ${med.medication_name}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-sm inline-flex items-center gap-1.5"><Pill size={14} className="text-[var(--nanny-purple)]" /> {med.medication_name}</p>
                         <p className="text-xs text-[var(--nanny-gray)] mt-0.5">{med.child_name} — {med.frequency || ''}</p>
                         {med.schedule_times?.length > 0 && (
                           <p className="text-xs text-[var(--nanny-gray)]">Horarios: {med.schedule_times.join(', ')}</p>
                         )}
                       </div>
-                      <span className="text-[10px] font-medium text-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)] px-2 py-0.5 rounded-full whitespace-nowrap">
-                        {daysLeft === 0 ? 'Último día' : `${daysLeft}d restantes`}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-medium text-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)] px-2 py-0.5 rounded-full whitespace-nowrap">
+                          {daysLeft === 0 ? 'Último día' : `${daysLeft}d restantes`}
+                        </span>
+                        <ChevronRight size={14} className="text-[var(--text-quaternary)]" />
+                      </div>
                     </div>
                     <div className="mt-2 h-1.5 bg-[var(--nanny-gray-light)] rounded-full overflow-hidden">
                       <div
@@ -328,7 +337,7 @@ export default function HoyPage() {
                       />
                     </div>
                     <p className="text-[10px] text-[var(--nanny-gray)] mt-1">Día {daysPassed + 1} de {totalDays}</p>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

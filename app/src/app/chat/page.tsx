@@ -250,7 +250,34 @@ export default function ChatPage() {
         if (!user) { window.location.href = '/login'; return; }
 
         // Check if user has a family (safe call, doesn't throw)
-        const familyExists = await hasFamily();
+        let familyExists = await hasFamily();
+
+        // Retry pending invite from localStorage if no family yet — covers cases
+        // where /api/join-family failed silently right after signup (cookie race,
+        // email-confirmation redirect that stripped the URL param, etc.)
+        if (!familyExists && typeof window !== 'undefined') {
+          let pendingInvite: string | null = null;
+          try { pendingInvite = window.localStorage.getItem('nanny:pendingInvite'); } catch {}
+          if (pendingInvite) {
+            try {
+              const joinRes = await fetch('/api/join-family', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ familyId: pendingInvite }),
+              });
+              const joinData = await joinRes.json();
+              if (joinRes.ok && joinData.success) {
+                try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
+                familyExists = true;
+              } else if (joinData.code === 'FAMILY_NOT_FOUND') {
+                try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
+              }
+            } catch {
+              // network glitch — leave the invite in storage for the next try
+            }
+          }
+        }
+
         if (!familyExists) {
           setOnboardingMode(true);
           setDataLoaded(true);

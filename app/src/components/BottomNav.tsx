@@ -3,16 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, CalendarDays, Users, Calendar, User } from 'lucide-react';
+import { MessageCircle, CalendarDays, Users, CheckSquare, Menu } from 'lucide-react';
 import { getMessages, getTasks, getCurrentParentId } from '@/lib/store';
 
 const tabs = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
   { href: '/hoy', icon: CalendarDays, label: 'Hoy' },
-  { href: '/semana', icon: Calendar, label: 'Semana' },
   { href: '/hijo', icon: Users, label: 'Hijos' },
-  { href: '/perfil', icon: User, label: 'Perfil' },
+  { href: '/tareas', icon: CheckSquare, label: 'Tareas' },
+  { href: '/mas', icon: Menu, label: 'Más' },
 ];
+
+// Routes inside the "Más" submenu — they highlight the Más tab
+const MAS_ROUTES = ['/mas', '/semana', '/red-apoyo', '/insights', '/configuracion', '/perfil'];
 
 const HIDE_ON = new Set(['/login', '/onboarding', '/', '/chat']);
 
@@ -54,13 +57,20 @@ export default function BottomNav() {
 
   if (HIDE_ON.has(pathname) || pathname.startsWith('/admin')) return null;
 
+  const isActive = (href: string) => {
+    if (href === '/mas') {
+      return MAS_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
+    }
+    return pathname === href || pathname.startsWith(href + '/');
+  };
+
   return (
     <nav className="bottom-nav" aria-label="Navegación principal">
       <div className="flex justify-around items-stretch px-2">
         {tabs.map(({ href, icon: Icon, label }) => {
-          const active = pathname.startsWith(href);
+          const active = isActive(href);
           const badge = href === '/chat' ? unreadChat
-            : href === '/hoy' ? overdueTasks
+            : href === '/tareas' ? overdueTasks
             : 0;
           return (
             <Link
