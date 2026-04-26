@@ -1487,9 +1487,15 @@ export default function ChatPage() {
         })}
         {nannyWaiting && !nannyThinking && (
           <div className="flex justify-center animate-fade-in">
-            <p className="text-xs text-[var(--nanny-gray)] bg-[var(--nanny-gray-light)] rounded-full px-3 py-1">
-              Puedes seguir escribiendo...
-            </p>
+            <div className="inline-flex items-center gap-2 bg-[var(--nanny-purple-tint)] rounded-full px-3.5 py-1.5">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nanny-purple)] opacity-50" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nanny-purple)]" />
+              </span>
+              <span className="text-caption text-[var(--nanny-purple)] font-semibold">
+                Nanny está leyendo tus mensajes…
+              </span>
+            </div>
           </div>
         )}
         {nannyThinking && (
@@ -1510,18 +1516,18 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="shrink-0 bg-white border-t border-gray-200 px-3 py-2">
+      {/* Composer — glass-strong Apple-style */}
+      <div className="shrink-0 glass-strong border-t border-[var(--separator)] px-3 py-2.5">
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
             <div className="flex-1 pl-3 border-l-2 border-[var(--nanny-purple)] rounded-sm min-w-0">
-              <p className="text-xs font-medium text-[var(--nanny-purple)]">
+              <p className="text-caption text-[var(--nanny-purple)] font-semibold">
                 {replyingTo.sender_type === 'nanny' ? 'Nanny' : (parents.find(p => p.id === replyingTo.sender_id)?.name || 'Tú')}
               </p>
-              <p className="text-xs text-[var(--nanny-gray)] truncate">{replyingTo.content}</p>
+              <p className="text-footnote text-[var(--text-secondary)] truncate">{replyingTo.content}</p>
             </div>
-            <button onClick={() => setReplyingTo(null)} className="p-1 text-[var(--nanny-gray)]">
+            <button onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta" className="w-8 h-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring">
               <X size={16} />
             </button>
           </div>
@@ -1538,16 +1544,18 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onTouchEnd={handleInputTouchEnd}
-            placeholder={onboardingMode && onboardingSaving ? 'Espera un momento...' : 'Escribe un mensaje...'}
+            placeholder={onboardingMode && onboardingSaving ? 'Espera un momento…' : 'Mensaje'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
-            className="chat-input-field flex-1 bg-[var(--nanny-gray-light)] rounded-full px-4 py-3 text-[16px] outline-none focus:ring-1 focus:ring-[var(--nanny-purple-light)]/40 disabled:opacity-50"
+            aria-label="Mensaje"
+            className="chat-input-field flex-1 bg-[var(--gray-100)] rounded-full px-5 py-3 text-[16px] outline-none focus:bg-white focus:ring-2 focus:ring-[var(--nanny-purple-tint)] focus:border-[var(--nanny-purple)] disabled:opacity-50 transition-all"
           />
           <button
             type="submit"
+            aria-label="Enviar mensaje"
             disabled={!input.trim() || (onboardingMode && (onboardingSending || onboardingSaving))}
-            className="w-12 h-12 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-40 transition-opacity shrink-0"
+            className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-30 disabled:scale-90 enabled:active:scale-95 transition-all shrink-0 shadow-sm focus-ring"
           >
-            <Send size={20} className="text-white ml-0.5" />
+            <Send size={18} className="text-white ml-[2px]" />
           </button>
         </form>
       </div>
