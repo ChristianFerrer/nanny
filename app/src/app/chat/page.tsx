@@ -1172,40 +1172,44 @@ export default function ChatPage() {
             </div>
           )}
         </div>
-        {/* Pending detection — interactive card */}
-        {pendingDetection && (
-          <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 animate-slide-up">
-            <div className="flex items-start gap-2">
-              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse mt-1.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-amber-800">{pendingDetection.summary}</p>
-                {pendingDetection.missing.length > 0 && (
-                  <p className="text-[11px] text-amber-600 mt-1">
-                    Falta: {pendingDetection.missing.join(', ')}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setPendingDetection(null)}
-                className="text-amber-400 hover:text-amber-600 shrink-0"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            {pendingDetection.missing.length > 0 && (
-              <button
-                onClick={() => {
-                  setInput(`${pendingDetection.missing[0]}: `);
-                  focusWithoutScroll();
-                }}
-                className="mt-2 w-full text-center text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg py-1.5 hover:bg-amber-200 transition-colors"
-              >
-                Responder
-              </button>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Pending detection — banner sticky prominente debajo del header */}
+      {pendingDetection && (
+        <div className="shrink-0 mx-3 mt-2 mb-1 animate-slide-up">
+          <div className="bg-[var(--warning-soft)] border border-[#FFD9A8] rounded-xl p-3.5 flex items-start gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-[#FF9500]/15 flex items-center justify-center shrink-0">
+              <AlertTriangle size={18} className="text-[#B86600]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-subhead text-[#7A4500] font-semibold">{pendingDetection.summary}</p>
+              {pendingDetection.missing.length > 0 && (
+                <p className="text-footnote text-[#9A5400] mt-0.5">
+                  Falta: {pendingDetection.missing.join(', ')}
+                </p>
+              )}
+              {pendingDetection.missing.length > 0 && (
+                <button
+                  onClick={() => {
+                    setInput(`${pendingDetection.missing[0]}: `);
+                    focusWithoutScroll();
+                  }}
+                  className="mt-2.5 inline-flex items-center gap-1 text-subhead font-semibold text-[#B86600] hover:text-[#7A4500]"
+                >
+                  Responder ahora →
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setPendingDetection(null)}
+              aria-label="Descartar"
+              className="w-7 h-7 rounded-full hover:bg-[#FF9500]/15 flex items-center justify-center text-[#B86600] shrink-0 focus-ring"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Push notification prompt */}
       {pushStatus === 'prompt' && (
