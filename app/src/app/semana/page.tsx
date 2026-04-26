@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, X, CheckSquare, CalendarDays, User as UserIcon } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, Circle, Pill, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, X, CheckSquare, CalendarDays, User as UserIcon, Plus } from 'lucide-react';
 import { getEvents, getChildren, getTasks, getMedications, getParents, completeTask, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Child, Task, Medication, Parent } from '@/lib/types';
 
@@ -140,23 +141,32 @@ export default function SemanaPage() {
           </button>
         </div>
 
-        {/* Day pills — radio selection, 12px labels, 3-letter format */}
+        {/* Day pills — radio selection, 12px labels, 3-letter format, mini-timeline */}
         <div role="radiogroup" aria-label="Día de la semana" className="flex justify-between gap-1">
           {days.map((day, i) => {
             const isToday = day.toDateString() === today.toDateString();
             const isSelected = selectedDayIdx === i;
             const dayEvents = events.filter(e => new Date(e.date_start).toDateString() === day.toDateString());
             const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
-            const hasItems = dayEvents.length > 0 || dayTasks.length > 0;
             const dayLabel = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i];
+
+            // Mini-timeline: 24 hour buckets, mark hours with events
+            const hourBuckets = Array.from({ length: 24 }, (_, h) => {
+              return dayEvents.some(e => new Date(e.date_start).getHours() === h);
+            });
+            // Compress to 6 segments of 4h each for readability
+            const segments = Array.from({ length: 6 }, (_, s) => {
+              return hourBuckets.slice(s * 4, s * 4 + 4).some(Boolean);
+            });
+
             return (
               <button
                 key={i}
                 role="radio"
                 aria-checked={isSelected}
-                aria-label={`${dayLabel} ${day.getDate()}`}
+                aria-label={`${dayLabel} ${day.getDate()}, ${dayEvents.length} eventos, ${dayTasks.length} tareas`}
                 onClick={() => setSelectedDayIdx(i)}
-                className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition-all min-w-0 ${
+                className={`flex-1 flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 rounded-xl transition-all min-w-0 focus-ring ${
                   isSelected
                     ? 'bg-[var(--nanny-purple)] text-white shadow-sm'
                     : isToday
@@ -164,24 +174,31 @@ export default function SemanaPage() {
                       : 'text-[var(--text-secondary)] hover:bg-[var(--gray-100)]'
                 }`}
               >
-                <span
-                  className="text-caption font-semibold leading-none"
-                  style={{ fontSize: '12px' }}
-                >
-                  {dayLabel}
-                </span>
+                <span className="font-semibold leading-none" style={{ fontSize: '12px' }}>{dayLabel}</span>
                 <span className="text-headline font-semibold leading-none">{day.getDate()}</span>
-                {hasItems ? (
-                  <div className="flex gap-0.5 mt-0.5">
-                    {dayEvents.length > 0 && (
-                      <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-[var(--nanny-purple)]'}`} />
-                    )}
-                    {dayTasks.length > 0 && (
-                      <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white/70' : 'bg-[var(--warning)]'}`} />
-                    )}
-                  </div>
-                ) : (
-                  <span className="w-1 h-1" aria-hidden="true" />
+                {/* Mini-timeline: 6 segments representando 4h cada uno */}
+                <div className="flex gap-[1px] mt-1 w-full px-0.5" aria-hidden="true">
+                  {segments.map((hasEvent, idx) => (
+                    <span
+                      key={idx}
+                      className={`flex-1 h-[3px] rounded-full transition-colors ${
+                        hasEvent
+                          ? isSelected
+                            ? 'bg-white'
+                            : 'bg-[var(--nanny-purple)]'
+                          : isSelected
+                            ? 'bg-white/20'
+                            : 'bg-[var(--gray-200)]'
+                      }`}
+                    />
+                  ))}
+                </div>
+                {dayTasks.length > 0 && (
+                  <span className={`text-[9px] font-semibold leading-none ${
+                    isSelected ? 'text-white/90' : 'text-[var(--warning)]'
+                  }`}>
+                    {dayTasks.length} {dayTasks.length === 1 ? 'tarea' : 'tareas'}
+                  </span>
                 )}
               </button>
             );
@@ -358,6 +375,16 @@ export default function SemanaPage() {
           </div>
         )}
       </div>
+
+      {/* FAB — consistente con /hoy */}
+      <Link
+        href="/hoy"
+        aria-label="Crear evento o tarea"
+        className="fixed right-4 z-30 w-14 h-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
+        style={{ bottom: 'calc(var(--nav-h) + 12px)' }}
+      >
+        <Plus size={24} className="text-white" />
+      </Link>
 
       {/* Detail modal */}
       {detail && (
