@@ -1085,14 +1085,38 @@ export default function ChatPage() {
     };
     const navTarget = intentNav[intent];
 
+    const navCopy: Record<string, string> = {
+      EVENT_SCHOOL: 'Ver en agenda',
+      EVENT_ACTIVITY: 'Ver en agenda',
+      EVENT_MEDICAL: 'Ver en agenda',
+      MILESTONE: 'Ver en agenda',
+      TASK_SHOPPING: 'Ver tareas',
+      TASK_PAYMENT: 'Ver tareas',
+      SUPPLY_LOW: 'Ver tareas',
+      MEDICATION: 'Ver tratamiento',
+      LOGISTICS_PICKUP: 'Ver semana',
+      LOGISTICS_TRANSPORT: 'Ver semana',
+      SCHEDULE_CHANGE: 'Ver semana',
+      HEALTH_LOG: 'Ver perfil',
+      EVENT: 'Ver en agenda',
+      TASK: 'Ver tareas',
+    };
+
     return (
       <button
         onClick={() => navTarget && router.push(navTarget)}
-        className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${config.borderColor} w-full hover:opacity-80 transition-opacity`}
+        className={`mt-2 -mx-1 flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/70 hover:bg-white transition-colors w-full text-left shadow-xs border border-[var(--border-subtle)]`}
       >
-        <span className={config.color}>{config.icon}</span>
-        <span className={`text-xs font-medium ${config.color}`}>{config.label}</span>
-        {navTarget && <ChevronRight size={14} className={`ml-auto ${config.color} opacity-50`} />}
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--nanny-purple-tint)]`}>
+          <span className={config.color}>{config.icon}</span>
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-footnote font-semibold text-[var(--text-primary)] leading-tight">{config.label}</p>
+          {navTarget && (
+            <p className="text-caption text-[var(--text-tertiary)] leading-tight mt-0.5">{navCopy[intent] || 'Ver detalles'} →</p>
+          )}
+        </div>
+        {navTarget && <ChevronRight size={14} className="text-[var(--text-quaternary)] shrink-0" />}
       </button>
     );
   };
@@ -1472,12 +1496,13 @@ export default function ChatPage() {
           <div className="flex justify-start animate-fade-in">
             <div>
               <p className="text-xs mb-1 ml-1 inline-flex items-center gap-1 text-[var(--nanny-purple)] font-medium"><Bot size={14} /> Nanny</p>
-              <div className="bubble-nanny">
-                <div className="flex gap-1.5 py-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+              <div className="bubble-nanny inline-flex items-center gap-2.5">
+                <span className="flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+                <span className="text-subhead text-[var(--text-secondary)] italic">Nanny está pensando…</span>
               </div>
             </div>
           </div>
