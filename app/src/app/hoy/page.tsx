@@ -51,6 +51,7 @@ export default function HoyPage() {
 
   const [saving, setSaving] = useState(false);
   const [undoToast, setUndoToast] = useState<{ taskId: string; title: string } | null>(null);
+  const [loading, setLoading] = useState(!_snap);
 
   const loadData = useCallback(async () => {
     try {
@@ -67,6 +68,8 @@ export default function HoyPage() {
       setMedications(meds);
     } catch {
       window.location.href = '/login';
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -315,23 +318,46 @@ export default function HoyPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-[var(--nanny-purple)] text-white px-5 pt-12 pb-6 rounded-b-3xl">
-        <p className="text-sm opacity-80 capitalize">{dayName}</p>
-        <h1 className="text-2xl font-bold capitalize">{dateStr}</h1>
-        <div className="flex gap-2 mt-3">
-          {children.map(c => (
-            <span key={c.id} className="bg-white/20 px-3 py-1 rounded-full text-xs inline-flex items-center gap-1.5">
-              <span className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-[8px] font-bold">{c.name.charAt(0)}</span>
-              {c.name}
-            </span>
-          ))}
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <header className="px-5 pt-14 pb-4">
+          <div className="skeleton h-4 w-24 mb-3" />
+          <div className="skeleton h-9 w-48" />
+          <div className="flex gap-2 mt-4">
+            <div className="skeleton h-7 w-20 rounded-full" />
+            <div className="skeleton h-7 w-20 rounded-full" />
+          </div>
+        </header>
+        <div className="px-4 pb-24 space-y-3">
+          <div className="skeleton h-24 w-full rounded-2xl" />
+          <div className="skeleton h-20 w-full rounded-2xl" />
+          <div className="skeleton h-20 w-full rounded-2xl" />
+          <div className="skeleton h-20 w-full rounded-2xl" />
         </div>
       </div>
+    );
+  }
 
-      <div className="px-4 py-4 space-y-5 pb-24">
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Header — Apple-style large title */}
+      <header className="px-5 pt-14 pb-4">
+        <p className="text-footnote text-[var(--text-tertiary)] capitalize tracking-wide">{dayName}</p>
+        <h1 className="text-large-title text-[var(--text-primary)] capitalize mt-0.5">{dateStr}</h1>
+        {children.length > 0 && (
+          <div className="flex gap-2 mt-4 flex-wrap">
+            {children.map(c => (
+              <span key={c.id} className="inline-flex items-center gap-1.5 bg-[var(--gray-100)] text-[var(--text-secondary)] rounded-full px-3 py-1 text-caption">
+                <span className="w-4 h-4 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center text-[9px] font-semibold">{c.name.charAt(0)}</span>
+                {c.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <div className="px-4 py-2 space-y-5 pb-24">
         {/* Reminders */}
         {hasReminders && (
           <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
