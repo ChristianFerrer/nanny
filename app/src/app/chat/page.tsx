@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -38,13 +38,11 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
 
   const onTouchMove = (e: React.TouchEvent) => {
     const dx = e.touches[0].clientX - startX.current;
-    // Only swipe left (negative dx)
     if (dx > 5) return;
     const absDx = Math.abs(dx);
     if (absDx > 10) swiping.current = true;
     if (!swiping.current) return;
 
-    // Cap at -80px
     const offset = Math.max(-80, dx);
     currentX.current = offset;
     if (ref.current) {
@@ -52,7 +50,6 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
       ref.current.style.transition = 'none';
     }
 
-    // Haptic feedback at threshold
     if (absDx >= 60 && !triggered.current) {
       triggered.current = true;
       if (navigator.vibrate) navigator.vibrate(10);
@@ -72,9 +69,9 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
   };
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Reply icon revealed behind the message */}
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nanny-gray)] opacity-40">
+    <div className="relative overflow-hidden group">
+      {/* Reply icon revealed behind the message (swipe) */}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-quaternary)] opacity-40 pointer-events-none">
         <Reply size={20} />
       </div>
       <div
@@ -82,11 +79,20 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        className="relative bg-[var(--nanny-gray-light)] will-change-transform"
+        className="relative will-change-transform"
         style={{ backgroundColor: 'transparent' }}
       >
         {kids}
       </div>
+      {/* A11y: teclado-friendly reply button (visible on focus) */}
+      <button
+        type="button"
+        onClick={onSwipe}
+        aria-label="Responder a este mensaje"
+        className="sr-only focus:not-sr-only focus:absolute focus:right-2 focus:top-1/2 focus:-translate-y-1/2 focus:bg-[var(--nanny-purple)] focus:text-white focus:rounded-full focus:px-3 focus:py-1 focus:text-caption focus:font-semibold focus:z-10"
+      >
+        Responder
+      </button>
     </div>
   );
 }
@@ -108,6 +114,8 @@ export default function ChatPage() {
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
   const [toast, setToast] = useState<{ text: string; href: string } | null>(null);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [pendingMedConfirm, setPendingMedConfirm] = useState<{
     messageId: string;
     data: Record<string, unknown>;
@@ -1170,6 +1178,14 @@ export default function ChatPage() {
             <div className="flex items-center gap-2 relative shrink-0">
               {/* Quick action: Ponte al dia inline (mas accesible que dentro del menu) */}
               <button
+                onClick={() => setShowSearch(v => !v)}
+                aria-label={showSearch ? 'Cerrar búsqueda' : 'Buscar mensajes'}
+                aria-pressed={showSearch}
+                className={`w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring ${showSearch ? 'bg-[var(--nanny-purple-tint)]' : ''}`}
+              >
+                <Search size={16} className={showSearch ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
+              </button>
+              <button
                 onClick={runCatchup}
                 disabled={catchingUp || messages.length === 0}
                 aria-label="Ponte al día"
@@ -1197,6 +1213,32 @@ export default function ChatPage() {
           )}
         </div>
       </div>
+
+      {/* Search bar (expandible) */}
+      {showSearch && (
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--separator)] bg-[var(--bg-elevated)] animate-slide-up">
+          <div className="relative">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar en el chat…"
+              autoFocus
+              className="pl-10 pr-10 py-2 text-subhead"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[var(--gray-200)] flex items-center justify-center text-[var(--text-secondary)]"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pending detection — banner sticky prominente debajo del header */}
       {pendingDetection && (
@@ -1306,7 +1348,24 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map((msg, idx) => {
+        {(() => {
+          const displayedMessages = searchQuery.trim()
+            ? messages.filter(m => m.content?.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+            : messages;
+          return displayedMessages.length === 0 && searchQuery.trim() ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center animate-fade-in">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--gray-100)] flex items-center justify-center mb-3">
+                <Search size={20} className="text-[var(--text-tertiary)]" />
+              </div>
+              <p className="text-subhead text-[var(--text-primary)]">Sin resultados</p>
+              <p className="text-footnote text-[var(--text-tertiary)] mt-1">No encontramos mensajes con &ldquo;{searchQuery}&rdquo;</p>
+            </div>
+          ) : null;
+        })()}
+        {(searchQuery.trim()
+          ? messages.filter(m => m.content?.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+          : messages
+        ).map((msg, idx, arr) => {
           const isNanny = msg.sender_type === 'nanny';
           const isCurrentParent = onboardingMode
             ? msg.sender_type === 'parent'
@@ -1316,7 +1375,7 @@ export default function ChatPage() {
 
           // Date separator — show if first message or different day from previous
           const msgDate = new Date(msg.created_at).toDateString();
-          const prevDate = idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null;
+          const prevDate = idx > 0 ? new Date(arr[idx - 1].created_at).toDateString() : null;
           const showDateSep = !onboardingMode && (idx === 0 || msgDate !== prevDate);
           const today = new Date().toDateString();
           const yesterday = new Date(Date.now() - 86400000).toDateString();
