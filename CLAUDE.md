@@ -314,6 +314,7 @@ Aplicar en orden en el SQL Editor de Supabase:
 | `20260426_cleanup_children_emoji_hex.sql` | Cleanup: mueve códigos hex de `emoji` a `color` |
 | `20260426_medication_intakes.sql` | Tabla `medication_intakes` (tomas individuales de tratamientos) |
 | `20260427_families_timezone.sql` | Columna `timezone` en `families` (default Argentina; usada por morning-brief) |
+| `20260427_families_timezone_manual_flag.sql` | Columna `timezone_set_manually` en `families` (lock para auto-detect) |
 
 ---
 

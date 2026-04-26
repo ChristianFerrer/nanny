@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
+import { detectBrowserTimezone } from '@/lib/timezone';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
 // --- Onboarding types ---
@@ -304,6 +305,18 @@ export default function ChatPage() {
         const matchedParent = myParentId && prts.find(p => p.id === myParentId);
         setCurrentParent(matchedParent ? matchedParent.id : prts[0].id);
       }
+      // Auto-detectar TZ del navegador y actualizar silenciosamente la familia
+      // si nadie eligió una manualmente. Soporta el caso donde la familia se
+      // creó antes de tener TZ y el caso donde un padre viaja temporalmente
+      // (no hace nada si timezone_set_manually=true).
+      if (fam && !fam.timezone_set_manually) {
+        const browserTz = detectBrowserTimezone();
+        if (browserTz && browserTz !== fam.timezone) {
+          updateFamily({ timezone: browserTz }).catch(err => {
+            console.warn('[chat] silent TZ auto-update failed:', err);
+          });
+        }
+      }
       setDataLoaded(true);
     } catch {
       window.location.href = '/login';
@@ -482,6 +495,7 @@ export default function ChatPage() {
           children: childrenWithDates,
           authUserId: onboardingAuthUserId,
           conversationMessages: conversationForApi,
+          timezone: detectBrowserTimezone(),
         }),
       });
 

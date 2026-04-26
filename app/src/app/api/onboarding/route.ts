@@ -17,16 +17,31 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false }
     });
     const body = await req.json();
-    const { familyName, parents, children, authUserId, conversationMessages } = body;
+    const { familyName, parents, children, authUserId, conversationMessages, timezone } = body;
 
     if (!parents?.length || !children?.length) {
       return NextResponse.json({ error: 'Se necesita al menos un padre y un hijo' }, { status: 400 });
     }
 
+    // Validar TZ del navegador antes de aceptarla; si es inválida o ausente,
+    // dejamos que el default de la columna (Argentina) aplique.
+    let initialTimezone: string | undefined;
+    if (typeof timezone === 'string' && timezone.length > 0) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+        initialTimezone = timezone;
+      } catch {
+        // TZ inválida — caer al default
+      }
+    }
+
     // Create family
+    const familyInsert: { name: string; timezone?: string } = { name: familyName || 'Mi Familia' };
+    if (initialTimezone) familyInsert.timezone = initialTimezone;
+
     const { data: family, error: famErr } = await supabase
       .from('families')
-      .insert({ name: familyName || 'Mi Familia' })
+      .insert(familyInsert)
       .select()
       .single();
 

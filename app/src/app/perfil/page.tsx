@@ -202,7 +202,13 @@ function PerfilInner() {
 
   const saveFamily = async () => {
     setSaving(true);
-    await updateFamily({ name: familyName, timezone: familyTimezone });
+    // Marcar timezone_set_manually=true para que el auto-detect del navegador
+    // en /chat ya no pise la elección del usuario.
+    await updateFamily({
+      name: familyName,
+      timezone: familyTimezone,
+      timezone_set_manually: true,
+    });
     await loadData();
     setEditSection(null);
     setSaving(false);

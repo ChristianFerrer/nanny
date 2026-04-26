@@ -14,6 +14,7 @@ CREATE TABLE families (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   timezone TEXT NOT NULL DEFAULT 'America/Argentina/Buenos_Aires',
+  timezone_set_manually BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

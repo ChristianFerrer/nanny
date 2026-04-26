@@ -29,6 +29,7 @@ export const demoFamily: Family = {
   id: FAMILY_ID,
   name: 'Familia Demo',
   timezone: 'America/Argentina/Buenos_Aires',
+  timezone_set_manually: false,
   created_at: new Date().toISOString(),
 };
 

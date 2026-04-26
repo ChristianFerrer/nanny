@@ -59,6 +59,7 @@ export interface Family {
   id: string;
   name: string;
   timezone: string;
+  timezone_set_manually: boolean;
   created_at: string;
 }
 
