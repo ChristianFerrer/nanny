@@ -11,7 +11,7 @@
  */
 
 import OpenAI from 'openai';
-import { classifyMessage } from './classifier';
+import { classifyMessage, type ClassifierOutput } from './classifier';
 import { extractData } from './extractor';
 import { generateDirectResponse } from './responder';
 import { postProcessResponse } from './postprocess';
@@ -70,31 +70,20 @@ function silentResponse(intent: string): ChatResponse {
  * con fallback a inferencia por emoji si no está disponible.
  */
 function getSenderRole(input: ChatInput): 'mama' | 'papa' {
-  // Preferir el rol explícito del frontend (viene de parent.role en la DB)
   if (input.senderRole) return input.senderRole;
-
-  // Fallback: inferir del familyContext
   const mamaMatch = input.familyContext.match(/(\w+)\s*\(👩\)/);
   const papaMatch = input.familyContext.match(/(\w+)\s*\(👨\)/);
   const senderLower = input.senderName.toLowerCase();
-
   if (mamaMatch && senderLower.includes(mamaMatch[1].toLowerCase())) return 'mama';
   if (papaMatch && senderLower.includes(papaMatch[1].toLowerCase())) return 'papa';
-
   return 'mama';
 }
 
-/**
- * Extrae los nombres de los hijos del familyContext.
- */
 function getChildrenNames(familyContext: string): string[] {
   const matches = familyContext.matchAll(/(\w+)\s*\((?:👧|👦|👶)/g);
   return Array.from(matches).map(m => m[1]);
 }
 
-/**
- * Carga el prompt activo de la DB para el extractor (si existe).
- */
 async function getActivePromptContent(): Promise<string | null> {
   try {
     const supabase = getSupabaseAdmin();
@@ -110,9 +99,25 @@ async function getActivePromptContent(): Promise<string | null> {
 }
 
 /**
- * Pipeline principal de Nanny.
+ * Tipo de evento que el pipeline puede emitir.
+ *
+ * - `will_respond`: emitido apenas el classifier termina (antes del extractor /
+ *   responder). Permite al cliente decidir si mostrar la animación de los 3
+ *   puntos. value=true significa que SÍ va a llegar un mensaje de Nanny.
+ * - `response`: el resultado final completo.
  */
-export async function processChatPipeline(input: ChatInput): Promise<ChatResponse> {
+export type ChatStreamEvent =
+  | { type: 'will_respond'; value: boolean }
+  | { type: 'response'; response: ChatResponse };
+
+/**
+ * Pipeline en modo streaming. Emite primero `will_respond` (apenas el
+ * classifier decide), después `response` (cuando termina extractor/responder).
+ *
+ * Esto permite que el cliente prenda la animación de los 3 puntos SOLO
+ * cuando Nanny realmente va a escribir algo, no cuando solo está procesando.
+ */
+export async function* processChatPipelineStream(input: ChatInput): AsyncGenerator<ChatStreamEvent> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY no está configurada en el servidor.');
@@ -123,7 +128,9 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
   const childrenNames = getChildrenNames(input.familyContext);
 
   const now = new Date();
-  const currentDate = now.toISOString().split('T')[0] + ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ') ' + now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  const currentDate = now.toISOString().split('T')[0] +
+    ' (' + now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ') ' +
+    now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
   // ═══════════════════════════════════════
   // PASO 1: Clasificar
@@ -137,139 +144,158 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
     childrenNames,
   });
 
-  // Si es una corrección, intentamos destilar una regla general en background
-  // (no bloqueamos la respuesta; el destilador es best-effort).
   if (classification.intent === 'CORRECTION') {
     persistCorrectionIfGeneral(openai, input.message, input.senderName, senderRole)
       .catch(err => console.warn('[pipeline] correction distill error:', err));
   }
 
   // ═══════════════════════════════════════
-  // PASO 2a: SILENT ACTION
+  // DECISIÓN TEMPRANA: ¿Va a haber respuesta?
   // ═══════════════════════════════════════
-  // Padres cerraron loop entre ellos y solo necesitamos registrar.
-  // Corremos el extractor pero descartamos el reply: el sistema persiste
-  // el evento/tarea, Nanny no habla. Excepciones que invalidan el silencio:
-  //  - intent médico (siempre confirma)
-  //  - mensaje dirigido a Nanny
-  //  - corrección o concern
-  //  - chequeo de cuotas anti-spam (no aplica acá; silent no consume cuota)
-  const isMedical =
-    classification.intent === 'EVENT_MEDICAL' || classification.intent === 'MEDICATION';
-  const blocksSilent =
-    isMedical ||
-    classification.is_direct_to_nanny ||
-    classification.intent === 'CONCERN' ||
-    classification.intent === 'CORRECTION';
+  const willRespond = await computeWillRespond(classification, input);
+  yield { type: 'will_respond', value: willRespond };
 
-  if (classification.silent_action && classification.is_actionable && !blocksSilent) {
-    const extractedResponse = await runExtraction(openai, input, classification, senderRole, currentDate);
-    return {
-      ...extractedResponse,
-      should_respond: false,
-      reply: '',
-    };
+  if (!willRespond) {
+    yield { type: 'response', response: silentResponse(classification.intent) };
+    return;
   }
 
   // ═══════════════════════════════════════
-  // PASO 2b: Respuestas directas (un solo reply por turno)
+  // PASO 2: Generar respuesta
   // ═══════════════════════════════════════
-  const needsDirectResponse =
-    classification.should_respond ||
-    classification.is_direct_to_nanny ||
-    classification.is_question_nanny_can_answer ||
-    classification.intent === 'CONCERN' ||
-    classification.intent === 'CORRECTION' ||
-    classification.intent === 'GREETING' ||
-    classification.intent === 'DIRECT_QUESTION' ||
-    classification.can_add_value;
+  const response = await runResponse(openai, input, classification, senderRole, currentDate);
+  yield { type: 'response', response };
+}
 
-  if (needsDirectResponse) {
-    let responseType: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'correction' | 'proactive';
+/**
+ * Pipeline no-streaming (compatibilidad con eval offline + chat-catchup).
+ * Acumula los eventos del stream y devuelve solo el response final.
+ */
+export async function processChatPipeline(input: ChatInput): Promise<ChatResponse> {
+  let final: ChatResponse | null = null;
+  for await (const evt of processChatPipelineStream(input)) {
+    if (evt.type === 'response') final = evt.response;
+  }
+  return final || silentResponse('CHAT');
+}
 
-    if (classification.intent === 'GREETING') {
-      responseType = 'greeting';
-    } else if (classification.intent === 'CONCERN') {
-      responseType = 'concern';
-    } else if (classification.intent === 'CORRECTION') {
-      responseType = 'correction';
-    } else if (classification.is_direct_to_nanny) {
-      responseType = 'direct_question';
-    } else if (classification.is_question_nanny_can_answer) {
-      responseType = 'answerable_question';
-    } else {
-      responseType = 'proactive';
-    }
+/**
+ * Decide ANTES de correr extractor/responder si Nanny va a producir un reply.
+ * Esto se usa para emitir `will_respond` temprano vía SSE.
+ *
+ * Reglas (de menor a mayor prioridad):
+ *  - is_direct_to_nanny / question / concern / correction / greeting → SI
+ *  - is_actionable → SI (siempre devolvemos receipt — buffered receipt model)
+ *  - can_add_value (proactiva) → solo si está dentro de ventana 7-22h y no
+ *    se excedió la cuota diaria de proactivas
+ *  - resto → NO
+ */
+async function computeWillRespond(classification: ClassifierOutput, input: ChatInput): Promise<boolean> {
+  if (classification.is_direct_to_nanny) return true;
+  if (classification.is_question_nanny_can_answer) return true;
+  if (classification.intent === 'CONCERN') return true;
+  if (classification.intent === 'CORRECTION') return true;
+  if (classification.intent === 'GREETING') return true;
+  if (classification.intent === 'DIRECT_QUESTION') return true;
 
-    // Anti-spam: si la respuesta es proactiva (Nanny habla sin que le
-    // pregunten), respetamos límite diario y ventana 7am-10pm. Las
-    // respuestas a preguntas directas, correcciones y concerns NO consumen
-    // cuota — son contestaciones directas al padre.
-    if (responseType === 'proactive') {
-      if (!isInActiveWindow()) {
-        return silentResponse(classification.intent);
-      }
-      const todaysProactive = await countTodaysProactive(input.familyId);
-      if (todaysProactive >= PROACTIVE_DAILY_LIMIT) {
-        return silentResponse(classification.intent);
-      }
-    }
+  // Actionable → buffered receipt (siempre acuse de recibo)
+  if (classification.is_actionable) return true;
 
-    // Si es accionable Y necesita respuesta directa, el extractor produce
-    // el reply (ya que el JSON del extractor incluye reply contextual).
-    // El responder se reserva para casos NO accionables.
-    if (classification.is_actionable) {
-      const r = await runExtraction(openai, input, classification, senderRole, currentDate);
-      return { ...r, is_proactive: responseType === 'proactive' };
-    }
-
-    const directResponse = await generateDirectResponse(openai, {
-      message: input.message,
-      senderName: input.senderName,
-      senderRole,
-      familyContext: input.familyContext,
-      recentMessages: input.recentMessages,
-      existingEvents: input.existingEvents,
-      existingTasks: input.existingTasks,
-      activeMedications: input.activeMedications,
-      currentDate,
-      type: responseType,
-    });
-
-    const trimmed = directResponse.reply.trim();
-    return {
-      should_respond: trimmed.length > 0,
-      reply: trimmed,
-      intent: classification.intent,
-      next_action: 'stay_silent',
-      child: null,
-      confirmation: null,
-      additional_confirmations: [],
-      pending_detection: null,
-      is_proactive: responseType === 'proactive',
-    };
+  // Proactiva pura: chequear ventana + cuota
+  if (classification.can_add_value || classification.should_respond) {
+    if (!isInActiveWindow()) return false;
+    const todays = await countTodaysProactive(input.familyId);
+    if (todays >= PROACTIVE_DAILY_LIMIT) return false;
+    return true;
   }
 
-  // ═══════════════════════════════════════
-  // PASO 2c: No accionable → silencio
-  // ═══════════════════════════════════════
-  if (!classification.is_actionable) {
-    return {
-      should_respond: false,
-      reply: '',
-      intent: classification.intent,
-      next_action: 'stay_silent',
-      child: null,
-      confirmation: null,
-      additional_confirmations: [],
-      pending_detection: null,
-    };
+  return false;
+}
+
+/**
+ * Ejecuta extractor y/o responder según el clasificador. Asume que ya se
+ * decidió que SÍ habrá respuesta.
+ */
+async function runResponse(
+  openai: OpenAI,
+  input: ChatInput,
+  classification: ClassifierOutput,
+  senderRole: 'mama' | 'papa',
+  currentDate: string,
+): Promise<ChatResponse> {
+  // Determinar tipo de respuesta para el responder
+  let responseType: 'greeting' | 'direct_question' | 'answerable_question' | 'concern' | 'correction' | 'proactive';
+  if (classification.intent === 'GREETING') responseType = 'greeting';
+  else if (classification.intent === 'CONCERN') responseType = 'concern';
+  else if (classification.intent === 'CORRECTION') responseType = 'correction';
+  else if (classification.is_direct_to_nanny) responseType = 'direct_question';
+  else if (classification.is_question_nanny_can_answer) responseType = 'answerable_question';
+  else responseType = 'proactive';
+
+  // Si es accionable → extractor (incluso para silent_action: producimos
+  // receipt mínimo, no silencio total).
+  if (classification.is_actionable) {
+    const r = await runExtraction(openai, input, classification, senderRole, currentDate);
+    // Safety net: si el extractor devolvió reply vacío pero hay confirmation,
+    // sintetizamos un receipt mínimo. Nunca prometemos respuesta y mostramos
+    // nada — eso rompería la confianza del cliente sobre will_respond.
+    if (!r.reply.trim()) {
+      r.reply = synthesizeReceipt(r);
+      r.should_respond = r.reply.length > 0;
+    }
+    return { ...r, is_proactive: responseType === 'proactive' };
   }
 
-  // ═══════════════════════════════════════
-  // PASO 2d: Accionable sin respuesta directa → Extraer
-  // ═══════════════════════════════════════
-  return runExtraction(openai, input, classification, senderRole, currentDate);
+  // No accionable → responder genera mensaje contextual
+  const directResponse = await generateDirectResponse(openai, {
+    message: input.message,
+    senderName: input.senderName,
+    senderRole,
+    familyContext: input.familyContext,
+    recentMessages: input.recentMessages,
+    existingEvents: input.existingEvents,
+    existingTasks: input.existingTasks,
+    activeMedications: input.activeMedications,
+    currentDate,
+    type: responseType,
+  });
+
+  const trimmed = directResponse.reply.trim();
+  return {
+    should_respond: trimmed.length > 0,
+    reply: trimmed,
+    intent: classification.intent,
+    next_action: 'stay_silent',
+    child: null,
+    confirmation: null,
+    additional_confirmations: [],
+    pending_detection: null,
+    is_proactive: responseType === 'proactive',
+  };
+}
+
+/**
+ * Genera un receipt textual mínimo a partir de las confirmations del
+ * extractor. Solo se usa como safety net cuando el extractor entrega un reply
+ * vacío.
+ */
+function synthesizeReceipt(r: ChatResponse): string {
+  const items: string[] = [];
+  if (r.confirmation) items.push(receiptForConfirmation(r.confirmation));
+  for (const c of r.additional_confirmations || []) {
+    items.push(receiptForConfirmation(c));
+  }
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  return 'Anotado. ' + items.join(' ');
+}
+
+function receiptForConfirmation(c: { type: string; data: Record<string, unknown> }): string {
+  const title = (c.data.title as string) || (c.data.medication_name as string) || 'item';
+  if (c.type === 'task') return `Tarea creada: ${title}.`;
+  if (c.type === 'event') return `Evento creado: ${title}.`;
+  if (c.type === 'medication') return `Tratamiento registrado: ${title}.`;
+  return `Anotado: ${title}.`;
 }
 
 /**
@@ -278,9 +304,9 @@ export async function processChatPipeline(input: ChatInput): Promise<ChatRespons
 async function runExtraction(
   openai: OpenAI,
   input: ChatInput,
-  classification: Awaited<ReturnType<typeof classifyMessage>>,
+  classification: ClassifierOutput,
   senderRole: 'mama' | 'papa',
-  currentDate: string
+  currentDate: string,
 ): Promise<ChatResponse> {
   const model = classification.complexity === 'complex' ? 'gpt-4o' : 'gpt-4o-mini';
 
@@ -299,9 +325,6 @@ async function runExtraction(
     currentDate,
   }, model);
 
-  // ═══════════════════════════════════════
-  // PASO 3: Post-proceso
-  // ═══════════════════════════════════════
   const rawResponse: ChatResponse = {
     should_respond: true,
     reply: extracted.reply,
@@ -313,15 +336,13 @@ async function runExtraction(
     pending_detection: extracted.pending_detection || null,
   };
 
-  const postProcessed = postProcessResponse({
+  return postProcessResponse({
     response: rawResponse,
     senderRole,
     existingEvents: input.existingEvents,
     existingTasks: input.existingTasks,
     activeMedications: input.activeMedications,
   });
-
-  return postProcessed;
 }
 
 export { getActivePromptContent };

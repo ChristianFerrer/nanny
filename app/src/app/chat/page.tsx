@@ -8,6 +8,7 @@ import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
 import { detectBrowserTimezone } from '@/lib/timezone';
+import { callChatStream } from '@/lib/chat-stream';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
 // --- Onboarding types ---
@@ -131,7 +132,6 @@ export default function ChatPage() {
   } | null>(null);
   const [catchingUp, setCatchingUp] = useState(false);
   const [nannyThinking, setNannyThinking] = useState(false);
-  const [nannyWaiting, setNannyWaiting] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(!!_snap);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   // --- Onboarding state ---
@@ -575,33 +575,37 @@ export default function ChatPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Process Nanny AI response in background (doesn't block input)
+  // Process Nanny AI response via SSE.
+  //
+  // Flujo:
+  //  1. Cliente arranca el fetch SSE — nada visible aún en el chat.
+  //  2. SSE emite `will_respond=true` (~500ms): prendemos los 3 puntos.
+  //     Si emite `false`: nunca aparecen puntos, no hay mensaje en chat.
+  //  3. SSE emite `response`: procesamos confirmations / agregamos mensaje
+  //     de Nanny si hay reply / apagamos los puntos.
   const processNannyResponse = useCallback(async (text: string, parentMsg: Message) => {
-    setNannyThinking(true);
+    const recentMsgs = [...messages.slice(-25), parentMsg]
+      .map(m => {
+        const sender = m.sender_type === 'nanny' ? 'Nanny'
+          : parents.find(p => p.id === m.sender_id)?.name || 'Padre';
+        return `${sender}: ${m.content}`;
+      }).join('\n');
+
+    const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
+
+    const existingEventsStr = events.slice(-20).map(e =>
+      `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
+    ).join('\n');
+    const existingTasksStr = tasks.filter(t => t.status !== 'done').slice(-15).map(t =>
+      `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''}${t.assigned_to ? `, encargado: ${t.assigned_to}` : ''})`
+    ).join('\n');
+    const activeMeds = medications.filter(m => m.status === 'active').map(m =>
+      `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
+    ).join('\n');
+
     try {
-      const recentMsgs = [...messages.slice(-25), parentMsg]
-        .map(m => {
-          const sender = m.sender_type === 'nanny' ? 'Nanny'
-            : parents.find(p => p.id === m.sender_id)?.name || 'Padre';
-          return `${sender}: ${m.content}`;
-        }).join('\n');
-
-      const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
-
-      const existingEventsStr = events.slice(-20).map(e =>
-        `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
-      ).join('\n');
-      const existingTasksStr = tasks.filter(t => t.status !== 'done').slice(-15).map(t =>
-        `- ${t.title} (${t.priority}${t.due_date ? `, vence ${new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}` : ''}${t.assigned_to ? `, encargado: ${t.assigned_to}` : ''})`
-      ).join('\n');
-      const activeMeds = medications.filter(m => m.status === 'active').map(m =>
-        `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
-      ).join('\n');
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await callChatStream(
+        {
           message: text,
           familyContext: familyCtx,
           recentMessages: recentMsgs,
@@ -612,152 +616,153 @@ export default function ChatPage() {
           senderRole: currentParentObj?.role || 'mama',
           pendingDetection,
           familyId,
-        }),
-      });
-
-      const rawData = await res.json();
-
-      if (rawData.error) {
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(),
-          family_id: familyId,
-          sender_id: null,
-          sender_type: 'nanny',
-          content: `Error:${rawData.error}`,
-          message_type: 'text',
-          metadata: {},
-          created_at: new Date().toISOString(),
-        }]);
-      } else {
-        const data = validateNannyResponse(rawData, events, tasks, medications);
-
-        if (data.validation_warnings.length > 0) {
-          console.log('[Validation warnings]:', data.validation_warnings);
-        }
-
-        if (data.confirmation) {
-          const { type, data: confData } = data.confirmation;
-          try {
-            if (type === 'medication') {
-              const medMsgId = crypto.randomUUID();
-              setPendingMedConfirm({ messageId: medMsgId, data: confData, childName: data.child || '' });
-              (data as unknown as Record<string, unknown>)._medMsgId = medMsgId;
-            } else if (type === 'event') {
-              const newEvent = await addEvent({
-                family_id: familyId, child_id: null,
-                title: confData.title as string,
-                description: (confData.date_description as string) || null,
-                event_type: (confData.event_type as string) || 'other',
-                date_start: confData.date_start as string, date_end: null,
-                location: (confData.location as string) || null,
-                status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
-              });
-              setEvents(prev => [...prev, newEvent]);
-              showToast(`Evento creado: ${confData.title}`, '/hoy');
-            } else if (type === 'task') {
-              const newTask = await addTask({
-                family_id: familyId, child_id: null,
-                title: confData.title as string, description: null,
-                assigned_to: (confData.assigned_to as string) || null,
-                due_date: (confData.due_date as string) || null,
-                status: 'pending', priority: 'normal', source: 'chat',
-                auto_detected: true, created_by: currentParent, completed_at: null,
-              });
-              setTasks(prev => [...prev, newTask]);
-              showToast(`Tarea creada: ${confData.title}`, '/hoy');
+        },
+        {
+          onWillRespond: (will) => {
+            // 3-puntos solo si Nanny realmente va a escribir algo.
+            if (will) setNannyThinking(true);
+          },
+          onResponse: async (rawData) => {
+            const data = validateNannyResponse(rawData as unknown as Record<string, unknown>, events, tasks, medications);
+            if (data.validation_warnings.length > 0) {
+              console.log('[Validation warnings]:', data.validation_warnings);
             }
-          } catch {
-            console.error('Failed to auto-create event/task');
-          }
-        }
 
-        // Handle additional_confirmations for batch task/event creation
-        if (data.additional_confirmations && Array.isArray(data.additional_confirmations)) {
-          for (const extraConf of data.additional_confirmations) {
-            try {
-              if (extraConf.type === 'task' && extraConf.data?.title) {
-                const newTask = await addTask({
-                  family_id: familyId, child_id: null,
-                  title: extraConf.data.title as string, description: null,
-                  assigned_to: (extraConf.data.assigned_to as string) || null,
-                  due_date: (extraConf.data.due_date as string) || null,
-                  status: 'pending', priority: 'normal', source: 'chat',
-                  auto_detected: true, created_by: currentParent, completed_at: null,
-                });
-                setTasks(prev => [...prev, newTask]);
-              } else if (extraConf.type === 'event' && extraConf.data?.title) {
-                const newEvent = await addEvent({
-                  family_id: familyId, child_id: null,
-                  title: extraConf.data.title as string,
-                  description: (extraConf.data.date_description as string) || null,
-                  event_type: (extraConf.data.event_type as string) || 'other',
-                  date_start: extraConf.data.date_start as string, date_end: null,
-                  location: (extraConf.data.location as string) || null,
-                  status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
-                });
-                setEvents(prev => [...prev, newEvent]);
+            if (data.confirmation) {
+              const { type, data: confData } = data.confirmation;
+              try {
+                if (type === 'medication') {
+                  const medMsgId = crypto.randomUUID();
+                  setPendingMedConfirm({ messageId: medMsgId, data: confData, childName: data.child || '' });
+                  (data as unknown as Record<string, unknown>)._medMsgId = medMsgId;
+                } else if (type === 'event') {
+                  const newEvent = await addEvent({
+                    family_id: familyId, child_id: null,
+                    title: confData.title as string,
+                    description: (confData.date_description as string) || null,
+                    event_type: (confData.event_type as string) || 'other',
+                    date_start: confData.date_start as string, date_end: null,
+                    location: (confData.location as string) || null,
+                    status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
+                  });
+                  setEvents(prev => [...prev, newEvent]);
+                  showToast(`Evento creado: ${confData.title}`, '/hoy');
+                } else if (type === 'task') {
+                  const newTask = await addTask({
+                    family_id: familyId, child_id: null,
+                    title: confData.title as string, description: null,
+                    assigned_to: (confData.assigned_to as string) || null,
+                    due_date: (confData.due_date as string) || null,
+                    status: 'pending', priority: 'normal', source: 'chat',
+                    auto_detected: true, created_by: currentParent, completed_at: null,
+                  });
+                  setTasks(prev => [...prev, newTask]);
+                  showToast(`Tarea creada: ${confData.title}`, '/hoy');
+                }
+              } catch {
+                console.error('Failed to auto-create event/task');
               }
-            } catch {
-              console.error('Failed to create additional confirmation');
             }
-          }
-        }
 
-        if (data.pending_detection && data.pending_detection.type) {
-          // Auto-create tasks from pending_detection — tasks don't need confirmation
-          if (data.pending_detection.type === 'task' && data.pending_detection.partial_data?.title) {
-            try {
-              const pd = data.pending_detection.partial_data;
-              const newTask = await addTask({
-                family_id: familyId, child_id: null,
-                title: pd.title as string, description: null,
-                assigned_to: (pd.assigned_to as string) || null,
-                due_date: (pd.due_date as string) || null,
-                status: 'pending', priority: 'normal', source: 'chat',
-                auto_detected: true, created_by: currentParent, completed_at: null,
+            if (data.additional_confirmations && Array.isArray(data.additional_confirmations)) {
+              for (const extraConf of data.additional_confirmations) {
+                try {
+                  if (extraConf.type === 'task' && extraConf.data?.title) {
+                    const newTask = await addTask({
+                      family_id: familyId, child_id: null,
+                      title: extraConf.data.title as string, description: null,
+                      assigned_to: (extraConf.data.assigned_to as string) || null,
+                      due_date: (extraConf.data.due_date as string) || null,
+                      status: 'pending', priority: 'normal', source: 'chat',
+                      auto_detected: true, created_by: currentParent, completed_at: null,
+                    });
+                    setTasks(prev => [...prev, newTask]);
+                  } else if (extraConf.type === 'event' && extraConf.data?.title) {
+                    const newEvent = await addEvent({
+                      family_id: familyId, child_id: null,
+                      title: extraConf.data.title as string,
+                      description: (extraConf.data.date_description as string) || null,
+                      event_type: (extraConf.data.event_type as string) || 'other',
+                      date_start: extraConf.data.date_start as string, date_end: null,
+                      location: (extraConf.data.location as string) || null,
+                      status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
+                    });
+                    setEvents(prev => [...prev, newEvent]);
+                  }
+                } catch {
+                  console.error('Failed to create additional confirmation');
+                }
+              }
+            }
+
+            if (data.pending_detection && data.pending_detection.type) {
+              if (data.pending_detection.type === 'task' && data.pending_detection.partial_data?.title) {
+                try {
+                  const pd = data.pending_detection.partial_data;
+                  const newTask = await addTask({
+                    family_id: familyId, child_id: null,
+                    title: pd.title as string, description: null,
+                    assigned_to: (pd.assigned_to as string) || null,
+                    due_date: (pd.due_date as string) || null,
+                    status: 'pending', priority: 'normal', source: 'chat',
+                    auto_detected: true, created_by: currentParent, completed_at: null,
+                  });
+                  setTasks(prev => [...prev, newTask]);
+                  showToast(`Tarea creada: ${pd.title}`, '/hoy');
+                } catch {
+                  console.error('Failed to auto-create task from pending_detection');
+                }
+              } else {
+                setPendingDetection(data.pending_detection);
+              }
+            } else if (data.confirmation) {
+              setPendingDetection(null);
+            }
+
+            if (data.should_respond !== false && data.reply) {
+              const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
+              const nannyMsg = await addMessage({
+                family_id: familyId, sender_id: null, sender_type: 'nanny',
+                content: data.reply, message_type: 'text',
+                metadata: {
+                  intent: data.intent, next_action: data.next_action,
+                  child: data.child || undefined,
+                  ...(medMsgId ? { medConfirmId: medMsgId } : {}),
+                  ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
+                  ...((data as unknown as { is_proactive?: boolean }).is_proactive ? { proactive: true } : {}),
+                },
               });
-              setTasks(prev => [...prev, newTask]);
-              showToast(`Tarea creada: ${pd.title}`, '/hoy');
-            } catch {
-              console.error('Failed to auto-create task from pending_detection');
+              if (medMsgId) {
+                setPendingMedConfirm(prev => prev ? { ...prev, messageId: nannyMsg.id } : null);
+              }
+              setMessages(prev => [...prev, nannyMsg]);
+              sendPushToFamily(familyId, '🤖 Nanny', data.reply);
             }
-            // Don't keep task pending_detection — already created
-          } else {
-            setPendingDetection(data.pending_detection);
-          }
-        } else if (data.confirmation) {
-          setPendingDetection(null);
-        }
 
-        if (data.should_respond !== false && data.reply) {
-          const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
-          const nannyMsg = await addMessage({
-            family_id: familyId, sender_id: null, sender_type: 'nanny',
-            content: data.reply, message_type: 'text',
-            metadata: {
-              intent: data.intent, next_action: data.next_action,
-              child: data.child || undefined,
-              ...(medMsgId ? { medConfirmId: medMsgId } : {}),
-              ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
-              ...((data as unknown as { is_proactive?: boolean }).is_proactive ? { proactive: true } : {}),
-            },
-          });
-          if (medMsgId) {
-            setPendingMedConfirm(prev => prev ? { ...prev, messageId: nannyMsg.id } : null);
-          }
-          setMessages(prev => [...prev, nannyMsg]);
-          sendPushToFamily(familyId, '🤖 Nanny', data.reply);
-        }
-      }
-    } catch {
+            setNannyThinking(false);
+          },
+          onError: async (code, message) => {
+            console.error('[chat sse] error', code, message);
+            const errorMsg = await addMessage({
+              family_id: familyId, sender_id: null, sender_type: 'nanny',
+              content: `Error:${message || 'Ups, tuve un problema. Intenta de nuevo.'}`,
+              message_type: 'text', metadata: { errorCode: code },
+            });
+            setMessages(prev => [...prev, errorMsg]);
+            setNannyThinking(false);
+          },
+        },
+      );
+    } catch (err) {
+      console.error('[chat sse] stream failed:', err);
       const errorMsg = await addMessage({
         family_id: familyId, sender_id: null, sender_type: 'nanny',
         content: 'Error:Ups, tuve un problema. Intenta de nuevo.',
         message_type: 'text', metadata: {},
       });
       setMessages(prev => [...prev, errorMsg]);
+      setNannyThinking(false);
     }
-    setNannyThinking(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, parents, children, events, tasks, medications, familyId, currentParent, currentParentObj, pendingDetection]);
 
@@ -795,11 +800,11 @@ export default function ChatPage() {
     // Buffer: acumular mensajes del mismo sender por 8 segundos
     // Esto evita procesar cada mensaje por separado cuando el padre envía varios seguidos
     // (ej: "separar local" + "invitar amiguitos" + "comprar mono" → una sola respuesta)
+    // Durante el buffer NO mostramos ningún indicador — el silencio mantiene
+    // la ilusión de asistente. Los 3 puntos solo aparecen después, cuando el
+    // SSE confirma will_respond=true.
     bufferedTextsRef.current.push(text);
     lastParentMsgRef.current = parentMsg;
-
-    // Show "waiting" indicator while buffering
-    setNannyWaiting(true);
 
     if (bufferTimerRef.current) {
       clearTimeout(bufferTimerRef.current);
@@ -811,7 +816,6 @@ export default function ChatPage() {
       bufferedTextsRef.current = [];
       lastParentMsgRef.current = null;
       bufferTimerRef.current = null;
-      setNannyWaiting(false);
 
       if (lastMsg) {
         processNannyResponse(combinedText, lastMsg);
@@ -1550,30 +1554,18 @@ export default function ChatPage() {
             </div>
           );
         })}
-        {nannyWaiting && !nannyThinking && (
-          <div className="flex justify-center animate-fade-in">
-            <div className="inline-flex items-center gap-2 bg-[var(--nanny-purple-tint)] rounded-full px-3.5 py-1.5">
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nanny-purple)] opacity-50" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nanny-purple)]" />
-              </span>
-              <span className="text-caption text-[var(--nanny-purple)] font-semibold">
-                Nanny está leyendo tus mensajes…
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Indicador "Nanny está escribiendo": SOLO 3 puntos, sin texto.
+            Se prende vía SSE event `will_respond=true`, es decir cuando Nanny
+            realmente va a publicar un mensaje. Si el classifier decide que no
+            hay nada que decir, este bloque nunca aparece. */}
         {nannyThinking && (
           <div className="flex justify-start animate-fade-in">
             <div>
               <p className="text-xs mb-1 ml-1 inline-flex items-center gap-1 text-[var(--nanny-purple)] font-medium"><Bot size={14} /> Nanny</p>
-              <div className="bubble-nanny inline-flex items-center gap-2.5">
-                <span className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-                <span className="text-subhead text-[var(--text-secondary)] italic">Nanny está pensando…</span>
+              <div className="bubble-nanny inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>

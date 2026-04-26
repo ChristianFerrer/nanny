@@ -225,16 +225,27 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 3. `extractor.ts` — extrae datos estructurados (eventos, tareas, medicamentos)
 4. `responder.ts` — genera respuesta de Nanny (tono profesional, default 1 oración, una pregunta máx)
 5. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación)
-6. `pipeline.ts` — orquestación: silent_action → extracción sin reply; un solo reply por turno; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm)
+6. `pipeline.ts` — orquestación: emite stream de eventos `will_respond` + `response`; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm); buffered receipt para casos `silent_action`
 7. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
 8. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
 
-**Convenciones de tono (vinculantes, viven en los prompts modulares):**
+### Streaming SSE (`/api/chat`)
+
+El endpoint del chat devuelve **Server-Sent Events**, no JSON. Dos eventos:
+
+- `event: will_respond` con `data: {"value": true|false}` — emitido apenas el classifier termina (~500ms). El cliente lo usa para prender los 3 puntos de "Nanny está escribiendo" SOLO cuando realmente va a haber respuesta.
+- `event: response` con `data: {ChatResponse}` — emitido cuando termina extractor/responder.
+- `event: done` o `event: error` cierran el stream.
+
+Cliente: `app/src/lib/chat-stream.ts` con `callChatStream(payload, callbacks)`.
+
+### Convenciones de tono (vinculantes, viven en los prompts modulares)
 - Default 1 oración, máximo 2 (3 solo en briefs)
 - Cero exclamaciones, cero efusividad
 - Una sola pregunta por turno (jerarquía: asignación > horario > ubicación)
-- `silent_action=true` cuando los padres cierran un loop sin médico/concern/correction → registra sin reply
+- `silent_action` se trata como hint para producir **receipt mínimo** ("Tarea creada: X."), NO silencio total — para que el usuario tenga feedback de que se capturó algo
 - `is_proactive=true` en mensajes no solicitados → cuentan para cuota diaria
+- Durante el buffer (8s) NO se muestra ningún indicador en el chat — el silencio mantiene la ilusión de asistente
 
 ---
 
@@ -300,7 +311,14 @@ evaluation (10 convs) → saving → diagnosis (OpenAI) → reeval (10 convs) �
 
 ## 10. Migraciones SQL requeridas
 
-Aplicar en orden en el SQL Editor de Supabase:
+Aplicarlas con `./scripts/db-migrate.sh` (requiere `SUPABASE_DB_URL` en `app/.env.local`) o manualmente en orden en el SQL Editor de Supabase. La tabla `_nanny_migrations` mantiene track de las ya aplicadas.
+
+Helpers disponibles:
+- `./scripts/db-query.sh "SELECT ..."` — ejecuta un query ad-hoc
+- `./scripts/db-migrate.sh` — aplica las pendientes
+- `./scripts/db-migrate.sh --status` — solo muestra qué falta
+- `./scripts/db-migrate.sh --dry` — lista las pendientes sin aplicar
+
 
 | Archivo | Descripción |
 |---------|-------------|
