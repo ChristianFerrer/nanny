@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test';
 import { FAMILY_ID, getFamilyDataResponse, mockMessages } from './family';
 import { pickResponse } from './responses';
-import type { Message } from '../../src/lib/types';
 
 /**
  * Setea todos los mocks HTTP necesarios para que el chat de Nanny renderee
@@ -52,50 +51,39 @@ export async function setupChatMocks(page: Page) {
     });
   });
 
-  // 5) /api/chat → respuesta determinística según el texto
+  // 5) /api/chat → respuesta determinística según el texto.
+  // Shape esperado por validateNannyResponse: { reply, intent, next_action,
+  // confirmation?, should_respond? } — campos planos, no envueltos.
   await page.route('**/api/chat', async (route) => {
-    const body = route.request().postDataJSON() as { text?: string } | null;
-    const text = body?.text || '';
+    const body = route.request().postDataJSON() as { message?: string } | null;
+    const text = body?.message || '';
     const response = pickResponse(text);
-
-    // Simulamos un mensaje persistido como respondería el endpoint real
-    const nannyMessage: Message = {
-      id: `msg-nanny-${Date.now()}`,
-      family_id: FAMILY_ID,
-      sender_id: null,
-      sender_type: 'nanny',
-      content: response.reply,
-      message_type: 'text',
-      metadata: {
-        intent: response.intent,
-        ...(response.confirmation ? { confirmation_id: 'conf-mock-1' } : {}),
-      },
-      created_at: new Date().toISOString(),
-    };
-
-    mockMessages.push(nannyMessage);
 
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        success: true,
-        message: nannyMessage,
-        response: response.reply,
+        reply: response.reply,
         intent: response.intent,
+        next_action: response.next_action,
+        child: response.child,
         confirmation: response.confirmation,
-        confirmationId: response.confirmation ? 'conf-mock-1' : null,
+        should_respond: true,
       }),
     });
   });
 
-  // 6) /api/family-write → 200 OK con echo del payload
+  // 6) /api/family-write → 200 OK con echo del row insertado.
+  // IMPORTANTE: el cliente espera result.data = el row, no el payload completo.
+  // El payload tiene la forma { table, operation, data, id }, y result.data
+  // debe ser solo `data` (el row) para que addMessage()/addEvent() etc.
+  // retornen el objeto correcto al caller.
   await page.route('**/api/family-write', async (route) => {
-    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const body = route.request().postDataJSON() as { data?: unknown } | null;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: body }),
+      body: JSON.stringify({ success: true, data: body?.data ?? null }),
     });
   });
 

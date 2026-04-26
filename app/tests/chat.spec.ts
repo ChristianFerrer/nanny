@@ -12,7 +12,13 @@ import { setupChatMocks, resetMocks } from './fixtures/mockApis';
  * - Mocks completos via setupChatMocks (sin Supabase ni OpenAI reales)
  * - Selectores por rol/texto (Playwright best practice, mas robusto que CSS)
  * - Mobile viewport 430px (definido en playwright.config.ts)
+ *
+ * NOTA: el chat tiene un buffer de 8s antes de mandar a /api/chat (acumula
+ * mensajes consecutivos del mismo sender). Los timeouts esperando respuesta
+ * de Nanny tienen que ser >8s (usamos 15s para margen).
  */
+
+const NANNY_RESPONSE_TIMEOUT = 15_000;
 
 test.describe('chat — flujos críticos del refactor', () => {
   test.beforeEach(async ({ page }) => {
@@ -32,7 +38,7 @@ test.describe('chat — flujos críticos del refactor', () => {
     await expect(page.getByText('Hola Nanny')).toBeVisible();
 
     // La respuesta default de Nanny aparece
-    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
   });
 
   test('2 — intent MEDICATION muestra 3 botones (Sí crear / Editar / No)', async ({ page }) => {
@@ -41,7 +47,7 @@ test.describe('chat — flujos críticos del refactor', () => {
     await input.press('Enter');
 
     // Espera la respuesta de Nanny con intent MEDICATION
-    await expect(page.getByText('Anoté el medicamento. ¿Querés que cree recordatorios?')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Anoté el medicamento. ¿Querés que cree recordatorios?')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
 
     // Los 3 botones deben aparecer
     await expect(page.getByRole('button', { name: 'Sí, crear' })).toBeVisible();
@@ -54,7 +60,7 @@ test.describe('chat — flujos críticos del refactor', () => {
     await input.fill('Pau toma jarabe 3 veces al día');
     await input.press('Enter');
 
-    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
     await page.getByRole('button', { name: 'Editar horarios' }).click();
 
     // El sheet con role=dialog debe aparecer
@@ -74,7 +80,7 @@ test.describe('chat — flujos críticos del refactor', () => {
     await input.fill('Pau toma jarabe 3 veces al día');
     await input.press('Enter');
 
-    await page.getByRole('button', { name: 'Editar horarios' }).click({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Editar horarios' }).click({ timeout: NANNY_RESPONSE_TIMEOUT });
     const sheet = page.getByRole('dialog', { name: /editar horarios|ajustar horarios/i });
     await expect(sheet).toBeVisible();
 
@@ -101,7 +107,7 @@ test.describe('chat — flujos críticos del refactor', () => {
     const input = page.getByPlaceholder('Mensaje');
     await input.fill('Hola Nanny');
     await input.press('Enter');
-    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
 
     // El botón de reply alternativo es accesible via teclado (sr-only que se muestra en focus)
     const replyButton = page.getByRole('button', { name: 'Responder a este mensaje' }).first();
