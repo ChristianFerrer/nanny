@@ -23,6 +23,7 @@ const NOW = '2026-04-26T00:00:00.000Z';
 export const mockFamily: Family = {
   id: FAMILY_ID,
   name: 'Familia Test',
+  timezone: 'America/Argentina/Buenos_Aires',
   created_at: NOW,
 };
 

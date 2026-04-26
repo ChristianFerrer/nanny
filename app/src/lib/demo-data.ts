@@ -28,6 +28,7 @@ function todayAt(hour: number, min = 0): string {
 export const demoFamily: Family = {
   id: FAMILY_ID,
   name: 'Familia Demo',
+  timezone: 'America/Argentina/Buenos_Aires',
   created_at: new Date().toISOString(),
 };
 

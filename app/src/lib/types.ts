@@ -58,6 +58,7 @@ export interface Database {
 export interface Family {
   id: string;
   name: string;
+  timezone: string;
   created_at: string;
 }
 

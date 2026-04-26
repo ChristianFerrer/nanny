@@ -40,8 +40,30 @@
 - **Vercel** despliega desde `claude/continue-previous-session-OleqU` (NO desde `main`)
 - **Preview deploys** activos por default en cada branch que no sea producción
 - NO sugerir cambiar a `main` ni crear branch `main`
-- Cron jobs configurados en `app/vercel.json`
 - Plan **Hobby**: `maxDuration = 60s` para serverless functions
+
+### Cron Jobs — servicio externo (cron-job.org)
+
+Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-job.org** (servicio externo gratuito) que invoca endpoints HTTP de la app. `app/vercel.json` NO tiene `crons` configurados — la sección `crons` ahí es ignorada.
+
+**Endpoints configurados en cron-job.org:**
+
+| Cron | Endpoint | Schedule | Notas |
+|---|---|---|---|
+| `Nanny-Autopilot` | `https://nanny-xi.vercel.app/api/cron/autopilot` | `* * * * *` (cada minuto) | Procesa el job de autopilot AI; cada invocación tiene budget de 45s |
+| `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. |
+
+**Auth:** los endpoints aceptan tres formas (cualquiera funciona):
+1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).
+2. Header `x-cron-secret: <CRON_SECRET>`.
+3. Header `x-vercel-cron` (solo aplica si Vercel lo invocara directamente).
+
+`CRON_SECRET` se configura en Vercel Project Settings → Environment Variables.
+
+**Cómo agregar un nuevo cron:**
+1. Crear el endpoint en `app/src/app/api/cron/<nombre>/route.ts` con `export const maxDuration = 60` y validación de `CRON_SECRET`.
+2. En cron-job.org, crear una entrada nueva apuntando a la URL de producción con `?secret=...` y el schedule deseado.
+3. Documentarlo en la tabla de arriba.
 
 ---
 
@@ -191,8 +213,8 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/eval/autopilot` | GET=status, POST=iniciar, DELETE=cancelar autopilot |
 | `/api/eval/diagnose` | Diagnóstico AI de resultados |
 | `/api/eval/prompt` | GET/POST/PUT/DELETE de reglas del prompt |
-| `/api/cron/autopilot` | Cron endpoint (deprecado en Hobby plan; ahora client-driven via PATCH) |
-| `/api/cron/morning-brief` | Cron diario (11:00 UTC ≈ 8am ART): brief matutino por familia |
+| `/api/cron/autopilot` | Cron (cron-job.org cada 1 min): procesa job de autopilot |
+| `/api/cron/morning-brief` | Cron (cron-job.org cada 1 hora): brief matutino por familia, filtra por TZ local (envía a las 8am locales) |
 
 ---
 
@@ -291,6 +313,7 @@ Aplicar en orden en el SQL Editor de Supabase:
 | `20260426_children_color.sql` | Columna `color` en `children` (avatar del hijo) |
 | `20260426_cleanup_children_emoji_hex.sql` | Cleanup: mueve códigos hex de `emoji` a `color` |
 | `20260426_medication_intakes.sql` | Tabla `medication_intakes` (tomas individuales de tratamientos) |
+| `20260427_families_timezone.sql` | Columna `timezone` en `families` (default Argentina; usada por morning-brief) |
 
 ---
 

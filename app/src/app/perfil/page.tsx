@@ -9,6 +9,35 @@ import type { Family, Parent, Child } from '@/lib/types';
 
 const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
+const TIMEZONE_OPTIONS: { tz: string; label: string }[] = [
+  { tz: 'America/Argentina/Buenos_Aires', label: 'Argentina (GMT-3)' },
+  { tz: 'America/Mexico_City', label: 'México CDMX (GMT-6)' },
+  { tz: 'America/Bogota', label: 'Colombia (GMT-5)' },
+  { tz: 'America/Lima', label: 'Perú (GMT-5)' },
+  { tz: 'America/Santiago', label: 'Chile (GMT-3 / -4)' },
+  { tz: 'America/Montevideo', label: 'Uruguay (GMT-3)' },
+  { tz: 'America/Caracas', label: 'Venezuela (GMT-4)' },
+  { tz: 'America/Guayaquil', label: 'Ecuador (GMT-5)' },
+  { tz: 'America/La_Paz', label: 'Bolivia (GMT-4)' },
+  { tz: 'America/Asuncion', label: 'Paraguay (GMT-3 / -4)' },
+  { tz: 'America/Tegucigalpa', label: 'Honduras (GMT-6)' },
+  { tz: 'America/Guatemala', label: 'Guatemala (GMT-6)' },
+  { tz: 'America/El_Salvador', label: 'El Salvador (GMT-6)' },
+  { tz: 'America/Costa_Rica', label: 'Costa Rica (GMT-6)' },
+  { tz: 'America/Panama', label: 'Panamá (GMT-5)' },
+  { tz: 'America/Santo_Domingo', label: 'República Dominicana (GMT-4)' },
+  { tz: 'America/Havana', label: 'Cuba (GMT-5)' },
+  { tz: 'America/New_York', label: 'EE.UU. Este (GMT-5)' },
+  { tz: 'America/Los_Angeles', label: 'EE.UU. Pacífico (GMT-8)' },
+  { tz: 'Europe/Madrid', label: 'España (GMT+1)' },
+];
+
+function tzShortLabel(tz: string | null | undefined): string {
+  if (!tz) return 'Argentina';
+  const found = TIMEZONE_OPTIONS.find(t => t.tz === tz);
+  return found ? found.label : tz;
+}
+
 type EditSection = null | 'family' | 'parent' | 'child' | 'newChild';
 
 export default function PerfilPage() {
@@ -49,6 +78,7 @@ function PerfilInner() {
 
   // Edit state
   const [familyName, setFamilyName] = useState('');
+  const [familyTimezone, setFamilyTimezone] = useState('America/Argentina/Buenos_Aires');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [parentEmail, setParentEmail] = useState('');
@@ -129,6 +159,7 @@ function PerfilInner() {
   const openEditFamily = () => {
     if (!family) return;
     setFamilyName(family.name);
+    setFamilyTimezone(family.timezone || 'America/Argentina/Buenos_Aires');
     setEditSection('family');
   };
 
@@ -171,7 +202,7 @@ function PerfilInner() {
 
   const saveFamily = async () => {
     setSaving(true);
-    await updateFamily({ name: familyName });
+    await updateFamily({ name: familyName, timezone: familyTimezone });
     await loadData();
     setEditSection(null);
     setSaving(false);
@@ -266,6 +297,13 @@ function PerfilInner() {
             <button onClick={openEditFamily} className="list-row w-full focus-ring">
               <span className="text-subhead text-[var(--text-primary)] flex-1 text-left">Nombre</span>
               <span className="text-subhead text-[var(--text-tertiary)]">{family.name}</span>
+              <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
+            </button>
+            <button onClick={openEditFamily} className="list-row w-full focus-ring">
+              <span className="text-subhead text-[var(--text-primary)] flex-1 text-left">Zona horaria</span>
+              <span className="text-subhead text-[var(--text-tertiary)] truncate max-w-[55%] text-right">
+                {tzShortLabel(family.timezone)}
+              </span>
               <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
             </button>
           </div>
@@ -401,6 +439,21 @@ function PerfilInner() {
                   <div>
                     <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre de la familia</label>
                     <input type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus />
+                  </div>
+                  <div>
+                    <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Zona horaria</label>
+                    <select
+                      value={familyTimezone}
+                      onChange={e => setFamilyTimezone(e.target.value)}
+                      className="w-full"
+                    >
+                      {TIMEZONE_OPTIONS.map(({ tz, label }) => (
+                        <option key={tz} value={tz}>{label}</option>
+                      ))}
+                    </select>
+                    <p className="text-caption-2 text-[var(--text-tertiary)] mt-1.5">
+                      Se usa para enviar el resumen matutino a las 8 AM hora local.
+                    </p>
                   </div>
                   <button onClick={saveFamily} disabled={saving || !familyName.trim()} className="btn btn-primary btn-block">
                     <Save size={18} /> {saving ? 'Guardando…' : 'Guardar'}
