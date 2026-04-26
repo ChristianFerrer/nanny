@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon, Pencil, Plus } from 'lucide-react';
-import { getChild, getRoutines, getEvents, getTasks } from '@/lib/store';
-import type { Child, Routine, FamilyEvent, Task } from '@/lib/types';
+import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon, Pencil, Plus, Pill, ChevronRight } from 'lucide-react';
+import { getChild, getRoutines, getEvents, getTasks, getMedications } from '@/lib/store';
+import type { Child, Routine, FamilyEvent, Task, Medication } from '@/lib/types';
 
 type TabId = 'identidad' | 'operativo' | 'rutinas';
 
@@ -16,19 +16,21 @@ export default function HijoDetailPage() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('identidad');
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     const id = params.id as string;
     try {
-      const [c, r, e, t] = await Promise.all([
-        getChild(id), getRoutines(id), getEvents(), getTasks(),
+      const [c, r, e, t, m] = await Promise.all([
+        getChild(id), getRoutines(id), getEvents(), getTasks(), getMedications(),
       ]);
       setChild(c);
       setRoutines(r);
       setEvents(e.filter(ev => ev.child_id === id));
       setTasks(t.filter(tk => tk.child_id === id));
+      setMedications(m.filter(med => med.child_id === id));
     } finally {
       setLoading(false);
     }
@@ -140,7 +142,7 @@ export default function HijoDetailPage() {
       </div>
 
       <div className="px-4 py-4 pb-24">
-        {activeTab === 'identidad' && <IdentidadTab child={child} />}
+        {activeTab === 'identidad' && <IdentidadTab child={child} medications={medications} />}
         {activeTab === 'operativo' && <OperativoTab events={events} tasks={tasks} childId={child.id} />}
         {activeTab === 'rutinas' && <RutinasTab routines={routines} />}
       </div>
@@ -148,7 +150,9 @@ export default function HijoDetailPage() {
   );
 }
 
-function IdentidadTab({ child }: { child: Child }) {
+function IdentidadTab({ child, medications }: { child: Child; medications: Medication[] }) {
+  const [nowMs] = useState(() => Date.now());
+  const activeMeds = medications.filter(m => m.status === 'active');
   return (
     <div className="space-y-4 animate-fade-in">
       <Card title="Información básica" icon={<ClipboardList size={16} className="text-[var(--nanny-purple)]" />}>
@@ -160,6 +164,40 @@ function IdentidadTab({ child }: { child: Child }) {
         {child.teacher && <InfoRow label="Maestra" value={child.teacher} />}
         {child.grade && <InfoRow label="Grado" value={child.grade} />}
       </Card>
+
+      {activeMeds.length > 0 && (
+        <Card title="Tratamientos activos" icon={<Pill size={16} className="text-[var(--nanny-purple)]" />}>
+          <div className="space-y-1">
+            {activeMeds.map(m => {
+              const start = new Date(m.start_date);
+              const totalDays = m.duration_days || 1;
+              const daysPassed = Math.max(0, Math.floor((nowMs - start.getTime()) / (1000 * 60 * 60 * 24)));
+              const daysLeft = Math.max(0, totalDays - daysPassed);
+              return (
+                <Link
+                  key={m.id}
+                  href={`/tratamiento/${m.id}`}
+                  className="flex items-center gap-3 py-2 -mx-1 px-1 rounded-lg tap-highlight focus-ring"
+                >
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
+                    <Pill size={14} className="text-[var(--nanny-purple)]" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-subhead text-[var(--text-primary)] truncate">{m.medication_name}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)] truncate">
+                      {m.frequency || ''}{m.schedule_times?.length ? ` · ${m.schedule_times.join(', ')}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-caption-2 text-[var(--text-tertiary)] whitespace-nowrap">
+                    {daysLeft === 0 ? 'Último día' : `${daysLeft}d`}
+                  </span>
+                  <ChevronRight size={14} className="text-[var(--text-quaternary)]" />
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card title="Salud" icon={<Stethoscope size={16} className="text-[var(--text-secondary)]" />}>
         {child.allergies && child.allergies.length > 0 ? (

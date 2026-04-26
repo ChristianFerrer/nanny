@@ -144,13 +144,20 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/login` | Auth email/password |
 | `/onboarding` | Setup inicial de familia |
 | `/chat` | Chat familiar principal (Nanny AI) |
-| `/hoy` | Vista del día |
-| `/semana` | Vista semanal |
-| `/hijo` | Lista de hijos |
-| `/hijo/[id]` | Perfil de hijo |
-| `/perfil` | Perfil del padre |
+| `/hoy` | Vista del día (tab principal) |
+| `/hijo` | Lista de hijos (tab principal) |
+| `/hijo/[id]` | Perfil de hijo (incluye sección de tratamientos activos) |
+| `/tareas` | Lista de tareas (tab principal) |
+| `/mas` | Submenú "Más" (tab principal) — agrupa Semana, Red de Apoyo, Insights, Configuración |
+| `/semana` | Vista semanal (accesible desde "Más") |
+| `/red-apoyo` | Red de apoyo — stub, próximamente (accesible desde "Más") |
+| `/insights` | Insights — stub, próximamente (accesible desde "Más") |
+| `/perfil` | Configuración familiar (accesible desde "Más" como "Configuración") |
+| `/tratamiento/[id]` | Detalle de un tratamiento médico: fechas, estado, tomas realizadas |
 | `/admin/testing` | Dashboard de testing/eval |
 | `/admin/testing/[runId]` | Detalle de un run de evaluación |
+
+**Navegación inferior:** 5 tabs siempre visibles — Chat, Hoy, Hijos, Tareas, Más. El tab "Más" agrega un sub-menú con rutas secundarias (Semana, Red de Apoyo, Insights, Configuración). Todas las rutas dentro del submenu resaltan el tab "Más" como activo. Ver `app/src/components/BottomNav.tsx` (constante `MAS_ROUTES`).
 
 ---
 
@@ -163,9 +170,10 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/onboarding` | Crea familia y padres |
 | `/api/onboarding-chat` | Chat conversacional del onboarding |
 | `/api/family-data` | Lee datos de la familia |
-| `/api/family-write` | Escribe datos de la familia |
+| `/api/family-write` | Escribe datos de la familia (incluye `medication_intakes`) |
 | `/api/check-family` | Verifica si el usuario tiene familia |
-| `/api/join-family` | Unirse a familia existente |
+| `/api/join-family` | Unirse a familia existente (idempotente, retry-safe) |
+| `/api/medication/[id]` | Devuelve un tratamiento + sus tomas (`medication_intakes`) |
 | `/api/push-subscribe` | Registrar suscripción push |
 | `/api/push-notify` | Enviar notificación push |
 | `/api/reset-user` | Reset de usuario (dev) |
@@ -267,6 +275,7 @@ Aplicar en orden en el SQL Editor de Supabase:
 | `20260409_prompt_rules.sql` | Tabla `prompt_rules_state` (singleton) |
 | `20260426_children_color.sql` | Columna `color` en `children` (avatar del hijo) |
 | `20260426_cleanup_children_emoji_hex.sql` | Cleanup: mueve códigos hex de `emoji` a `color` |
+| `20260426_medication_intakes.sql` | Tabla `medication_intakes` (tomas individuales de tratamientos) |
 
 ---
 
@@ -284,6 +293,8 @@ Aplicar en orden en el SQL Editor de Supabase:
 - `prompt-rules` se persisten en Supabase (no en memoria) para sobrevivir entre invocaciones serverless
 - Job locking usa dos UPDATEs atómicos secuenciales en vez de `.or()` de Supabase
 - Fases pesadas se separan con `yield` para no exceder `maxDuration=60s` de Vercel
+- En lookups por `auth_user_id` o por familia, usar `.maybeSingle()` (no `.single()`) para no lanzar excepciones cuando no hay fila — esto causaba que `/api/check-family` y `/api/join-family` fallaran silenciosamente en el flujo de invitación
+- El flujo de invitación al segundo padre persiste el `family_id` de invitación en `localStorage` (`nanny:pendingInvite`). Sobrevive a redirects de confirmación de email y se reintenta en `/chat` si la primera llamada a `/api/join-family` falla por race de cookies tras `signUp`
 
 ### Diseño UI
 

@@ -1,10 +1,42 @@
 'use client';
 
-import { useState, Suspense, useMemo } from 'react';
+import { useState, Suspense, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Mail, Lock, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
+
+const PENDING_INVITE_KEY = 'nanny:pendingInvite';
+
+type JoinResult =
+  | { success: true; familyId: string }
+  | { success: false; code?: string; error?: string };
+
+async function joinFamilyWithRetry(familyId: string, maxAttempts = 3): Promise<JoinResult> {
+  let lastError: { code?: string; error?: string } = {};
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, 250 * Math.pow(2, attempt - 1)));
+    }
+    try {
+      const res = await fetch('/api/join-family', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ familyId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, familyId: data.familyId };
+      }
+      lastError = { code: data.code, error: data.error };
+      // Only the auth race is worth retrying; everything else fails fast.
+      if (data.code !== 'NOT_AUTHENTICATED') break;
+    } catch (e) {
+      lastError = { code: 'NETWORK', error: String(e) };
+    }
+  }
+  return { success: false, ...lastError };
+}
 
 type Mode = 'login' | 'register' | 'forgot';
 
@@ -19,13 +51,28 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const inviteFamilyId = searchParams.get('invite');
+  const queryInvite = searchParams.get('invite');
+  // Resolve invite synchronously: prefer URL, fall back to localStorage. Survives
+  // email-confirmation redirects that might strip the query string.
+  const [pendingInvite] = useState<string | null>(() => {
+    if (queryInvite) return queryInvite;
+    if (typeof window === 'undefined') return null;
+    try { return window.localStorage.getItem(PENDING_INVITE_KEY); } catch { return null; }
+  });
   const [mode, setMode] = useState<Mode>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+
+  // Persist invite from URL so it survives later navigations.
+  useEffect(() => {
+    if (!queryInvite || typeof window === 'undefined') return;
+    try { window.localStorage.setItem(PENDING_INVITE_KEY, queryInvite); } catch {}
+  }, [queryInvite]);
+
+  const inviteFamilyId = pendingInvite;
 
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -85,20 +132,30 @@ function LoginContent() {
     }
 
     if (inviteFamilyId) {
-      try {
-        const joinRes = await fetch('/api/join-family', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyId: inviteFamilyId }),
-        });
-        const joinData = await joinRes.json();
-        if (joinData.success) {
-          router.replace('/chat');
-          return;
-        }
-      } catch {
-        // continue to /chat
+      // Retry join with small backoff: covers the case where session cookies
+      // haven't propagated to the server immediately after signUp/signIn.
+      const joinResult = await joinFamilyWithRetry(inviteFamilyId);
+      if (joinResult.success) {
+        try { window.localStorage.removeItem(PENDING_INVITE_KEY); } catch {}
+        router.replace('/chat');
+        return;
       }
+      if (joinResult.code === 'NOT_AUTHENTICATED') {
+        // Session lost — keep invite in storage and let /chat retry on first load
+        router.replace('/chat');
+        return;
+      }
+      if (joinResult.code === 'FAMILY_NOT_FOUND') {
+        setError('El enlace de invitación ya no es válido. Pídele a tu pareja que te envíe uno nuevo.');
+        try { window.localStorage.removeItem(PENDING_INVITE_KEY); } catch {}
+        setLoading(false);
+        return;
+      }
+      // Other errors: show but still allow access — chat will retry from storage
+      setError('No pudimos vincularte a la familia. Lo intentaremos de nuevo al abrir el chat.');
+      setLoading(false);
+      router.replace('/chat');
+      return;
     }
 
     router.replace('/chat');

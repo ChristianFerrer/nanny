@@ -1,6 +1,6 @@
 // State management — all data goes through API routes (admin client, bypasses RLS)
 
-import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, Medication } from './types';
+import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, Medication, MedicationIntake, MedicationIntakeStatus } from './types';
 
 // Track current family and parent
 let _currentFamilyId: string | null = null;
@@ -277,6 +277,35 @@ export async function addMedication(medication: Omit<Medication, 'id' | 'created
 export async function updateMedication(medicationId: string, updates: Partial<Omit<Medication, 'id' | 'created_at'>>): Promise<void> {
   await writeData('medications', 'update', updates as Record<string, unknown>, medicationId);
   notify();
+}
+
+export async function getMedicationDetail(medicationId: string): Promise<{ medication: Medication; intakes: MedicationIntake[] } | null> {
+  const res = await fetch(`/api/medication/${medicationId}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function upsertIntake(
+  intake: { id?: string; medication_id: string; family_id: string; scheduled_at: string; status: MedicationIntakeStatus; taken_at?: string | null; recorded_by?: string | null; notes?: string | null }
+): Promise<MedicationIntake> {
+  const now = new Date().toISOString();
+  if (intake.id) {
+    await writeData('medication_intakes', 'update', { ...intake, updated_at: now } as unknown as Record<string, unknown>, intake.id);
+    notify();
+    return { ...intake, created_at: now, updated_at: now } as MedicationIntake;
+  }
+  const newIntake = {
+    ...intake,
+    id: crypto.randomUUID(),
+    taken_at: intake.taken_at ?? null,
+    recorded_by: intake.recorded_by ?? null,
+    notes: intake.notes ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+  const result = await writeData('medication_intakes', 'insert', newIntake as unknown as Record<string, unknown>);
+  notify();
+  return (result.data || newIntake) as MedicationIntake;
 }
 
 export async function getRoutines(childId: string): Promise<Routine[]> {

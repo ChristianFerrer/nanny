@@ -160,6 +160,21 @@ export interface Medication {
   created_at: string;
 }
 
+export type MedicationIntakeStatus = 'pending' | 'done' | 'missed' | 'skipped';
+
+export interface MedicationIntake {
+  id: string;
+  medication_id: string;
+  family_id: string;
+  scheduled_at: string;
+  status: MedicationIntakeStatus;
+  taken_at: string | null;
+  recorded_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PendingConfirmation {
   id: string;
   family_id: string;
