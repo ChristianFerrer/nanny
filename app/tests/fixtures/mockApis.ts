@@ -1,23 +1,51 @@
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { AUTH_USER_ID, FAMILY_ID, getFamilyDataResponse, mockMessages } from './family';
 import { pickResponse } from './responses';
 import type { Message } from '../../src/lib/types';
 
 /**
+ * Genera un JWT estructuralmente válido (no firmado, pero parseable por
+ * supabase-js). Necesario porque la lib decodifica el token localmente
+ * y rechaza los inválidos sin hacer llamada HTTP.
+ *
+ * Payload: user `auth-user-001` con expiración bien lejos en el futuro.
+ */
+function fakeJwt(): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({
+      sub: AUTH_USER_ID,
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'test@nanny.test',
+      exp: 9999999999,
+      iat: Math.floor(Date.now() / 1000),
+    }),
+  ).toString('base64url');
+  return `${header}.${payload}.fake-signature`;
+}
+
+/**
  * Setea todos los mocks HTTP necesarios para que el chat de Nanny renderee
  * sin tocar Supabase ni OpenAI reales.
  *
+ * IMPORTANTE: la app usa @supabase/ssr que persiste la sesión en COOKIES
+ * (no localStorage). Por eso seteamos cookies en el context.
+ *
  * Mockea:
- * - Supabase Auth: `*.supabase.co/auth/v1/user` → user fake
- * - `/api/check-family` → true
- * - `/api/family-data` → datos fijos de la familia mock (ver family.ts)
- * - `/api/chat` → respuesta determinística según keywords (ver responses.ts)
- * - `/api/family-write` → 200 OK con echo del payload
+ * - Cookie de sesión Supabase (con JWT estructuralmente válido)
+ * - Supabase Auth/REST endpoints (por si la lib hace llamadas)
+ * - `/api/check-family` → tiene familia
+ * - `/api/family-data` → datos fijos de la familia mock
+ * - `/api/chat` → respuesta determinística según keywords
+ * - `/api/family-write` → 200 OK con echo
  *
  * Llamar este helper ANTES de `page.goto('/chat')`.
  */
 export async function setupChatMocks(page: Page) {
-  // 1) Supabase Auth — devuelve user válido sin tocar Supabase real
+  await setupAuthCookie(page.context());
+
+  // 1) Supabase Auth — fallback si la lib hace llamadas HTTP a auth
   await page.route(/supabase\.co\/auth\/v1\/(user|token).*/, (route) =>
     route.fulfill({
       status: 200,
@@ -36,24 +64,6 @@ export async function setupChatMocks(page: Page) {
   await page.route(/supabase\.co\/rest\/v1\/.*/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
-
-  // 2) Pre-poblar localStorage con sesión Supabase fake antes de cargar la app
-  await page.addInitScript(() => {
-    const fakeSession = {
-      access_token: 'fake-access-token',
-      refresh_token: 'fake-refresh-token',
-      expires_at: Date.now() / 1000 + 3600,
-      expires_in: 3600,
-      token_type: 'bearer',
-      user: {
-        id: 'auth-user-001',
-        aud: 'authenticated',
-        email: 'test@nanny.test',
-      },
-    };
-    // Supabase guarda la sesión bajo esta key (formato sb-<project-ref>-auth-token)
-    window.localStorage.setItem('sb-dummy-auth-token', JSON.stringify(fakeSession));
-  });
 
   // 3) /api/check-family → tiene familia
   await page.route('**/api/check-family', (route) =>
@@ -144,4 +154,48 @@ export async function setupChatMocks(page: Page) {
  */
 export function resetMocks() {
   mockMessages.length = 0;
+}
+
+/**
+ * Setea la cookie de sesión de @supabase/ssr en el contexto del browser.
+ * Hay que llamar esto ANTES de cargar la app para que getUser() devuelva
+ * el user fake en lugar de redirigir a /login.
+ *
+ * El formato de la cookie sigue el de @supabase/ssr v0.5+: un JSON con la
+ * sesión completa (access_token + refresh_token + user) bajo el nombre
+ * sb-<projectRef>-auth-token. ProjectRef se extrae del subdomain del URL
+ * de Supabase (en tests: "dummy" porque NEXT_PUBLIC_SUPABASE_URL=https://dummy.supabase.co).
+ */
+async function setupAuthCookie(context: BrowserContext) {
+  const access = fakeJwt();
+  const session = {
+    access_token: access,
+    refresh_token: 'fake-refresh-token',
+    expires_at: 9999999999,
+    expires_in: 9999999999,
+    token_type: 'bearer',
+    user: {
+      id: AUTH_USER_ID,
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'test@nanny.test',
+      app_metadata: {},
+      user_metadata: {},
+    },
+  };
+  // @supabase/ssr usa este formato base64-prefijado para la cookie
+  const cookieValue = 'base64-' + Buffer.from(JSON.stringify(session)).toString('base64');
+
+  await context.addCookies([
+    {
+      name: 'sb-dummy-auth-token',
+      value: cookieValue,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      secure: false,
+      sameSite: 'Lax',
+      expires: 9999999999,
+    },
+  ]);
 }
