@@ -28,6 +28,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key_for_tests
       SUPABASE_SERVICE_ROLE_KEY: dummy_service_key_for_tests
       OPENAI_API_KEY: dummy_openai_key_for_tests
+      # E2E bypass — middleware y supabase client devuelven user fake.
+      # Activo SOLO en este workflow, nunca en produccion.
+      E2E_TEST_MODE: 'true'
+      NEXT_PUBLIC_E2E_TEST_MODE: 'true'
 
     steps:
       - uses: actions/checkout@v4
