@@ -1111,72 +1111,62 @@ export default function ChatPage() {
         overflow: 'hidden',
       }}
     >
-      {/* Header */}
-      <div className="bg-white border-b px-4 py-4 shrink-0 z-10">
+      {/* Header — glass Apple-style */}
+      <div className="glass px-4 py-3 shrink-0 z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Participant avatars - stacked */}
-            <div className="flex -space-x-2">
-              <div className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10">
-                <Bot size={20} className="text-white" />
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Participant avatars stacked */}
+            <div className="flex -space-x-2 shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10 shadow-xs">
+                <Bot size={18} className="text-white" />
               </div>
               {parents.map((p, i) => (
                 <div
                   key={p.id}
                   className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white ${
-                    p.id === currentParent ? 'bg-[var(--nanny-purple-bg)]' : 'bg-[var(--nanny-gray-light)]'
+                    p.id === currentParent ? 'bg-[var(--nanny-purple-tint)]' : 'bg-[var(--gray-100)]'
                   }`}
                   style={{ zIndex: parents.length - i }}
                 >
-                  <UserIcon size={18} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
+                  <UserIcon size={16} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
                 </div>
               ))}
             </div>
-            <div>
-              <h1 className="font-semibold text-base">Chat Familiar</h1>
-              <p className="text-xs text-[var(--nanny-gray)]">
+            <div className="min-w-0">
+              <h1 className="text-headline text-[var(--text-primary)] truncate">Chat Familiar</h1>
+              <p className="text-caption text-[var(--text-tertiary)] truncate">
                 {onboardingMode
-                  ? (onboardingSaving ? 'Creando tu familia...' : 'Nanny')
+                  ? (onboardingSaving ? 'Creando tu familia…' : 'Nanny')
                   : <>Nanny{parents.map(p => `, ${p.name}`).join('')}</>
                 }
               </p>
             </div>
           </div>
           {!onboardingMode && (
-            <div className="flex items-center gap-2 relative">
+            <div className="flex items-center gap-2 relative shrink-0">
+              {/* Quick action: Ponte al dia inline (mas accesible que dentro del menu) */}
+              <button
+                onClick={runCatchup}
+                disabled={catchingUp || messages.length === 0}
+                aria-label="Ponte al día"
+                className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors disabled:opacity-40 focus-ring"
+              >
+                <RefreshCw size={16} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
+              </button>
               <button
                 onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                className="p-2 rounded-full hover:bg-[var(--nanny-gray-light)] transition-colors"
+                aria-label="Menú"
+                aria-expanded={showHeaderMenu}
+                className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
               >
-                <MoreVertical size={20} className="text-[var(--nanny-gray)]" />
+                <MoreVertical size={18} className="text-[var(--text-secondary)]" />
               </button>
               {showHeaderMenu && (
-                <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-[180px] animate-fade-in">
-                  <button
-                    onClick={() => { setShowHeaderMenu(false); runCatchup(); }}
-                    disabled={catchingUp || messages.length === 0}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] disabled:opacity-40 text-left"
-                  >
-                    <RefreshCw size={16} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'} />
-                    Ponte al d&iacute;a
-                  </button>
-                  <div className="border-t border-gray-100 my-1" />
-                  <button onClick={() => { setShowHeaderMenu(false); router.push('/hoy'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
-                    <CalendarDays size={16} className="text-[var(--nanny-gray)]" />
-                    Hoy
-                  </button>
-                  <button onClick={() => { setShowHeaderMenu(false); router.push('/semana'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
-                    <Clock size={16} className="text-[var(--nanny-gray)]" />
-                    Semana
-                  </button>
-                  <button onClick={() => { setShowHeaderMenu(false); router.push('/hijo'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
-                    <ListChecks size={16} className="text-[var(--nanny-gray)]" />
-                    Hijos
-                  </button>
-                  <button onClick={() => { setShowHeaderMenu(false); router.push('/perfil'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--nanny-gray-light)] text-left">
-                    <UserIcon size={16} className="text-[var(--nanny-gray)]" />
-                    Perfil
-                  </button>
+                <div className="absolute right-0 top-11 bg-[var(--bg-elevated)] rounded-xl shadow-lg border border-[var(--border-subtle)] py-1 z-20 min-w-[200px] animate-scale-in">
+                  <MenuItem icon={<CalendarDays size={16} className="text-[var(--text-secondary)]" />} label="Hoy" onClick={() => { setShowHeaderMenu(false); router.push('/hoy'); }} />
+                  <MenuItem icon={<Clock size={16} className="text-[var(--text-secondary)]" />} label="Semana" onClick={() => { setShowHeaderMenu(false); router.push('/semana'); }} />
+                  <MenuItem icon={<ListChecks size={16} className="text-[var(--text-secondary)]" />} label="Hijos" onClick={() => { setShowHeaderMenu(false); router.push('/hijo'); }} />
+                  <MenuItem icon={<UserIcon size={16} className="text-[var(--text-secondary)]" />} label="Perfil" onClick={() => { setShowHeaderMenu(false); router.push('/perfil'); }} />
                 </div>
               )}
             </div>
@@ -1533,6 +1523,18 @@ export default function ChatPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full flex items-center gap-3 px-4 py-2.5 text-subhead text-[var(--text-primary)] hover:bg-[var(--gray-50)] disabled:opacity-40 text-left transition-colors"
+    >
+      {icon} {label}
+    </button>
   );
 }
 
