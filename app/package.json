@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test:eval": "tsx src/lib/eval/run-eval.ts",
     "test:eval:save": "tsx src/lib/eval/run-eval.ts --save",
     "test:eval:diagnose": "tsx src/lib/eval/run-eval.ts --diagnose --save"
@@ -23,6 +25,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^18.3.28",
