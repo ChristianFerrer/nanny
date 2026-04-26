@@ -1434,70 +1434,33 @@ export default function ChatPage() {
                         <Pill size={16} className="text-[var(--nanny-purple)]" />
                         <span className="text-xs font-medium text-[var(--nanny-purple)]">¿Crear recordatorios?</span>
                       </div>
-                      {/* Time editor */}
-                      {editingMedTimes && (
-                        <div className="mb-3 space-y-2">
-                          <p className="text-[10px] text-[var(--nanny-gray)]">Ajusta los horarios:</p>
-                          {editingMedTimes.map((t, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <input
-                                type="time"
-                                value={t}
-                                onChange={(e) => {
-                                  const updated = [...editingMedTimes];
-                                  updated[i] = e.target.value;
-                                  setEditingMedTimes(updated);
-                                }}
-                                className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]"
-                              />
-                              {editingMedTimes.length > 1 && (
-                                <button
-                                  onClick={() => setEditingMedTimes(editingMedTimes.filter((_, j) => j !== i))}
-                                  className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)]"
-                                >
-                                  <X size={14} />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button
-                            onClick={() => setEditingMedTimes([...editingMedTimes, '12:00'])}
-                            className="text-[10px] text-[var(--nanny-purple)] font-medium"
-                          >
-                            + Agregar horario
-                          </button>
-                        </div>
-                      )}
+                      {(() => {
+                        const times = (pendingMedConfirm.data?.schedule_times as string[]) || [];
+                        return times.length > 0 && (
+                          <p className="text-[10px] text-[var(--nanny-gray)] mb-2">
+                            Horarios: {times.join(', ')}
+                          </p>
+                        );
+                      })()}
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            if (editingMedTimes && pendingMedConfirm) {
-                              setPendingMedConfirm({
-                                ...pendingMedConfirm,
-                                data: { ...pendingMedConfirm.data, schedule_times: editingMedTimes },
-                              });
-                              setEditingMedTimes(null);
-                            }
-                            handleMedicationConfirm('confirm');
-                          }}
-                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple)] text-white text-xs font-semibold"
+                          onClick={() => handleMedicationConfirm('confirm')}
+                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple)] text-white text-xs font-semibold focus-ring"
                         >
-                          {editingMedTimes ? 'Confirmar' : 'Sí, crear'}
+                          Sí, crear
                         </button>
-                        {!editingMedTimes && (
-                          <button
-                            onClick={() => {
-                              const times = (pendingMedConfirm?.data?.schedule_times as string[]) || ['08:00'];
-                              setEditingMedTimes([...times]);
-                            }}
-                            className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] text-xs font-semibold"
-                          >
-                            Editar horarios
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            const times = (pendingMedConfirm?.data?.schedule_times as string[]) || ['08:00'];
+                            setEditingMedTimes([...times]);
+                          }}
+                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-purple-bg)] text-[var(--nanny-purple)] text-xs font-semibold focus-ring"
+                        >
+                          Editar horarios
+                        </button>
                         <button
                           onClick={() => { setEditingMedTimes(null); handleMedicationConfirm('reject'); }}
-                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-semibold"
+                          className="flex-1 py-2 px-3 rounded-lg bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)] text-xs font-semibold focus-ring"
                         >
                           No
                         </button>
@@ -1618,6 +1581,88 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
+
+      {/* Bottom sheet — editor de horarios de medicamento */}
+      {editingMedTimes && pendingMedConfirm && (
+        <>
+          <div className="sheet-backdrop" onClick={() => setEditingMedTimes(null)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Editar horarios">
+            <div className="sheet-handle" />
+            <div className="sheet-header flex items-center justify-between">
+              <h2 className="text-title-3 text-[var(--text-primary)]">Ajustar horarios</h2>
+              <button
+                onClick={() => setEditingMedTimes(null)}
+                aria-label="Cerrar"
+                className="w-9 h-9 rounded-full bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-secondary)] focus-ring"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="sheet-body space-y-3">
+              {(pendingMedConfirm.data?.medication_name as string) && (
+                <p className="text-footnote text-[var(--text-tertiary)]">
+                  {pendingMedConfirm.data.medication_name as string}
+                  {pendingMedConfirm.childName ? ` · ${pendingMedConfirm.childName}` : ''}
+                </p>
+              )}
+              <div className="space-y-2">
+                {editingMedTimes.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={t}
+                      onChange={(e) => {
+                        const updated = [...editingMedTimes];
+                        updated[i] = e.target.value;
+                        setEditingMedTimes(updated);
+                      }}
+                      className="flex-1 input"
+                      aria-label={`Horario ${i + 1}`}
+                    />
+                    {editingMedTimes.length > 1 && (
+                      <button
+                        onClick={() => setEditingMedTimes(editingMedTimes.filter((_, j) => j !== i))}
+                        aria-label="Quitar horario"
+                        className="w-10 h-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setEditingMedTimes([...editingMedTimes, '12:00'])}
+                className="text-subhead text-[var(--nanny-purple)] font-medium focus-ring rounded"
+              >
+                + Agregar horario
+              </button>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setEditingMedTimes(null)}
+                  className="flex-1 btn-secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (editingMedTimes && pendingMedConfirm) {
+                      setPendingMedConfirm({
+                        ...pendingMedConfirm,
+                        data: { ...pendingMedConfirm.data, schedule_times: editingMedTimes },
+                      });
+                      setEditingMedTimes(null);
+                    }
+                  }}
+                  className="flex-1 btn-primary"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
