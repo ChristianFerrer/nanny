@@ -7,6 +7,13 @@ const PUBLIC_PATHS = ['/login'];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // E2E test mode: bypass auth completamente. Solo se activa cuando
+  // E2E_TEST_MODE=true (workflow GH Actions). Permite que los tests
+  // accedan a /chat sin Supabase real.
+  if (process.env.E2E_TEST_MODE === 'true') {
+    return NextResponse.next();
+  }
+
   // Allow public paths and API routes
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.includes('.')) {
     return NextResponse.next();
