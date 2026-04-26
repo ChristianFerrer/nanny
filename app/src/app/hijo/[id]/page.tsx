@@ -97,7 +97,7 @@ export default function HijoDetailPage() {
         <div className="flex items-center gap-4">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center text-large-title font-semibold text-white shadow-sm shrink-0"
-            style={{ background: 'var(--nanny-purple)' }}
+            style={{ background: child.color || 'var(--nanny-purple)' }}
           >
             {child.name.charAt(0).toUpperCase()}
           </div>

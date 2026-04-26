@@ -34,6 +34,7 @@ CREATE TABLE children (
   name TEXT NOT NULL,
   birth_date DATE,
   emoji TEXT DEFAULT '👶',
+  color TEXT,
   school TEXT,
   teacher TEXT,
   grade TEXT,

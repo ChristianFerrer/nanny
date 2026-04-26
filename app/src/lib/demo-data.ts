@@ -47,13 +47,13 @@ export const demoParents: Parent[] = [
 export const demoChildren: Child[] = [
   {
     id: PAU_ID, family_id: FAMILY_ID, name: 'Pau', birth_date: '2021-03-15',
-    emoji: '🧒', school: 'Colegio San José', teacher: 'Miss Ana',
+    emoji: '🧒', color: null, school: 'Colegio San José', teacher: 'Miss Ana',
     grade: '1° Preescolar', allergies: ['Cacahuate'], medical_notes: 'Alergia leve al cacahuate',
     personality_notes: 'Muy sociable, le gusta dibujar', created_at: new Date().toISOString(),
   },
   {
     id: MIA_ID, family_id: FAMILY_ID, name: 'Mía', birth_date: '2023-08-20',
-    emoji: '👧', school: null, teacher: null, grade: null, allergies: [],
+    emoji: '👧', color: null, school: null, teacher: null, grade: null, allergies: [],
     medical_notes: null, personality_notes: 'Muy curiosa, empezando a hablar',
     created_at: new Date().toISOString(),
   },

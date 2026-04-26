@@ -79,6 +79,7 @@ export interface Child {
   name: string;
   birth_date: string | null;
   emoji: string;
+  color: string | null;
   school: string | null;
   teacher: string | null;
   grade: string | null;

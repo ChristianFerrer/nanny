@@ -198,7 +198,6 @@ function PerfilInner() {
     const data = {
       name: childName,
       birth_date: childBirthDate || null,
-      emoji: childColor,
       color: childColor,
       school: childSchool || null,
       teacher: childTeacher || null,
@@ -221,7 +220,7 @@ function PerfilInner() {
       family_id: family.id,
       name: childName,
       birth_date: childBirthDate || null,
-      emoji: childColor,
+      emoji: '👶',
       color: childColor,
       school: childSchool || null,
       teacher: childTeacher || null,
