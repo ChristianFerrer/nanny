@@ -132,6 +132,8 @@ evaluation (10 convs) → saving → diagnosis (OpenAI) → reeval (10 convs) �
 | `20260408_autopilot_jobs.sql` | Tabla de jobs de autopilot |
 | `20260409_autopilot_jobs_lock.sql` | Columnas locked_until + last_heartbeat |
 | `20260409_prompt_rules.sql` | Tabla prompt_rules_state (singleton) |
+| `20260426_children_color.sql` | Columna `color` en `children` (avatar del hijo) |
+| `20260426_cleanup_children_emoji_hex.sql` | Cleanup: mueve códigos hex de `emoji` a `color` |
 
 ### Estado actual del autopilot (abril 2026)
 - La evaluación (10/10 conversaciones) funciona correctamente

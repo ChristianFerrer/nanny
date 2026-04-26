@@ -225,9 +225,9 @@ Hallazgos consolidados pantalla por pantalla:
 - Supabase (Postgres + Auth)
 - OpenAI `gpt-4o-mini` para chat
 - Tailwind CSS 4 (mobile-first, max 430px)
-- Deploy en Vercel desde `claude/analyze-parenting-whatsapp-app-cYaTb`
+- Deploy en Vercel desde `claude/continue-previous-session-OleqU`
 
-> **Atención:** Vercel deploya desde `claude/analyze-parenting-whatsapp-app-cYaTb`, no desde esta branch. El rediseño solo aterriza en producción cuando se merge.
+> **Atención:** Vercel deploya desde `claude/continue-previous-session-OleqU`. Para que el rediseño aterrice en producción hay que hacer push (o merge) a esa branch.
 
 ---
 
@@ -282,7 +282,7 @@ Marcar tareas completadas con `[x]` y mover el batch a la sección "Hechos" con 
 ## 7. Riesgos y consideraciones
 
 1. **Tamaño de `chat/page.tsx`** (1548 líneas): el batch 6 va a requerir refactor real, no solo rediseño. Presupuestar tiempo para extraer componentes antes de tocar UI.
-2. **Vercel deploya desde otra branch:** ningún cambio del rediseño se ve en producción hasta merge. Confirmar con el equipo cuándo y cómo se hace ese merge.
+2. **Sincronización entre branches:** el trabajo del rediseño vive en `claude/continue-markdown-docs-JmrP4` pero Vercel deploya desde `claude/continue-previous-session-OleqU`. Mantener ambas en sync para que sesiones futuras no se confundan.
 3. **Lógica de chat acoplada al UI:** el chat tiene buffering, polling, intent detection y medication flow mezclados con render. El batch 6a (refactor) es prerequisito real para 6b (visual).
 4. **Dark mode (Batch 7):** los tokens CSS están listos en `globals.css` pero ninguna pantalla usa `dark:` variants. Aplicar de forma sistemática al final.
 5. **A11y:** `user-scalable=no` ya está corregido en layout, pero queda pendiente revisar contraste, focus visible, ARIA.
