@@ -113,64 +113,37 @@ Hallazgos consolidados pantalla por pantalla:
 | `9b6b3c2` | `app/src/app/login/page.tsx` | Segmented control, forgot password real con Supabase, indicador de fuerza, errores con icono `AlertTriangle`, reset solo en `NODE_ENV=development` |
 | `bf3023a` | `app/src/app/onboarding/page.tsx` | Bienvenida con 3 features animadas + CTA al chat (mantiene chat conversacional) |
 
-### ⏳ Batch 3 — Daily / Week (PENDIENTE)
+> **NOTA (sesión 2026-04-26):** El plan original de 7 batches se reorganizó en **14 micro-batches** (A1-A4, B1-B2, C1-C2, D1-D2, E1-E5, F1) tras detectar que `Write` de archivos completos causaba timeouts. Estrategia nueva: `Edit` quirúrgico + 1 commit por micro-batch.
 
-**Archivos:**
-- `app/src/app/hoy/page.tsx` — 719 líneas
-- `app/src/app/semana/page.tsx` — 432 líneas
+### ✅ Grupo A — Hoy (HECHO)
 
-**Cambios requeridos en `hoy/page.tsx`:**
-- [ ] Header neutro estilo Apple (revisar convención purple vs white)
-- [ ] Empty states con ilustración simple + CTA ("Cuéntale a Nanny qué tienes hoy")
-- [ ] Toast de confirmación "Evento creado ✓" tras guardar
-- [ ] Reminders rediseñados como cards individuales con acción (snooze/dismiss)
-- [ ] FAB con `bottom: calc(5rem + env(safe-area-inset-bottom))`
-- [ ] Event icons 16-18px con labels visibles
-- [ ] Bottom sheet en lugar de modal fullscreen para creación
-- [ ] Skeleton loader mientras carga
-- [ ] Time picker custom (no HTML5 nativo)
+| Micro-batch | Commit | Detalle |
+|---|---|---|
+| **A1** | `2e44744` | Header Apple-style large title + skeleton loader |
+| **A2** | `dec4e17` | Empty states con CTA + toast confirmación |
+| **A3** | `23aa552` | Reminders rediseñados como cards individuales con acciones (snooze/Listo) |
+| **A4** | `a5c3520` | Bottom sheet de creación + FAB safe-area + event icons 18px |
 
-**Cambios requeridos en `semana/page.tsx`:**
-- [ ] Day labels a 12px mínimo, formato "Lun Mar Mié…" en lugar de letras solas
-- [ ] Mini-timeline debajo de cada day pill mostrando bloques de color por horas ocupadas
-- [ ] Tasks sin fecha como badge en el header con acceso rápido (no relegadas al final)
-- [ ] FAB consistente con `/hoy`
-- [ ] Cambiar toggle a selección radio (siempre un día seleccionado)
-- [ ] Skeleton loader
+### ✅ Grupo B — Semana (HECHO)
 
-### ⏳ Batch 4 — Hijos (PENDIENTE)
+| Micro-batch | Commit | Detalle |
+|---|---|---|
+| **B1** | `57b3ab1` | Day pills 12px + formato 3-letras + radio selection + skeleton + glass header |
+| **B2** | `c544615` | Mini-timeline 6 segmentos por día + FAB de creación + tasks-sin-fecha como badge |
 
-**Archivos:**
-- `app/src/app/hijo/page.tsx` — 100 líneas
-- `app/src/app/hijo/[id]/page.tsx` — 289 líneas
+### ✅ Grupo C — Hijos (HECHO)
 
-**Cambios requeridos en `hijo/page.tsx`:**
-- [ ] Botón "+" flotante o en header para agregar hijo
-- [ ] Badges con label ("2 eventos", "1 medicamento") en lugar de solo iconos
-- [ ] Indicador visual si el hijo tiene algo urgente (punto rojo o borde amber)
-- [ ] Rediseñar cards como mini-dashboards: avatar grande + nombre + fila de stats (eventos hoy / tareas / medicamentos)
-- [ ] Skeleton loader
+| Micro-batch | Commit | Detalle |
+|---|---|---|
+| **C1** | `ff0e770` | Lista mini-dashboard + FAB add + skeleton + empty state + indicador urgencia |
+| **C2** | `5e666d7` | Detalle: segmented tabs + ver agenda completa + allergies neutras + skeleton |
 
-**Cambios requeridos en `hijo/[id]/page.tsx`:**
-- [ ] "Ver agenda completa →" link debajo de los 5 eventos
-- [ ] Edición de rutinas (botón "+ agregar rutina")
-- [ ] Allergias en badge neutral (gray) con icono de alerta solo si severa
-- [ ] Botón "Editar perfil" visible en el header
-- [ ] Usar `router.back()` para navegación natural
-- [ ] Tabs estilo Apple (segmented control)
+### ✅ Grupo D — Perfil (HECHO)
 
-### ⏳ Batch 5 — Perfil (PENDIENTE)
-
-**Archivo:** `app/src/app/perfil/page.tsx` — 457 líneas
-
-**Cambios:**
-- [ ] Cambiar todos los modales fullscreen por bottom sheets
-- [ ] Confirmación de logout ("¿Seguro que quieres salir?")
-- [ ] Opción de eliminar hijo con confirmación doble (irreversible)
-- [ ] Formato de teléfono con máscara (o al menos validación)
-- [ ] Toast de confirmación "Cambios guardados ✓"
-- [ ] Secciones con estilo Apple list row (chevron, ícono left, label clean)
-- [ ] Color picker rediseñado más sobrio
+| Micro-batch | Commit | Detalle |
+|---|---|---|
+| **D1** | `ed2f611` | Bottom sheets + header Apple + list-rows + query params (?addChild, ?editChild) |
+| **D2** | `47bcce5` | Confirm logout/delete + phone mask + toast saved + `deleteChild` en store |
 
 ### ⏳ Batch 6 — Chat (PENDIENTE — RECOMENDADO EN SESIÓN PROPIA)
 
