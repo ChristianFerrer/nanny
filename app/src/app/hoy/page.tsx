@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon, BellOff, BellRing } from 'lucide-react';
 import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
@@ -53,10 +53,15 @@ export default function HoyPage() {
   const [undoToast, setUndoToast] = useState<{ taskId: string; title: string } | null>(null);
   const [loading, setLoading] = useState(!_snap);
   const [confirmToast, setConfirmToast] = useState<string | null>(null);
+  const [dismissedReminders, setDismissedReminders] = useState<Set<string>>(new Set());
 
   const showConfirmToast = (msg: string) => {
     setConfirmToast(msg);
     setTimeout(() => setConfirmToast(null), 2400);
+  };
+
+  const dismissReminder = (id: string) => {
+    setDismissedReminders(prev => new Set(prev).add(id));
   };
 
   const loadData = useCallback(async () => {
@@ -183,11 +188,11 @@ export default function HoyPage() {
 
   // Reminders: overdue tasks + events within next 2 hours
   const now = new Date();
-  const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < now);
+  const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < now && !dismissedReminders.has(`task-${t.id}`));
   const soonEvents = todayEvents.filter(e => {
     const eventTime = new Date(e.date_start);
     const diffMs = eventTime.getTime() - now.getTime();
-    return diffMs > 0 && diffMs <= 2 * 60 * 60 * 1000; // within 2 hours
+    return diffMs > 0 && diffMs <= 2 * 60 * 60 * 1000 && !dismissedReminders.has(`event-${e.id}`);
   });
   const hasReminders = overdueTasks.length > 0 || soonEvents.length > 0;
 
@@ -366,28 +371,57 @@ export default function HoyPage() {
       </header>
 
       <div className="px-4 py-2 space-y-5 pb-24">
-        {/* Reminders */}
+        {/* Reminders — individual cards con acciones */}
         {hasReminders && (
-          <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <h2 className="text-sm font-semibold text-amber-700 mb-2 flex items-center gap-1">
-              <AlertTriangle size={14} /> RECORDATORIOS
+          <section>
+            <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
+              <BellRing size={12} /> Recordatorios
             </h2>
             <div className="space-y-2">
               {soonEvents.map(e => {
                 const mins = Math.round((new Date(e.date_start).getTime() - now.getTime()) / 60000);
                 return (
-                  <div key={e.id} className="flex items-center gap-2 text-sm text-amber-800">
-                    <Clock size={14} />
-                    <span className="font-medium">{e.title}</span>
-                    <span className="text-xs text-amber-600">en {mins} min</span>
+                  <div key={`event-${e.id}`} className="card flex items-center gap-3 animate-fade-in">
+                    <div className="w-9 h-9 rounded-xl bg-[var(--warning-soft)] flex items-center justify-center shrink-0">
+                      <Clock size={16} className="text-[var(--warning)]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-subhead text-[var(--text-primary)] truncate">{e.title}</p>
+                      <p className="text-footnote text-[var(--text-tertiary)]">En {mins} min · evento próximo</p>
+                    </div>
+                    <button
+                      onClick={() => dismissReminder(`event-${e.id}`)}
+                      aria-label="Descartar recordatorio"
+                      className="w-8 h-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring"
+                    >
+                      <BellOff size={14} />
+                    </button>
                   </div>
                 );
               })}
               {overdueTasks.map(t => (
-                <div key={t.id} className="flex items-center gap-2 text-sm text-red-700">
-                  <AlertTriangle size={14} />
-                  <span className="font-medium">{t.title}</span>
-                  <span className="text-xs text-red-500">vencida</span>
+                <div key={`task-${t.id}`} className="card flex items-center gap-3 animate-fade-in">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--danger-soft)] flex items-center justify-center shrink-0">
+                    <AlertTriangle size={16} className="text-[var(--danger)]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-subhead text-[var(--text-primary)] truncate">{t.title}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)]">Tarea vencida</p>
+                  </div>
+                  <button
+                    onClick={() => { handleComplete(t.id); }}
+                    aria-label="Marcar como completada"
+                    className="btn btn-tinted btn-sm"
+                  >
+                    <CheckCircle2 size={14} /> Listo
+                  </button>
+                  <button
+                    onClick={() => dismissReminder(`task-${t.id}`)}
+                    aria-label="Descartar recordatorio"
+                    className="w-8 h-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring"
+                  >
+                    <BellOff size={14} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -397,8 +431,8 @@ export default function HoyPage() {
         {/* Active treatments */}
         {medications.filter(m => m.status === 'active').length > 0 && (
           <section>
-            <h2 className="text-sm font-semibold text-[var(--nanny-purple)] mb-2 flex items-center gap-1">
-              <Pill size={14} /> TRATAMIENTOS ACTIVOS
+            <h2 className="text-caption text-[var(--nanny-purple)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
+              <Pill size={12} /> Tratamientos activos
             </h2>
             <div className="space-y-2">
               {medications.filter(m => m.status === 'active').map(med => {
@@ -437,8 +471,8 @@ export default function HoyPage() {
 
         {/* Today's events */}
         <section>
-          <h2 className="text-sm font-semibold text-[var(--nanny-gray)] mb-2 flex items-center gap-1">
-            <CalendarDays size={14} /> HOY
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
+            <CalendarDays size={12} /> Hoy
           </h2>
           {todayEvents.length === 0 ? (
             <div className="card-flat text-center py-8 px-5">
@@ -462,8 +496,8 @@ export default function HoyPage() {
 
         {/* Tasks */}
         <section>
-          <h2 className="text-sm font-semibold text-[var(--nanny-gray)] mb-2 flex items-center gap-1">
-            <CheckSquare size={14} /> TAREAS PENDIENTES ({tasks.length})
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
+            <CheckSquare size={12} /> Tareas pendientes <span className="text-[var(--text-quaternary)] normal-case">· {tasks.length}</span>
           </h2>
           {tasks.length === 0 ? (
             <div className="card-flat text-center py-8 px-5">
@@ -505,8 +539,8 @@ export default function HoyPage() {
         {/* Upcoming */}
         {upcomingEvents.length > 0 && (
           <section>
-            <h2 className="text-sm font-semibold text-[var(--nanny-gray)] mb-2">
-              PROXIMOS DIAS
+            <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider">
+              Próximos días
             </h2>
             <div className="space-y-2">
               {upcomingEvents.map(event => (
