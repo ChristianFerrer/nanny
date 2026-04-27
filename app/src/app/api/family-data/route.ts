@@ -93,6 +93,33 @@ export async function GET(req: NextRequest) {
           .then(({ data }) => { result.medications = data || []; }) as Promise<void>
       );
     }
+    // Routines and routine_exceptions: ambas dependen de la lista de hijos.
+    // Usamos un fetch encadenado dentro de la misma promesa para no perder
+    // paralelismo con los otros queries.
+    if (tables.includes('routines') || tables.includes('routine_exceptions')) {
+      const wantRoutines = tables.includes('routines');
+      const wantExceptions = tables.includes('routine_exceptions');
+      queries.push((async () => {
+        const { data: kids } = await admin.from('children').select('id').eq('family_id', familyId);
+        const childIds = (kids || []).map(k => k.id);
+        if (childIds.length === 0) {
+          if (wantRoutines) result.routines = [];
+          if (wantExceptions) result.routineExceptions = [];
+          return;
+        }
+        const { data: routines } = await admin.from('routines').select('*').in('child_id', childIds).eq('active', true);
+        if (wantRoutines) result.routines = routines || [];
+        if (wantExceptions) {
+          const routineIds = (routines || []).map(r => r.id);
+          if (routineIds.length === 0) {
+            result.routineExceptions = [];
+          } else {
+            const { data: exceptions } = await admin.from('routine_exceptions').select('*').in('routine_id', routineIds);
+            result.routineExceptions = exceptions || [];
+          }
+        }
+      })());
+    }
     if (tables.includes('messages')) {
       const since = req.nextUrl.searchParams.get('since');
       let query = admin.from('messages').select('*').eq('family_id', familyId);

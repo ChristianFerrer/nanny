@@ -1,6 +1,6 @@
 // State management — all data goes through API routes (admin client, bypasses RLS)
 
-import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, Medication, MedicationIntake, MedicationIntakeStatus } from './types';
+import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, RoutineException, Medication, MedicationIntake, MedicationIntakeStatus } from './types';
 
 // Track current family and parent
 let _currentFamilyId: string | null = null;
@@ -126,6 +126,8 @@ export function getCachedSnapshot(): {
   events: FamilyEvent[];
   tasks: Task[];
   medications: Medication[];
+  routines: Routine[];
+  routineExceptions: RoutineException[];
   messages: Message[];
   currentParentId: string | null;
 } | null {
@@ -136,6 +138,8 @@ export function getCachedSnapshot(): {
   const evts = getCached('events') as Record<string, unknown> | null;
   const tsks = getCached('tasks') as Record<string, unknown> | null;
   const meds = getCached('medications') as Record<string, unknown> | null;
+  const rts = getCached('routines') as Record<string, unknown> | null;
+  const rex = getCached('routine_exceptions') as Record<string, unknown> | null;
   const msgs = getCached('messages') as Record<string, unknown> | null;
   if (!fam) return null;
   return {
@@ -145,6 +149,8 @@ export function getCachedSnapshot(): {
     events: (evts?.events as FamilyEvent[]) || [],
     tasks: (tsks?.tasks as Task[]) || [],
     medications: (meds?.medications as Medication[]) || [],
+    routines: (rts?.routines as Routine[]) || [],
+    routineExceptions: (rex?.routineExceptions as RoutineException[]) || [],
     messages: (msgs?.messages as Message[]) || [],
     currentParentId: _currentParentId,
   };
@@ -320,12 +326,31 @@ export async function upsertIntake(
   return (result.data || newIntake) as MedicationIntake;
 }
 
-export async function getRoutines(childId: string): Promise<Routine[]> {
-  const children = await getChildren();
-  const child = children.find(c => c.id === childId);
-  if (!child) return [];
-  // TODO: add routines to family-data endpoint if needed
-  return [];
+export async function getRoutines(childId?: string): Promise<Routine[]> {
+  const data = await fetchFamilyData(['routines']);
+  const all = (data.routines as Routine[]) || [];
+  return childId ? all.filter(r => r.child_id === childId) : all;
+}
+
+export async function getRoutineExceptions(): Promise<RoutineException[]> {
+  const data = await fetchFamilyData(['routine_exceptions']);
+  return (data.routineExceptions as RoutineException[]) || [];
+}
+
+export async function addRoutine(routine: Omit<Routine, 'id' | 'created_at'>): Promise<Routine> {
+  const newRoutine = { ...routine, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  const result = await writeData('routines', 'insert', newRoutine as unknown as Record<string, unknown>);
+  invalidateCache('routines');
+  notify();
+  return (result.data || newRoutine) as Routine;
+}
+
+export async function addRoutineException(exception: Omit<RoutineException, 'id' | 'created_at'>): Promise<RoutineException> {
+  const newException = { ...exception, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  const result = await writeData('routine_exceptions', 'insert', newException as unknown as Record<string, unknown>);
+  invalidateCache('routine_exceptions');
+  notify();
+  return (result.data || newException) as RoutineException;
 }
 
 export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created_at'>>): Promise<void> {

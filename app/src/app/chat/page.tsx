@@ -4,14 +4,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getRoutines, getRoutineExceptions, addRoutine, addRoutineException, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
 import { detectBrowserTimezone } from '@/lib/timezone';
 import { formatAge } from '@/lib/age';
 import { callChatStream } from '@/lib/chat-stream';
-import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
+import type { Message, Parent, Child, FamilyEvent, Task, Medication, Routine, RoutineException, NannyIntent } from '@/lib/types';
 
 // --- Onboarding types ---
 interface OnboardingExtracted {
@@ -111,6 +111,8 @@ export default function ChatPage() {
   const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
   const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
   const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [routines, setRoutines] = useState<Routine[]>(_snap?.routines || []);
+  const [routineExceptions, setRoutineExceptions] = useState<RoutineException[]>(_snap?.routineExceptions || []);
   const [familyId, setFamilyId] = useState<string>(_snap?.family?.id || '');
   const [input, setInput] = useState('');
   const [currentParent, setCurrentParent] = useState<string>(_snap?.currentParentId || '');
@@ -310,8 +312,9 @@ export default function ChatPage() {
       // (el síntoma reportado: "los últimos 2 mensajes aparecen segundos
       // después como segunda carga").
       invalidateTableCache('messages');
-      const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
+      const [fam, msgs, prts, chld, evts, tsks, meds, rts, rex] = await Promise.all([
         getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
+        getRoutines(), getRoutineExceptions(),
       ]);
       if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
@@ -321,6 +324,8 @@ export default function ChatPage() {
       setEvents(evts);
       setTasks(tsks);
       setMedications(meds);
+      setRoutines(rts);
+      setRoutineExceptions(rex);
       if (prts.length > 0 && !currentParent) {
         const myParentId = getCurrentParentId();
         const matchedParent = myParentId && prts.find(p => p.id === myParentId);
@@ -663,6 +668,16 @@ export default function ChatPage() {
     const activeMeds = medications.filter(m => m.status === 'active').map(m =>
       `- ${m.medication_name} para ${m.child_name} (${m.frequency || ''}, horarios: ${m.schedule_times?.join(', ') || 'N/A'}, ${m.start_date} al ${m.end_date || '?'})`
     ).join('\n');
+    // Rutinas activas con id literal para que el extractor pueda referenciarlas
+    // como routine_id en confirmaciones de tipo routine_exception.
+    const dayShort = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const existingRoutinesStr = routines.filter(r => r.active).map(r => {
+      const child = children.find(c => c.id === r.child_id);
+      const days = r.days_of_week.map(d => dayShort[d]).join(',');
+      const time = r.time_start && r.time_end ? `${r.time_start.slice(0,5)}-${r.time_end.slice(0,5)}`
+        : r.time_start ? r.time_start.slice(0,5) : '';
+      return `- ${r.id}: ${child?.name || ''} · ${r.name} · ${days}${time ? ' ' + time : ''}`;
+    }).join('\n');
 
     try {
       await callChatStream(
@@ -673,6 +688,7 @@ export default function ChatPage() {
           existingEvents: existingEventsStr,
           existingTasks: existingTasksStr,
           activeMedications: activeMeds || 'Ninguno',
+          existingRoutines: existingRoutinesStr || 'Ninguna',
           senderName: currentParentObj?.name || 'Padre',
           senderRole: currentParentObj?.role || 'mama',
           pendingDetection,
@@ -769,9 +785,42 @@ export default function ChatPage() {
                   } else {
                     showToast(`Tarea creada: ${confData.title}`, `/tarea/${newTask.id}`);
                   }
+                } else if (type === 'routine') {
+                  const childName = String(confData.child_name || '');
+                  const childMatch = children.find(c => c.name.toLowerCase() === childName.toLowerCase());
+                  if (childMatch) {
+                    const newRoutine = await addRoutine({
+                      child_id: childMatch.id,
+                      type: (confData.type as string) || 'custom',
+                      name: (confData.name as string) || 'Rutina',
+                      description: null,
+                      days_of_week: Array.isArray(confData.days_of_week) ? confData.days_of_week as number[] : [],
+                      time_start: (confData.time_start as string) || null,
+                      time_end: (confData.time_end as string) || null,
+                      active: true,
+                    });
+                    setRoutines(prev => [...prev, newRoutine]);
+                    showToast(`Rutina agregada: ${newRoutine.name}`, `/hijo/${childMatch.id}`);
+                  }
+                } else if (type === 'routine_exception') {
+                  const routineId = String(confData.routine_id || '');
+                  const date = String(confData.date || '');
+                  if (routineId && date) {
+                    const newException = await addRoutineException({
+                      routine_id: routineId,
+                      date,
+                      cancelled: confData.cancelled !== false,
+                      time_start_override: (confData.time_start_override as string) || null,
+                      time_end_override: (confData.time_end_override as string) || null,
+                      reason: (confData.reason as string) || null,
+                    });
+                    setRoutineExceptions(prev => [...prev, newException]);
+                    const routine = routines.find(r => r.id === routineId);
+                    showToast(`${routine?.name || 'Rutina'}: día cancelado`, '/agenda');
+                  }
                 }
               } catch {
-                console.error('Failed to auto-create event/task');
+                console.error('Failed to auto-create event/task/routine');
               }
             }
 

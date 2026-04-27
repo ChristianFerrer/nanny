@@ -336,6 +336,7 @@ Helpers disponibles:
 | `20260427_families_timezone.sql` | Columna `timezone` en `families` (default Argentina; usada por morning-brief) |
 | `20260427_families_timezone_manual_flag.sql` | Columna `timezone_set_manually` en `families` (lock para auto-detect) |
 | `20260427_tasks_parent.sql` | Columna `parent_task_id` en `tasks` (self-reference) para agrupar sub-actividades bajo tarea paraguas |
+| `20260427_routine_exceptions.sql` | Tabla `routine_exceptions`: overrides puntuales de rutinas (cancelar un día / cambiar horario para una fecha específica) |
 
 ---
 

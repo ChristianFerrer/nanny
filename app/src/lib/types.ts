@@ -46,6 +46,11 @@ export interface Database {
         Insert: Omit<Routine, 'id' | 'created_at'>;
         Update: Partial<Omit<Routine, 'id'>>;
       };
+      routine_exceptions: {
+        Row: RoutineException;
+        Insert: Omit<RoutineException, 'id' | 'created_at'>;
+        Update: Partial<Omit<RoutineException, 'id'>>;
+      };
       intervention_feedback: {
         Row: InterventionFeedback;
         Insert: Omit<InterventionFeedback, 'id' | 'created_at'>;
@@ -200,6 +205,17 @@ export interface Routine {
   time_start: string | null;
   time_end: string | null;
   active: boolean;
+  created_at: string;
+}
+
+export interface RoutineException {
+  id: string;
+  routine_id: string;
+  date: string; // YYYY-MM-DD
+  cancelled: boolean;
+  time_start_override: string | null;
+  time_end_override: string | null;
+  reason: string | null;
   created_at: string;
 }
 

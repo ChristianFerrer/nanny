@@ -18,6 +18,7 @@ export interface ExtractorInput {
   existingEvents: string;
   existingTasks: string;
   activeMedications: string;
+  existingRoutines: string;
   pendingDetection: Record<string, unknown> | null;
   currentDate: string;
 }
@@ -45,6 +46,7 @@ CONTEXTO FAMILIAR:
 EVENTOS AGENDADOS: {existing_events}
 TAREAS PENDIENTES: {existing_tasks}
 MEDICAMENTOS ACTIVOS: {active_medications}
+RUTINAS SEMANALES: {existing_routines}
 
 MENSAJES RECIENTES:
 {recent_messages}
@@ -143,18 +145,50 @@ REGLAS DE EXTRACCIÓN:
 
     Reply en este caso reporta el receipt agrupado: "Anotado bajo «Cumpleaños Pau»: 2 hechas, 2 pendientes."
 
+11. **RUTINAS SEMANALES** (type=routine):
+    Cuando el padre describe un horario FIJO/RECURRENTE de un hijo (guardería, colegio,
+    natación los martes, fútbol los miércoles), eso NO es un evento — es una RUTINA.
+    Crea confirmation con type="routine", data: {
+      child_name, name, days_of_week (array 0=domingo..6=sábado), time_start (HH:MM),
+      time_end (HH:MM), type ("school"|"activity"|"meal"|"morning"|"afternoon"|"night"|"custom")
+    }
+    Ejemplos:
+    - "Pau va a la guardería de lunes a viernes de 9 a 17" → routine {
+        child_name: "Pau", name: "Guardería", days_of_week: [1,2,3,4,5],
+        time_start: "09:00", time_end: "17:00", type: "school" }
+    - "Lucía tiene fútbol los martes y jueves a las 18" → routine {
+        child_name: "Lucía", name: "Fútbol", days_of_week: [2,4],
+        time_start: "18:00", time_end: null, type: "activity" }
+
+12. **CANCELACIÓN PUNTUAL DE RUTINA** (type=routine_exception):
+    Cuando el mensaje cancela o modifica UN día específico de una rutina existente
+    ("el viernes no hay guardería", "este martes Lucía no va a fútbol", "Pau se queda en casa el lunes"),
+    busca la rutina en RUTINAS SEMANALES que coincida (por hijo + tipo de actividad) y emite:
+    confirmation con type="routine_exception", data: {
+      routine_id (el id literal de la rutina del listado),
+      date (YYYY-MM-DD),
+      cancelled: true,
+      reason ("se queda en casa", "feriado", etc. — opcional)
+    }
+    Si NO existe una rutina que coincida, NO inventes una excepción.
+    Si NO existe rutina pero la conversación habla de un cambio de horario, intent=SCHEDULE_CHANGE
+    y reply: pregunta breve "¿Querés que registre [actividad] como rutina semanal de [hijo]?"
+    sin crear confirmation. NO digas "anotado" si no hay nada concreto que registrar.
+
 FORMATO DE RESPUESTA (solo JSON puro):
 {
   "reply": "mensaje de Nanny",
   "intent": "INTENT_TYPE",
-  "next_action": "confirm_event|confirm_task|confirm_medication|ask_for_missing_time|ask_for_missing_responsible_parent|update_existing_event|update_existing_task|offer_reminders|stay_silent",
+  "next_action": "confirm_event|confirm_task|confirm_medication|confirm_routine|cancel_routine_date|ask_for_missing_time|ask_for_missing_responsible_parent|update_existing_event|update_existing_task|offer_reminders|stay_silent",
   "child": "nombre o null",
   "confirmation": null o {
-    "type": "event|task|medication",
+    "type": "event|task|medication|routine|routine_exception",
     "data": {
       // event: title, event_type (doctor|school|birthday|activity|travel|other), date_start (ISO), date_description, location, assigned_to
       // task: title, assigned_to, due_date, status ("pending"|"done"), completed_at (si done)
       // medication: medication_name, duration_days, start_date, end_date, frequency, schedule_times
+      // routine: child_name, name, days_of_week (int[]), time_start, time_end, type
+      // routine_exception: routine_id, date (YYYY-MM-DD), cancelled, reason
     }
   },
   "additional_confirmations": [],
@@ -186,6 +220,7 @@ export async function extractData(
     .replace('{existing_events}', input.existingEvents || 'Ninguno')
     .replace('{existing_tasks}', input.existingTasks || 'Ninguna')
     .replace('{active_medications}', input.activeMedications || 'Ninguno')
+    .replace('{existing_routines}', input.existingRoutines || 'Ninguna')
     .replace('{recent_messages}', input.recentMessages || 'Ninguno')
     .replace('{pending_detection}', pendingStr);
 

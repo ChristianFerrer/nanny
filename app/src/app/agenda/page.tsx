@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Clock, MapPin, Circle, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, Plus, Settings } from 'lucide-react';
-import { getEvents, getChildren, getTasks, getMedications, completeTask, getCachedSnapshot } from '@/lib/store';
-import type { FamilyEvent, Child, Task, Medication } from '@/lib/types';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Circle, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, Plus, Settings, Repeat } from 'lucide-react';
+import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot } from '@/lib/store';
+import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
 
 export default function AgendaPage() {
   const router = useRouter();
@@ -14,6 +14,8 @@ export default function AgendaPage() {
   const [children, setChildren] = useState<Child[]>(_snap?.children || []);
   const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
   const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [routines, setRoutines] = useState<Routine[]>(_snap?.routines || []);
+  const [routineExceptions, setRoutineExceptions] = useState<RoutineException[]>(_snap?.routineExceptions || []);
   const [weekOffset, setWeekOffset] = useState(0);
   // Default: today selected (radio); user can switch to full-week via "Toda la semana"
   const todayInitialIdx = (() => {
@@ -25,11 +27,16 @@ export default function AgendaPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [e, c, t, m] = await Promise.all([getEvents(), getChildren(), getTasks(), getMedications()]);
+      const [e, c, t, m, r, rx] = await Promise.all([
+        getEvents(), getChildren(), getTasks(), getMedications(),
+        getRoutines(), getRoutineExceptions(),
+      ]);
       setEvents(e);
       setChildren(c);
       setTasks(t);
       setMedications(m);
+      setRoutines(r);
+      setRoutineExceptions(rx);
     } catch {
       window.location.href = '/login';
     } finally {
@@ -258,9 +265,23 @@ export default function AgendaPage() {
             return ed.toDateString() === day.toDateString();
           });
           const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
+
+          // Routines: expandir las que aplican a este día de la semana,
+          // excluyendo las que tienen excepción cancelada para esta fecha.
+          // days_of_week sigue la convención JS: 0=domingo, 1=lunes, ...
+          const dow = day.getDay();
+          const dayIso = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+          const dayRoutines = routines
+            .filter(r => r.active && r.days_of_week.includes(dow))
+            .map(r => {
+              const exception = routineExceptions.find(rx => rx.routine_id === r.id && rx.date === dayIso);
+              return { routine: r, exception };
+            })
+            .filter(({ exception }) => !exception || !exception.cancelled);
+
           const isToday = day.toDateString() === today.toDateString();
           const isPast = day < today && !isToday;
-          const hasNothing = dayEvents.length === 0 && dayTasks.length === 0;
+          const hasNothing = dayEvents.length === 0 && dayTasks.length === 0 && dayRoutines.length === 0;
 
           // Smart label: HOY / MAÑANA / nombre del día
           const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
@@ -320,6 +341,42 @@ export default function AgendaPage() {
                             </div>
                           </div>
                           {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {dayRoutines.map(({ routine, exception }) => {
+                    const child = getChild(routine.child_id);
+                    const start = exception?.time_start_override || routine.time_start;
+                    const end = exception?.time_end_override || routine.time_end;
+                    const timeLabel = start && end ? `${start.slice(0, 5)} – ${end.slice(0, 5)}` : start ? start.slice(0, 5) : '';
+                    return (
+                      <div
+                        key={routine.id}
+                        onClick={() => child && router.push(`/hijo/${child.id}`)}
+                        className="rounded-xl p-3 border-l-4 cursor-pointer active:scale-[0.98] transition-transform"
+                        style={{
+                          background: 'var(--gray-50)',
+                          borderLeftColor: 'var(--nanny-purple)',
+                          borderLeftStyle: 'dashed',
+                        }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="w-7 h-7 rounded-lg bg-[var(--nanny-purple-tint)] flex items-center justify-center shrink-0">
+                            <Repeat size={14} className="text-[var(--nanny-purple)]" />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-[var(--text-secondary)]">{routine.name}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-tertiary)]">
+                              {timeLabel && (
+                                <span className="flex items-center gap-0.5">
+                                  <Clock size={10} /> {timeLabel}
+                                </span>
+                              )}
+                              <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nanny-purple)]">Rutina</span>
+                            </div>
+                          </div>
+                          {child && <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: child.color || 'var(--nanny-purple)' }}>{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );

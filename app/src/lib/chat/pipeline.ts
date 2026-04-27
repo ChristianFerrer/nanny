@@ -321,6 +321,7 @@ async function runExtraction(
     existingEvents: input.existingEvents,
     existingTasks: input.existingTasks,
     activeMedications: input.activeMedications,
+    existingRoutines: input.existingRoutines || '',
     pendingDetection: input.pendingDetection,
     currentDate,
   }, model);

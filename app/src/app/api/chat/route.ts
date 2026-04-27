@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     existingEvents: (body.existingEvents as string) || 'Ninguno',
     existingTasks: (body.existingTasks as string) || 'Ninguna',
     activeMedications: (body.activeMedications as string) || 'Ninguno',
+    existingRoutines: (body.existingRoutines as string) || 'Ninguna',
     senderName: (body.senderName as string) || 'Padre',
     senderRole: (body.senderRole as 'mama' | 'papa') || 'mama',
     pendingDetection: (body.pendingDetection as Record<string, unknown> | null) || null,

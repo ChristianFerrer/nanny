@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-const ALLOWED_TABLES = ['families', 'parents', 'children', 'events', 'tasks', 'messages', 'routines', 'intervention_feedback', 'medications', 'medication_intakes'];
+const ALLOWED_TABLES = ['families', 'parents', 'children', 'events', 'tasks', 'messages', 'routines', 'routine_exceptions', 'intervention_feedback', 'medications', 'medication_intakes'];
 
 async function getAuthFamilyId(req: NextRequest): Promise<{ userId: string; familyId: string } | null> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

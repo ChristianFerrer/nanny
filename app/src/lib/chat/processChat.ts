@@ -467,6 +467,7 @@ export interface ChatInput {
   existingEvents: string;
   existingTasks: string;
   activeMedications: string;
+  existingRoutines?: string; // "<routineId>: Pau · guardería · L-V 09:00-17:00" — para que el extractor matchee
   senderName: string;
   senderRole: 'mama' | 'papa';
   pendingDetection: Record<string, unknown> | null;

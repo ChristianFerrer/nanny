@@ -22,6 +22,7 @@ export interface ChatStreamPayload {
   existingEvents: string;
   existingTasks: string;
   activeMedications: string;
+  existingRoutines?: string;
   senderName: string;
   senderRole: 'mama' | 'papa';
   pendingDetection: Record<string, unknown> | null;
