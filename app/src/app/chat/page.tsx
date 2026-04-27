@@ -759,13 +759,15 @@ export default function ChatPage() {
                     status: 'pending', source: 'chat', auto_detected: true, created_by: currentParent,
                   });
                   setEvents(prev => [...prev, newEvent]);
-                  showToast(`Evento creado: ${confData.title}`, '/hoy');
+                  (data as unknown as Record<string, unknown>)._createdEventId = newEvent.id;
+                  showToast(`Evento creado: ${confData.title}`, `/evento/${newEvent.id}`);
                 } else if (type === 'task') {
-                  await createTaskFromConf(confData);
+                  const newTask = await createTaskFromConf(confData);
+                  (data as unknown as Record<string, unknown>)._createdTaskId = parentTaskId || newTask.id;
                   if (parentTaskId) {
-                    showToast(`Tarea agregada a «${taskGroup!.parent_title}»`, '/tareas');
+                    showToast(`Tarea agregada a «${taskGroup!.parent_title}»`, `/tarea/${parentTaskId}`);
                   } else {
-                    showToast(`Tarea creada: ${confData.title}`, '/tareas');
+                    showToast(`Tarea creada: ${confData.title}`, `/tarea/${newTask.id}`);
                   }
                 }
               } catch {
@@ -822,6 +824,8 @@ export default function ChatPage() {
 
             if (data.should_respond !== false && data.reply) {
               const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
+              const createdEventId = (data as unknown as Record<string, unknown>)._createdEventId as string | undefined;
+              const createdTaskId = (data as unknown as Record<string, unknown>)._createdTaskId as string | undefined;
               const nannyMsg = await addMessage({
                 family_id: familyId, sender_id: null, sender_type: 'nanny',
                 content: data.reply, message_type: 'text',
@@ -831,6 +835,8 @@ export default function ChatPage() {
                   ...(medMsgId ? { medConfirmId: medMsgId } : {}),
                   ...(data.confirmation?.type === 'medication' ? { medicationData: data.confirmation.data } : {}),
                   ...((data as unknown as { is_proactive?: boolean }).is_proactive ? { proactive: true } : {}),
+                  ...(createdEventId ? { eventId: createdEventId } : {}),
+                  ...(createdTaskId ? { taskId: createdTaskId } : {}),
                 },
               });
               if (medMsgId) {
@@ -1265,7 +1271,7 @@ export default function ChatPage() {
   };
 
 
-  const renderIntentBadge = (intent: NannyIntent | undefined, hasPendingMed: boolean) => {
+  const renderIntentBadge = (intent: NannyIntent | undefined, hasPendingMed: boolean, metadata?: Record<string, unknown>) => {
     if (!intent) return null;
 
     const badgeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; borderColor: string }> = {
@@ -1292,31 +1298,43 @@ export default function ChatPage() {
     // Skip the standalone badge for MEDICATION when pending confirm is active (buttons shown separately)
     if (intent === 'MEDICATION' && hasPendingMed) return null;
 
-    // Determine navigation target based on intent
-    const intentNav: Record<string, string> = {
-      EVENT_SCHOOL: '/hoy', EVENT_ACTIVITY: '/hoy', EVENT_MEDICAL: '/hoy', MILESTONE: '/hoy',
-      TASK_SHOPPING: '/hoy', TASK_PAYMENT: '/hoy', SUPPLY_LOW: '/hoy',
-      MEDICATION: '/hoy', LOGISTICS_PICKUP: '/semana', LOGISTICS_TRANSPORT: '/semana',
-      SCHEDULE_CHANGE: '/semana', HEALTH_LOG: '/hijo',
-      EVENT: '/hoy', TASK: '/hoy',
+    // Si la metadata trae el ID del item creado, navegamos directo al detalle.
+    // Si no, caemos al listado correspondiente — agenda para eventos, tareas
+    // para tareas, perfil del hijo para health logs.
+    const eventId = metadata?.eventId as string | undefined;
+    const taskId = metadata?.taskId as string | undefined;
+
+    const intentFallback: Record<string, string | null> = {
+      EVENT_SCHOOL: '/agenda', EVENT_ACTIVITY: '/agenda', EVENT_MEDICAL: '/agenda', MILESTONE: '/agenda',
+      TASK_SHOPPING: '/tareas', TASK_PAYMENT: '/tareas', SUPPLY_LOW: '/tareas',
+      MEDICATION: '/agenda',
+      LOGISTICS_PICKUP: '/agenda', LOGISTICS_TRANSPORT: '/agenda',
+      SCHEDULE_CHANGE: '/agenda', HEALTH_LOG: '/hijo',
+      EVENT: '/agenda', TASK: '/tareas',
     };
-    const navTarget = intentNav[intent];
+
+    let navTarget: string | null = null;
+    const isEventIntent = intent.startsWith('EVENT') || intent === 'MILESTONE' || intent === 'LOGISTICS_PICKUP' || intent === 'LOGISTICS_TRANSPORT' || intent === 'SCHEDULE_CHANGE';
+    const isTaskIntent = intent.startsWith('TASK') || intent === 'SUPPLY_LOW';
+    if (isEventIntent && eventId) navTarget = `/evento/${eventId}`;
+    else if (isTaskIntent && taskId) navTarget = `/tarea/${taskId}`;
+    else navTarget = intentFallback[intent] ?? null;
 
     const navCopy: Record<string, string> = {
-      EVENT_SCHOOL: 'Ver en agenda',
-      EVENT_ACTIVITY: 'Ver en agenda',
-      EVENT_MEDICAL: 'Ver en agenda',
-      MILESTONE: 'Ver en agenda',
-      TASK_SHOPPING: 'Ver tareas',
-      TASK_PAYMENT: 'Ver tareas',
-      SUPPLY_LOW: 'Ver tareas',
-      MEDICATION: 'Ver tratamiento',
-      LOGISTICS_PICKUP: 'Ver semana',
-      LOGISTICS_TRANSPORT: 'Ver semana',
-      SCHEDULE_CHANGE: 'Ver semana',
+      EVENT_SCHOOL: 'Ver evento',
+      EVENT_ACTIVITY: 'Ver evento',
+      EVENT_MEDICAL: 'Ver evento',
+      MILESTONE: 'Ver evento',
+      TASK_SHOPPING: 'Ver tarea',
+      TASK_PAYMENT: 'Ver tarea',
+      SUPPLY_LOW: 'Ver tarea',
+      MEDICATION: 'Ver agenda',
+      LOGISTICS_PICKUP: 'Ver agenda',
+      LOGISTICS_TRANSPORT: 'Ver agenda',
+      SCHEDULE_CHANGE: 'Ver agenda',
       HEALTH_LOG: 'Ver perfil',
-      EVENT: 'Ver en agenda',
-      TASK: 'Ver tareas',
+      EVENT: 'Ver evento',
+      TASK: 'Ver tarea',
     };
 
     return (
@@ -1618,7 +1636,7 @@ export default function ChatPage() {
                   )}
                   <p className="text-[16px] whitespace-pre-wrap">{msg.content}</p>
                   {/* Intent badges */}
-                  {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm)}
+                  {isNanny && renderIntentBadge(msg.metadata?.intent as NannyIntent, !!pendingMedConfirm, msg.metadata as Record<string, unknown> | undefined)}
                   {isNanny && msg.metadata?.intent === 'MEDICATION' && pendingMedConfirm && (
                     <div className="mt-3 pt-2 border-t border-[var(--nanny-purple-light)]">
                       <div className="flex items-center gap-1.5 mb-2">
