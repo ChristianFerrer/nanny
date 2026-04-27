@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon, Pencil, Plus, Pill, ChevronRight } from 'lucide-react';
 import { getChild, getRoutines, getEvents, getTasks, getMedications } from '@/lib/store';
 import type { Child, Routine, FamilyEvent, Task, Medication } from '@/lib/types';
+import { formatAge } from '@/lib/age';
 
 type TabId = 'identidad' | 'operativo' | 'salud' | 'rutinas';
 
@@ -68,7 +69,7 @@ export default function HijoDetailPage() {
     );
   }
 
-  const age = child.birth_date ? calcAge(child.birth_date) : null;
+  const age = child.birth_date ? formatAge(child.birth_date) : null;
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'identidad', label: 'Info' },
@@ -106,7 +107,7 @@ export default function HijoDetailPage() {
           </div>
           <div className="min-w-0">
             <h1 className="text-title-1 text-[var(--text-primary)] truncate">{child.name}</h1>
-            {age !== null && <p className="text-subhead text-[var(--text-secondary)]">{age} años</p>}
+            {age !== null && <p className="text-subhead text-[var(--text-secondary)]">{age}</p>}
             {child.school && (
               <p className="text-footnote text-[var(--text-tertiary)] mt-0.5 inline-flex items-center gap-1 truncate">
                 <GraduationCap size={12} /> {child.school}
@@ -410,13 +411,3 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-}

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { GraduationCap, CalendarDays as CalIcon, CheckSquare as TaskIcon, Pill, Plus, ChevronRight, Users, Settings } from 'lucide-react';
 import { getChildren, getTodayEvents, getTasks, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { Child, FamilyEvent, Task, Medication } from '@/lib/types';
+import { formatAge } from '@/lib/age';
 
 export default function HijosPage() {
   const _snap = getCachedSnapshot();
@@ -83,7 +84,7 @@ export default function HijosPage() {
             </Link>
           </div>
         ) : children.map(child => {
-          const age = child.birth_date ? calcAge(child.birth_date) : null;
+          const age = child.birth_date ? formatAge(child.birth_date) : null;
           const childEvents = todayEvents.filter(e => e.child_id === child.id).length;
           const childTasks = tasks.filter(t => t.child_id === child.id && t.status !== 'done').length;
           const childMeds = medications.filter(m => m.child_id === child.id && m.status === 'active').length;
@@ -114,7 +115,7 @@ export default function HijosPage() {
                   <div className="flex items-baseline gap-2">
                     <h2 className="text-headline text-[var(--text-primary)] truncate">{child.name}</h2>
                     {age !== null && (
-                      <span className="text-footnote text-[var(--text-tertiary)]">{age} años</span>
+                      <span className="text-footnote text-[var(--text-tertiary)]">{age}</span>
                     )}
                   </div>
                   {child.school && (
@@ -155,13 +156,3 @@ function Stat({ icon, label, active, tone }: { icon: React.ReactNode; label: str
   );
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-}

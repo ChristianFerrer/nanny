@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { formatAge } from '@/lib/age';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -136,7 +137,7 @@ export async function GET(req: NextRequest) {
     if (messages.length === 0) continue;
 
     // Construir contexto
-    const familyContext = `Familia: ${(children || []).map(c => `${c.name} (${c.emoji}, edad ${c.birth_date ? Math.floor((Date.now() - new Date(c.birth_date).getTime()) / (1000 * 60 * 60 * 24 * 365)) : '?'} años)`).join(', ')}. Padres: ${(parents || []).map(p => `${p.name} (${p.role})`).join(' y ')}.`;
+    const familyContext = `Familia: ${(children || []).map(c => `${c.name} (${c.emoji}, ${c.birth_date ? formatAge(c.birth_date) : 'edad desconocida'})`).join(', ')}. Padres: ${(parents || []).map(p => `${p.name} (${p.role})`).join(' y ')}.`;
     const messagesStr = messages.map(m => {
       const sender = m.sender_type === 'nanny' ? 'Nanny' : (parents || []).find(p => p.id === m.sender_id)?.name || 'Padre';
       return `${sender}: ${m.content}`;

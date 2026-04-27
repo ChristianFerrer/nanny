@@ -9,6 +9,7 @@ import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
 import { detectBrowserTimezone } from '@/lib/timezone';
+import { formatAge } from '@/lib/age';
 import { callChatStream } from '@/lib/chat-stream';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, NannyIntent } from '@/lib/types';
 
@@ -651,7 +652,7 @@ export default function ChatPage() {
         return `${sender}: ${m.content}`;
       }).join('\n');
 
-    const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
+    const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? formatAge(c.birth_date) : 'edad desconocida'}${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
 
     const existingEventsStr = events.slice(-20).map(e =>
       `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}${e.location ? `, ${e.location}` : ''})`
@@ -1052,7 +1053,7 @@ export default function ChatPage() {
           return `[${time}] ${sender}: ${m.content}`;
         }).join('\n');
 
-      const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? calcAge(c.birth_date) : '?'} años${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
+      const familyCtx = `Familia: ${children.map(c => `${c.name} (${c.emoji}, ${c.birth_date ? formatAge(c.birth_date) : 'edad desconocida'}${c.school ? `, va a ${c.school}` : ''})`).join(', ')}. Padres: ${parents.map(p => `${p.name} (${p.avatar_emoji})`).join(' y ')}.`;
 
       const existingEvts = events.slice(-20).map(e =>
         `- ${e.title} (${e.event_type}, ${new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })})`
@@ -1845,13 +1846,3 @@ export default function ChatPage() {
   );
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-}

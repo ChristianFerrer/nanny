@@ -6,6 +6,7 @@ import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, M
 import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, deleteChild as deleteChildStore, resetFamilyCache } from '@/lib/store';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
+import { formatAge } from '@/lib/age';
 
 const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
@@ -352,7 +353,7 @@ function PerfilInner() {
                 <p className="text-footnote text-[var(--text-tertiary)]">Aún no hay hijos. Agrega el primero.</p>
               </div>
             ) : children.map(c => {
-              const age = c.birth_date ? calcAge(c.birth_date) : null;
+              const age = c.birth_date ? formatAge(c.birth_date) : null;
               return (
                 <button key={c.id} onClick={() => openEditChild(c)} className="list-row w-full text-left focus-ring">
                   <span
@@ -364,7 +365,7 @@ function PerfilInner() {
                   <div className="flex-1 min-w-0">
                     <p className="text-subhead text-[var(--text-primary)] truncate">{c.name}</p>
                     <p className="text-footnote text-[var(--text-tertiary)] truncate">
-                      {age !== null ? `${age} años` : ''}{c.school ? ` · ${c.school}` : ''}
+                      {age ?? ''}{c.school ? ` · ${c.school}` : ''}
                     </p>
                   </div>
                   <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
@@ -691,13 +692,3 @@ function formatPhone(value: string): string {
   return [a, b, c].filter(Boolean).join(' ');
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-}
