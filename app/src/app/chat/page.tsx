@@ -1392,9 +1392,9 @@ export default function ChatPage() {
               <Link
                 href="/perfil"
                 aria-label="Configuración"
-                className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
+                className="w-10 h-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
               >
-                <Settings size={18} className="text-[var(--text-secondary)]" />
+                <Settings size={24} className="text-[var(--text-secondary)]" />
               </Link>
             </div>
           )}
@@ -1716,8 +1716,8 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Composer — glass-strong Apple-style */}
-      <div className="shrink-0 glass-strong border-t border-[var(--separator)] px-3 py-2.5">
+      {/* Composer — slim estilo WhatsApp/Instagram */}
+      <div className="shrink-0 glass-strong border-t border-[var(--separator)] px-3 py-1.5">
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
@@ -1747,15 +1747,15 @@ export default function ChatPage() {
             placeholder={onboardingMode && onboardingSaving ? 'Espera un momento…' : 'Mensaje'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
             aria-label="Mensaje"
-            className="chat-input-field flex-1 bg-[var(--gray-100)] rounded-full px-5 py-3 text-[16px] outline-none focus:bg-white focus:ring-2 focus:ring-[var(--nanny-purple-tint)] focus:border-[var(--nanny-purple)] disabled:opacity-50 transition-all"
+            className="chat-input-field flex-1 bg-[var(--gray-100)] rounded-full px-4 py-2 text-[15px] outline-none focus:bg-white focus:ring-2 focus:ring-[var(--nanny-purple-tint)] focus:border-[var(--nanny-purple)] disabled:opacity-50 transition-all"
           />
           <button
             type="submit"
             aria-label="Enviar mensaje"
             disabled={!input.trim() || (onboardingMode && (onboardingSending || onboardingSaving))}
-            className="w-11 h-11 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-30 disabled:scale-90 enabled:active:scale-95 transition-all shrink-0 shadow-sm focus-ring"
+            className="w-9 h-9 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-30 disabled:scale-90 enabled:active:scale-95 transition-all shrink-0 shadow-sm focus-ring"
           >
-            <Send size={18} className="text-white ml-[2px]" />
+            <Send size={16} className="text-white ml-[1px]" />
           </button>
         </form>
       </div>

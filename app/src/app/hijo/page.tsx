@@ -63,9 +63,9 @@ export default function HijosPage() {
           <Link
             href="/perfil"
             aria-label="Configuración"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
-            <Settings size={18} />
+            <Settings size={24} />
           </Link>
         </div>
       </header>

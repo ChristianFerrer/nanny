@@ -107,7 +107,7 @@ export default function AgendaPage() {
       <header className="glass px-4 pt-header pb-3 sticky top-0 z-10">
         {/* Title + (botón Hoy condicional) + settings gear */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-title-3 text-[var(--text-primary)] font-semibold">Agenda</h1>
+          <h1 className="text-large-title text-[var(--text-primary)]">Agenda</h1>
           <div className="flex items-center gap-2">
             {weekOffset !== 0 && (
               <button
@@ -121,9 +121,9 @@ export default function AgendaPage() {
             <Link
               href="/perfil"
               aria-label="Configuración"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
             >
-              <Settings size={18} />
+              <Settings size={24} />
             </Link>
           </div>
         </div>

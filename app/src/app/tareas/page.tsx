@@ -76,9 +76,9 @@ export default function TareasPage() {
         <Link
           href="/perfil"
           aria-label="Configuración"
-          className="w-9 h-9 mt-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+          className="w-10 h-10 mt-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
         >
-          <Settings size={18} />
+          <Settings size={24} />
         </Link>
       </header>
 
