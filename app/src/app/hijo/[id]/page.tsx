@@ -87,7 +87,7 @@ export default function HijoDetailPage() {
             aria-label="Volver"
             className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={26} />
           </button>
           <Link
             href={`/perfil?editChild=${child.id}`}

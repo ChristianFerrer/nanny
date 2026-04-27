@@ -356,6 +356,11 @@ export async function deleteEvent(eventId: string): Promise<void> {
   notify();
 }
 
+export async function updateEvent(eventId: string, updates: Partial<Omit<FamilyEvent, 'id' | 'created_at'>>): Promise<void> {
+  await writeData('events', 'update', updates as Record<string, unknown>, eventId);
+  notify();
+}
+
 export async function deleteTask(taskId: string): Promise<void> {
   await writeData('tasks', 'delete', undefined, taskId);
   notify();
