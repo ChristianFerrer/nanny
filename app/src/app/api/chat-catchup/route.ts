@@ -66,7 +66,7 @@ FORMATO DE RESPUESTA — SIGUE EXACTAMENTE ESTA ESTRUCTURA:
       "child": "nombre del hijo o null",
       "data": {
         "title": "título de la tarea",
-        "assigned_to": "mama|papa|null",
+        "assigned_to": "<elegir UNO de: mama | papa | null. NO uses pipes literales en la salida>",
         "due_date": "2026-03-13T00:00:00"
       }
     }

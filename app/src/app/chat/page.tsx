@@ -575,6 +575,35 @@ export default function ChatPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Normaliza un valor de assigned_to recibido del LLM al UUID del padre
+  // correspondiente. La columna `tasks.assigned_to` es UUID FK a `parents.id`,
+  // pero el extractor emite roles como strings ("mama", "papa"). Sin esta
+  // traducción, el insert falla con "invalid input syntax for type uuid".
+  // Casos manejados:
+  //  - "mama" / "mamá" → parents.find(role='mama').id
+  //  - "papa" / "papá" → parents.find(role='papa').id
+  //  - UUID directo (ya viene resuelto) → pasa tal cual
+  //  - "mama|papa", "ambos", null, "" → null (ambiguo / sin asignar)
+  const roleToParentId = useCallback((value: unknown): string | null => {
+    if (value == null) return null;
+    const str = String(value).toLowerCase().trim();
+    if (!str) return null;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(str)) {
+      return String(value); // ya es UUID
+    }
+    if (str === 'mama' || str === 'mamá' || str === 'mami' || str === 'madre') {
+      return parents.find(p => p.role === 'mama')?.id || null;
+    }
+    if (str === 'papa' || str === 'papá' || str === 'papi' || str === 'padre') {
+      return parents.find(p => p.role === 'papa')?.id || null;
+    }
+    // Fallback: el LLM puede emitir el nombre propio en vez del rol
+    const byName = parents.find(p => p.name.toLowerCase() === str);
+    if (byName) return byName.id;
+    // "mama|papa", "ambos", "los dos", "both", o cualquier otra cosa → null
+    return null;
+  }, [parents]);
+
   // Process Nanny AI response via SSE.
   //
   // Flujo:
@@ -670,7 +699,7 @@ export default function ChatPage() {
                 family_id: familyId, child_id: null,
                 parent_task_id: parentTaskId,
                 title: confData.title as string, description: null,
-                assigned_to: (confData.assigned_to as string) || null,
+                assigned_to: roleToParentId(confData.assigned_to),
                 due_date: (confData.due_date as string) || null,
                 status, priority: 'normal', source: 'chat',
                 auto_detected: true, created_by: currentParent,
@@ -742,7 +771,7 @@ export default function ChatPage() {
                   const newTask = await addTask({
                     family_id: familyId, child_id: null, parent_task_id: null,
                     title: pd.title as string, description: null,
-                    assigned_to: (pd.assigned_to as string) || null,
+                    assigned_to: roleToParentId(pd.assigned_to),
                     due_date: (pd.due_date as string) || null,
                     status: 'pending', priority: 'normal', source: 'chat',
                     auto_detected: true, created_by: currentParent, completed_at: null,
@@ -1070,7 +1099,7 @@ export default function ChatPage() {
                   parent_task_id: null,
                   title: taskTitle,
                   description: item.summary || null,
-                  assigned_to: (item.data.assigned_to as string) || null,
+                  assigned_to: roleToParentId(item.data.assigned_to),
                   due_date: (item.data.due_date as string) || null,
                   status: 'pending', priority: 'normal', source: 'chat',
                   auto_detected: true, created_by: currentParent, completed_at: null,
