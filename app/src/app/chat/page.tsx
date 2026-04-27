@@ -203,20 +203,32 @@ export default function ChatPage() {
   }, []);
 
   // iOS PWA keyboard fix: pin container to the visual viewport
-  // On every resize/scroll, reset window scroll to 0 and match container to visual viewport
+  // On every resize/scroll, reset window scroll to 0 and match container to visual viewport.
+  // Como ahora /chat también muestra el bottom nav, restamos su altura para
+  // que el composer no quede tapado por la barra de tabs.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
+    function getNavHeight(): number {
+      const nav = document.querySelector('.bottom-nav') as HTMLElement | null;
+      return nav ? nav.offsetHeight : 0;
+    }
 
     function updateLayout() {
       const vv = window.visualViewport;
       // Force iOS back to top — undo any layout viewport scroll
       window.scrollTo(0, 0);
+      const navH = getNavHeight();
       if (vv) {
-        el!.style.height = `${vv.height}px`;
+        // Cuando el teclado abre, vv.height se reduce. Solo restamos nav si
+        // hay altura suficiente — si vv ya es chico (teclado abierto), el
+        // nav queda detrás del teclado y restar duplicaría el descuento.
+        const keyboardOpen = vv.height < window.innerHeight - 100;
+        el!.style.height = `${vv.height - (keyboardOpen ? 0 : navH)}px`;
         el!.style.top = `${vv.offsetTop}px`;
       } else {
-        el!.style.height = `${window.innerHeight}px`;
+        el!.style.height = `${window.innerHeight - navH}px`;
         el!.style.top = '0px';
       }
     }
