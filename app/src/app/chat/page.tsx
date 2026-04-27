@@ -628,6 +628,58 @@ export default function ChatPage() {
               console.log('[Validation warnings]:', data.validation_warnings);
             }
 
+            // Si el extractor agrupa varias tareas bajo un topic paraguas (ej.
+            // "Cumpleaños Pau"), creamos primero la tarea padre (o reutilizamos
+            // una con el mismo título si ya existe). Las hijas se crean con
+            // parent_task_id apuntando al padre.
+            const taskGroup = (data as unknown as { task_group?: { parent_title: string; child_name: string | null } | null }).task_group;
+            let parentTaskId: string | null = null;
+            if (taskGroup?.parent_title) {
+              try {
+                const existingParent = tasks.find(t =>
+                  t.parent_task_id === null &&
+                  t.title.toLowerCase().trim() === taskGroup.parent_title.toLowerCase().trim()
+                );
+                if (existingParent) {
+                  parentTaskId = existingParent.id;
+                } else {
+                  const parentTask = await addTask({
+                    family_id: familyId, child_id: null, parent_task_id: null,
+                    title: taskGroup.parent_title, description: null,
+                    assigned_to: null, due_date: null,
+                    status: 'pending', priority: 'normal', source: 'chat',
+                    auto_detected: true, created_by: currentParent, completed_at: null,
+                  });
+                  setTasks(prev => [...prev, parentTask]);
+                  parentTaskId = parentTask.id;
+                }
+              } catch {
+                console.error('Failed to create/lookup parent task');
+              }
+            }
+
+            // Helper para crear una tarea hija respetando status pending/done
+            // y asociándola al parent si task_group está activo.
+            const createTaskFromConf = async (confData: Record<string, unknown>) => {
+              const explicitStatus = String((confData.status as string) || 'pending').toLowerCase();
+              const status: 'pending' | 'done' = explicitStatus === 'done' ? 'done' : 'pending';
+              const completedAt = status === 'done'
+                ? (confData.completed_at as string) || new Date().toISOString()
+                : null;
+              const newTask = await addTask({
+                family_id: familyId, child_id: null,
+                parent_task_id: parentTaskId,
+                title: confData.title as string, description: null,
+                assigned_to: (confData.assigned_to as string) || null,
+                due_date: (confData.due_date as string) || null,
+                status, priority: 'normal', source: 'chat',
+                auto_detected: true, created_by: currentParent,
+                completed_at: completedAt,
+              });
+              setTasks(prev => [...prev, newTask]);
+              return newTask;
+            };
+
             if (data.confirmation) {
               const { type, data: confData } = data.confirmation;
               try {
@@ -648,16 +700,12 @@ export default function ChatPage() {
                   setEvents(prev => [...prev, newEvent]);
                   showToast(`Evento creado: ${confData.title}`, '/hoy');
                 } else if (type === 'task') {
-                  const newTask = await addTask({
-                    family_id: familyId, child_id: null,
-                    title: confData.title as string, description: null,
-                    assigned_to: (confData.assigned_to as string) || null,
-                    due_date: (confData.due_date as string) || null,
-                    status: 'pending', priority: 'normal', source: 'chat',
-                    auto_detected: true, created_by: currentParent, completed_at: null,
-                  });
-                  setTasks(prev => [...prev, newTask]);
-                  showToast(`Tarea creada: ${confData.title}`, '/hoy');
+                  await createTaskFromConf(confData);
+                  if (parentTaskId) {
+                    showToast(`Tarea agregada a «${taskGroup!.parent_title}»`, '/tareas');
+                  } else {
+                    showToast(`Tarea creada: ${confData.title}`, '/tareas');
+                  }
                 }
               } catch {
                 console.error('Failed to auto-create event/task');
@@ -668,15 +716,7 @@ export default function ChatPage() {
               for (const extraConf of data.additional_confirmations) {
                 try {
                   if (extraConf.type === 'task' && extraConf.data?.title) {
-                    const newTask = await addTask({
-                      family_id: familyId, child_id: null,
-                      title: extraConf.data.title as string, description: null,
-                      assigned_to: (extraConf.data.assigned_to as string) || null,
-                      due_date: (extraConf.data.due_date as string) || null,
-                      status: 'pending', priority: 'normal', source: 'chat',
-                      auto_detected: true, created_by: currentParent, completed_at: null,
-                    });
-                    setTasks(prev => [...prev, newTask]);
+                    await createTaskFromConf(extraConf.data);
                   } else if (extraConf.type === 'event' && extraConf.data?.title) {
                     const newEvent = await addEvent({
                       family_id: familyId, child_id: null,
@@ -700,7 +740,7 @@ export default function ChatPage() {
                 try {
                   const pd = data.pending_detection.partial_data;
                   const newTask = await addTask({
-                    family_id: familyId, child_id: null,
+                    family_id: familyId, child_id: null, parent_task_id: null,
                     title: pd.title as string, description: null,
                     assigned_to: (pd.assigned_to as string) || null,
                     due_date: (pd.due_date as string) || null,
@@ -708,7 +748,7 @@ export default function ChatPage() {
                     auto_detected: true, created_by: currentParent, completed_at: null,
                   });
                   setTasks(prev => [...prev, newTask]);
-                  showToast(`Tarea creada: ${pd.title}`, '/hoy');
+                  showToast(`Tarea creada: ${pd.title}`, '/tareas');
                 } catch {
                   console.error('Failed to auto-create task from pending_detection');
                 }
@@ -1027,6 +1067,7 @@ export default function ChatPage() {
                 const newTask = await addTask({
                   family_id: familyId,
                   child_id: matchedChild?.id || null,
+                  parent_task_id: null,
                   title: taskTitle,
                   description: item.summary || null,
                   assigned_to: (item.data.assigned_to as string) || null,

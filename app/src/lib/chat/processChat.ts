@@ -482,6 +482,7 @@ export interface ChatResponse {
   confirmation: { type: string; data: Record<string, unknown> } | null;
   additional_confirmations: { type: string; data: Record<string, unknown> }[];
   pending_detection: { type: string; partial_data: Record<string, unknown>; missing: string[]; summary: string } | null;
+  task_group?: { parent_title: string; child_name: string | null } | null;
   is_proactive?: boolean; // True si el mensaje no fue solicitado: cuenta para cuota anti-spam
 }
 

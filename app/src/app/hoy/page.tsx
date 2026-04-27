@@ -163,6 +163,7 @@ export default function HoyPage() {
     await addTask({
       family_id: familyId,
       child_id: taskChildId || null,
+      parent_task_id: null,
       title: taskTitle,
       description: taskDescription || null,
       assigned_to: taskAssignedTo || null,

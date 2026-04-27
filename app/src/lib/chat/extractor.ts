@@ -30,6 +30,7 @@ export interface ExtractorOutput {
   confirmation: { type: string; data: Record<string, unknown> } | null;
   additional_confirmations: { type: string; data: Record<string, unknown> }[];
   pending_detection: { type: string; partial_data: Record<string, unknown>; missing: string[]; summary: string } | null;
+  task_group: { parent_title: string; child_name: string | null } | null;
 }
 
 const EXTRACTOR_PROMPT = `Eres Nanny, asistente de coordinación familiar. Tu trabajo es EXTRAER datos estructurados del mensaje.
@@ -105,6 +106,37 @@ REGLAS DE EXTRACCIÓN:
 9. TAREAS Y COMPRAS: Crea la tarea INMEDIATAMENTE con confirmation, incluso sin assigned_to (déjalo null). NO uses pending_detection para tareas.
    Si el mensaje contiene VARIAS tareas/compras, pon la primera en "confirmation" y las demás en "additional_confirmations".
 
+   **STATUS por tarea**: cada tarea tiene status="pending" o status="done":
+   - Acción FUTURA / PENDIENTE ("hay que comprar", "está pendiente comprar", "falta X") → status="pending".
+   - Acción PASADA reportada ("ya hice X", "ya compré X", "ya reservé X", "ya separé X") → status="done"
+     y completed_at = fecha actual ISO (la fecha del mensaje).
+     SOLO crear tareas en status="done" cuando son parte de un GRUPO con otras actividades pendientes
+     del mismo topic. Una acción pasada AISLADA sin grupo NO genera tarea (queda solo como info en chat).
+
+10. **TASK GROUP — agrupación bajo tarea paraguas**:
+    Cuando el mensaje (o la conversación reciente) contiene MÚLTIPLES actividades del mismo
+    "topic paraguas" (cumpleaños, viaje, mudanza, fiesta, inicio escolar, etc.), emite el campo
+    task_group con:
+    - parent_title: nombre corto del topic. Ej: "Cumpleaños Pau", "Viaje Bariloche", "Inicio escolar Lucía"
+    - child_name: nombre del hijo si el topic gira alrededor de uno (sino null)
+
+    Cuando hay task_group activo, TODAS las tareas extraídas (confirmation + additional_confirmations)
+    son sub-actividades del padre. El sistema crea automáticamente una tarea padre con ese título y
+    todas las hijas linkeadas.
+
+    Ejemplo: el padre dice "Amor, ya hice la invitación para el cumple de Pau, ya separé el CAU,
+    falta comprar la decoración y las sorpresitas". → emites:
+    - task_group: { parent_title: "Cumpleaños Pau", child_name: "Pau" }
+    - confirmation: { type: "task", data: { title: "Hacer invitación", status: "done", completed_at: "<hoy>", assigned_to: "papa" } }
+    - additional_confirmations:
+        { type: "task", data: { title: "Reservar CAU", status: "done", completed_at: "<hoy>", assigned_to: "papa" } }
+        { type: "task", data: { title: "Comprar decoración", status: "pending", assigned_to: null } }
+        { type: "task", data: { title: "Comprar sorpresitas", status: "pending", assigned_to: null } }
+
+    Si NO hay topic / es UNA sola tarea independiente: task_group = null.
+
+    Reply en este caso reporta el receipt agrupado: "Anotado bajo «Cumpleaños Pau»: 2 hechas, 2 pendientes."
+
 FORMATO DE RESPUESTA (solo JSON puro):
 {
   "reply": "mensaje de Nanny",
@@ -115,11 +147,12 @@ FORMATO DE RESPUESTA (solo JSON puro):
     "type": "event|task|medication",
     "data": {
       // event: title, event_type (doctor|school|birthday|activity|travel|other), date_start (ISO), date_description, location, assigned_to
-      // task: title, assigned_to, due_date
+      // task: title, assigned_to, due_date, status ("pending"|"done"), completed_at (si done)
       // medication: medication_name, duration_days, start_date, end_date, frequency, schedule_times
     }
   },
   "additional_confirmations": [],
+  "task_group": null o { "parent_title": "string", "child_name": "string o null" },
   "pending_detection": null o {
     "type": "event|task|medication",
     "partial_data": {},
@@ -171,6 +204,9 @@ export async function extractData(
     return {
       ...parsed,
       additional_confirmations: Array.isArray(parsed.additional_confirmations) ? parsed.additional_confirmations : [],
+      task_group: parsed.task_group && typeof parsed.task_group === 'object' && parsed.task_group.parent_title
+        ? { parent_title: String(parsed.task_group.parent_title), child_name: parsed.task_group.child_name || null }
+        : null,
     };
   } catch {
     return {
@@ -181,6 +217,7 @@ export async function extractData(
       confirmation: null,
       additional_confirmations: [],
       pending_detection: null,
+      task_group: null,
     };
   }
 }

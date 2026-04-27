@@ -112,6 +112,7 @@ export interface Task {
   id: string;
   family_id: string;
   child_id: string | null;
+  parent_task_id: string | null;
   title: string;
   description: string | null;
   assigned_to: string | null;

@@ -26,6 +26,7 @@ export interface ClassifierOutput {
   can_add_value: boolean;
   references_previous: boolean;
   silent_action: boolean;
+  topic_hint: { parent_title: string; child_name: string | null } | null;
   complexity: 'simple' | 'ambiguous' | 'complex';
   detected_items_count: number;
   summary: string;
@@ -45,17 +46,23 @@ REGLAS DE CLASIFICACIÓN:
 
 1. is_actionable = true si el mensaje contiene:
    - Un evento con fecha/hora/lugar
-   - Una tarea concreta (comprar, pagar, buscar, llevar, recoger)
+   - Una tarea concreta — IMPERATIVA o DECLARATIVA. Ambas formas son accionables:
+     * Imperativa: "hay que comprar X", "compremos X", "compra X", "tenemos que pagar X"
+     * Declarativa: "está pendiente comprar X", "queda comprar X", "falta X", "nos falta X", "todavía hay que X", "quedó pendiente X"
    - Info médica (cita, medicamento, síntomas)
    - Delegación de responsabilidad ("yo lo hago", "tú encárgate")
    - Confirmación/complemento de una detección pendiente ("ok", "dale", "a las 3", etc.)
    - Cambio de plan sobre algo ya mencionado
+   - **Acción PASADA reportada que pertenece a un TEMA con otras actividades pendientes** (ver regla 11 sobre topics).
+     Ejemplo: si el padre dice "ya hice la invitación" Y en el mismo mensaje o conversación reciente se ven otras
+     actividades del mismo cumple/viaje/proyecto → ES ACCIONABLE (registrar como sub-tarea completada del topic).
 
 2. is_actionable = false si el mensaje es:
    - Solo cariño/emojis sin info ("te amo", "❤️", "besos")
    - Conversación casual sin acción ("cómo dormiste?", "bien gracias")
    - Queja/desahogo sin info logística ("siempre me toca a mí" sin evento concreto)
    - "ok"/"dale" sin detección pendiente activa
+   - **Acción PASADA aislada sin topic relacionado** ("ya almorcé") → INFO/CHAT, no accionable
 
 3. is_direct_to_nanny = true si:
    - Mencionan "Nanny" por nombre
@@ -105,7 +112,22 @@ REGLAS DE CLASIFICACIÓN:
    - Es una CORRECCIÓN a algo que Nanny dijo mal
    - should_respond = false SOLO para: mensajes entre padres que son puramente personales/sentimentales, "ok/dale" sin contexto, emojis solos, conversación donde Nanny NO aporta nada
 
-11. silent_action = true cuando los padres cerraron un loop entre ellos y Nanny solo necesita REGISTRAR sin hablar. Casos:
+11. **TOPIC / GROUPING**: Detectar si el mensaje pertenece a un "tema paraguas" con
+    múltiples sub-actividades. Usá topic_hint cuando el mensaje (solo o en
+    contexto reciente) menciona cosas del MISMO proyecto / evento / tema:
+    - Cumpleaños de un hijo (decoración, invitaciones, salón, regalos, sorpresitas, torta)
+    - Viaje próximo (boletos, hotel, equipaje, documentación)
+    - Inicio escolar (uniforme, útiles, mochila, libros)
+    - Mudanza, fiesta, evento médico extendido, etc.
+
+    Cuando el mensaje contiene VARIAS actividades de un mismo topic — sea pasadas
+    completadas o futuras pendientes — emitir topic_hint con:
+    - parent_title: nombre corto del topic (ej. "Cumpleaños Pau")
+    - child_name: nombre del hijo si el topic gira alrededor de uno
+
+    Si NO hay topic identificable o hay UNA sola actividad sin grupo: topic_hint = null.
+
+12. silent_action = true cuando los padres cerraron un loop entre ellos y Nanny solo necesita REGISTRAR sin hablar. Casos:
    - Un padre asume responsabilidad explícita ("yo lo recojo", "yo me encargo") como respuesta a algo del otro padre, y la asignación queda CLARA con datos suficientes (qué, cuándo, quién)
    - El otro padre confirma con "dale/ok/perfecto" cerrando un acuerdo previo CON pending_detection ya completable
    - No falta ningún dato crítico para crear el evento/tarea (asignación sí, horario implícito o ya conocido)
@@ -127,6 +149,7 @@ Responde SOLO JSON puro:
   "can_add_value": boolean,
   "references_previous": boolean,
   "silent_action": boolean,
+  "topic_hint": null | { "parent_title": "string corto", "child_name": "string o null" },
   "complexity": "simple|ambiguous|complex",
   "detected_items_count": number,
   "summary": "resumen en 10 palabras max de lo que contiene el mensaje"
@@ -150,7 +173,7 @@ export async function classifyMessage(
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
-    max_tokens: 200,
+    max_tokens: 280,
     temperature: 0.1,
     messages: [
       { role: 'system', content: prompt },
@@ -176,6 +199,7 @@ export async function classifyMessage(
       can_add_value: false,
       references_previous: false,
       silent_action: false,
+      topic_hint: null,
       complexity: 'ambiguous',
       detected_items_count: 0,
       summary: 'No se pudo clasificar',

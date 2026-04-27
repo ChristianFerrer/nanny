@@ -110,6 +110,7 @@ export const demoTasks: Task[] = [
     title: 'Comprar uniforme nuevo', description: 'Talla 6, el anterior ya le queda chico',
     assigned_to: MAMA_ID, due_date: daysFromNow(3), status: 'pending',
     priority: 'normal', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -117,6 +118,7 @@ export const demoTasks: Task[] = [
     title: 'Llevar documentos al colegio', description: 'Constancia de salud actualizada',
     assigned_to: PAPA_ID, due_date: daysFromNow(1), status: 'pending',
     priority: 'high', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -124,6 +126,7 @@ export const demoTasks: Task[] = [
     title: 'Agendar vacunas Mía', description: 'Vacunas de los 18 meses',
     assigned_to: MAMA_ID, due_date: daysFromNow(7), status: 'pending',
     priority: 'high', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -131,6 +134,7 @@ export const demoTasks: Task[] = [
     title: 'Comprar regalo abuela', description: 'Para su cumpleaños',
     assigned_to: PAPA_ID, due_date: daysFromNow(7), status: 'pending',
     priority: 'normal', source: 'chat', auto_detected: true, created_by: MAMA_ID,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
 ];

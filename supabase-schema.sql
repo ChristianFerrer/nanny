@@ -88,6 +88,7 @@ CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
   child_id UUID REFERENCES children(id) ON DELETE SET NULL,
+  parent_task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   assigned_to UUID REFERENCES parents(id),
@@ -100,6 +101,8 @@ CREATE TABLE tasks (
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 
 -- ============================================================
 -- TRATAMIENTOS MÉDICOS

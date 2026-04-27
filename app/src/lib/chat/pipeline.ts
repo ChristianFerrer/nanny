@@ -334,6 +334,7 @@ async function runExtraction(
     confirmation: extracted.confirmation || null,
     additional_confirmations: extracted.additional_confirmations || [],
     pending_detection: extracted.pending_detection || null,
+    task_group: extracted.task_group || null,
   };
 
   return postProcessResponse({
