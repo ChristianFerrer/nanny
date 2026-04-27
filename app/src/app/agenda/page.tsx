@@ -366,27 +366,9 @@ export default function AgendaPage() {
         })}
         {/* Las tareas sin fecha viven en la tab "Tareas" — no se mezclan con la agenda. */}
 
-        {/* Active medications */}
-        {medications.filter(m => m.status === 'active').length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold mb-2 text-[var(--nanny-purple)]">
-              TRATAMIENTOS ACTIVOS
-            </h3>
-            <div className="space-y-2">
-              {medications.filter(m => m.status === 'active').map(med => (
-                <div key={med.id} className="bg-white rounded-xl p-3 border-l-4 border-l-purple-400 shadow-sm">
-                  <p className="font-medium text-sm inline-flex items-center gap-1.5"><Pill size={14} className="text-[var(--nanny-purple)]" /> {med.medication_name}</p>
-                  <p className="text-xs text-[var(--nanny-gray)] mt-0.5">
-                    {med.child_name} — {med.frequency || ''} — {med.schedule_times?.join(', ') || ''}
-                  </p>
-                  <p className="text-[10px] text-[var(--nanny-gray)] mt-0.5">
-                    {med.start_date} al {med.end_date || '?'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Tratamientos activos viven en /hijo/[id] → tab Salud. La agenda solo
+            muestra las TOMAS individuales en su hora dentro del día — la lista
+            general de tratamientos es info estable del perfil del hijo. */}
       </div>
 
       {/* FAB → chat. Crear manual lo hace el usuario menos del 5%; el flujo natural

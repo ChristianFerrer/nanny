@@ -1717,7 +1717,7 @@ export default function ChatPage() {
       </div>
 
       {/* Composer — slim estilo WhatsApp/Instagram */}
-      <div className="shrink-0 glass-strong border-t border-[var(--separator)] px-3 py-1.5">
+      <div className="shrink-0 glass-strong border-t border-[var(--separator)] px-3 py-1">
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-1 animate-slide-up">
@@ -1747,7 +1747,7 @@ export default function ChatPage() {
             placeholder={onboardingMode && onboardingSaving ? 'Espera un momento…' : 'Mensaje'}
             disabled={onboardingMode && (onboardingSending || onboardingSaving)}
             aria-label="Mensaje"
-            className="chat-input-field flex-1 bg-[var(--gray-100)] rounded-full px-4 py-2 text-[15px] outline-none focus:bg-white focus:ring-2 focus:ring-[var(--nanny-purple-tint)] focus:border-[var(--nanny-purple)] disabled:opacity-50 transition-all"
+            className="chat-input-field flex-1 bg-[var(--gray-100)] rounded-full px-4 py-1.5 text-[15px] outline-none focus:bg-white focus:ring-2 focus:ring-[var(--nanny-purple-tint)] focus:border-[var(--nanny-purple)] disabled:opacity-50 transition-all"
           />
           <button
             type="submit"

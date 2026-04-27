@@ -7,7 +7,7 @@ import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, S
 import { getChild, getRoutines, getEvents, getTasks, getMedications } from '@/lib/store';
 import type { Child, Routine, FamilyEvent, Task, Medication } from '@/lib/types';
 
-type TabId = 'identidad' | 'operativo' | 'rutinas';
+type TabId = 'identidad' | 'operativo' | 'salud' | 'rutinas';
 
 export default function HijoDetailPage() {
   const params = useParams();
@@ -73,6 +73,7 @@ export default function HijoDetailPage() {
   const tabs: { id: TabId; label: string }[] = [
     { id: 'identidad', label: 'Info' },
     { id: 'operativo', label: 'Agenda' },
+    { id: 'salud', label: 'Salud' },
     { id: 'rutinas', label: 'Rutinas' },
   ];
 
@@ -142,17 +143,16 @@ export default function HijoDetailPage() {
       </div>
 
       <div className="px-4 py-4 pb-24">
-        {activeTab === 'identidad' && <IdentidadTab child={child} medications={medications} />}
+        {activeTab === 'identidad' && <IdentidadTab child={child} />}
         {activeTab === 'operativo' && <OperativoTab events={events} tasks={tasks} childId={child.id} />}
+        {activeTab === 'salud' && <SaludTab child={child} medications={medications} />}
         {activeTab === 'rutinas' && <RutinasTab routines={routines} />}
       </div>
     </div>
   );
 }
 
-function IdentidadTab({ child, medications }: { child: Child; medications: Medication[] }) {
-  const [nowMs] = useState(() => Date.now());
-  const activeMeds = medications.filter(m => m.status === 'active');
+function IdentidadTab({ child }: { child: Child }) {
   return (
     <div className="space-y-4 animate-fade-in">
       <Card title="Información básica" icon={<ClipboardList size={16} className="text-[var(--nanny-purple)]" />}>
@@ -165,8 +165,24 @@ function IdentidadTab({ child, medications }: { child: Child; medications: Medic
         {child.grade && <InfoRow label="Grado" value={child.grade} />}
       </Card>
 
-      {activeMeds.length > 0 && (
-        <Card title="Tratamientos activos" icon={<Pill size={16} className="text-[var(--nanny-purple)]" />}>
+      {child.personality_notes && (
+        <Card title="Personalidad" icon={<Sparkles size={16} className="text-amber-500" />}>
+          <p className="text-subhead text-[var(--text-primary)]">{child.personality_notes}</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function SaludTab({ child, medications }: { child: Child; medications: Medication[] }) {
+  const [nowMs] = useState(() => Date.now());
+  const activeMeds = medications.filter(m => m.status === 'active');
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <Card title="Tratamientos activos" icon={<Pill size={16} className="text-[var(--nanny-purple)]" />}>
+        {activeMeds.length === 0 ? (
+          <p className="text-footnote text-[var(--text-tertiary)]">Sin tratamientos activos</p>
+        ) : (
           <div className="space-y-1">
             {activeMeds.map(m => {
               const start = new Date(m.start_date);
@@ -196,16 +212,15 @@ function IdentidadTab({ child, medications }: { child: Child; medications: Medic
               );
             })}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
-      <Card title="Salud" icon={<Stethoscope size={16} className="text-[var(--text-secondary)]" />}>
+      <Card title="Alergias y condiciones" icon={<Stethoscope size={16} className="text-[var(--text-secondary)]" />}>
         {child.allergies && child.allergies.length > 0 ? (
           <div>
             <p className="text-caption text-[var(--text-tertiary)] mb-2 uppercase tracking-wider">Alergias</p>
             <div className="flex gap-1.5 flex-wrap">
               {child.allergies.map((a, i) => {
-                // Severa solo si la alergia menciona explicitamente palabras criticas
                 const isSevere = /\b(severa?|grave|anafil|emergencia|epi|pen)\b/i.test(a);
                 return (
                   <span
@@ -228,12 +243,6 @@ function IdentidadTab({ child, medications }: { child: Child; medications: Medic
           </div>
         )}
       </Card>
-
-      {child.personality_notes && (
-        <Card title="Personalidad" icon={<Sparkles size={16} className="text-amber-500" />}>
-          <p className="text-subhead text-[var(--text-primary)]">{child.personality_notes}</p>
-        </Card>
-      )}
     </div>
   );
 }
