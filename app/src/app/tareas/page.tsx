@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Circle, CheckCircle2, Sparkles, ChevronDown, ChevronRight, Layers, X, Save, Trash2 } from 'lucide-react';
+import { Sparkles, X, Save, Trash2, Layers } from 'lucide-react';
 import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot, updateTask, deleteTask } from '@/lib/store';
+import { buildGroupedTasks, type GroupOrTask } from '@/lib/task-grouping';
+import { TaskList } from '@/components/TaskList';
 import type { Task, Child, Parent } from '@/lib/types';
 
 export default function TareasPage() {
@@ -27,9 +29,6 @@ export default function TareasPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const childById = (id: string | null) => id ? children.find(c => c.id === id) : null;
-  const parentById = (id: string | null) => id ? parents.find(p => p.id === id) : null;
 
   const toggle = async (t: Task) => {
     if (t.status === 'done') {
@@ -62,7 +61,8 @@ export default function TareasPage() {
     setEditingTask(null);
   };
 
-  const groups = groupTasks(tasks);
+  const items = buildGroupedTasks(tasks);
+  const sections = bucketize(items);
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
@@ -94,10 +94,22 @@ export default function TareasPage() {
           </div>
         ) : (
           <>
-            <Section title="Vencidas" groups={groups.overdue} childById={childById} parentById={parentById} onToggle={toggle} onToggleCollapse={toggleCollapse} onEdit={setEditingTask} collapsed={collapsedGroups} accent="var(--warning)" />
-            <Section title="Esta semana" groups={groups.thisWeek} childById={childById} parentById={parentById} onToggle={toggle} onToggleCollapse={toggleCollapse} onEdit={setEditingTask} collapsed={collapsedGroups} />
-            <Section title="Sin fecha" groups={groups.undated} childById={childById} parentById={parentById} onToggle={toggle} onToggleCollapse={toggleCollapse} onEdit={setEditingTask} collapsed={collapsedGroups} />
-            <Section title="Completadas" groups={groups.done} childById={childById} parentById={parentById} onToggle={toggle} onToggleCollapse={toggleCollapse} onEdit={setEditingTask} collapsed={collapsedGroups} muted />
+            <SectionLabel title="Vencidas" count={sections.overdue.length} accent="var(--warning)" />
+            {sections.overdue.length > 0 && (
+              <TaskList items={sections.overdue} children={children} parents={parents} collapsedGroups={collapsedGroups} onToggle={toggle} onEdit={setEditingTask} onToggleCollapse={toggleCollapse} />
+            )}
+            <SectionLabel title="Esta semana" count={sections.thisWeek.length} />
+            {sections.thisWeek.length > 0 && (
+              <TaskList items={sections.thisWeek} children={children} parents={parents} collapsedGroups={collapsedGroups} onToggle={toggle} onEdit={setEditingTask} onToggleCollapse={toggleCollapse} />
+            )}
+            <SectionLabel title="Sin fecha" count={sections.undated.length} />
+            {sections.undated.length > 0 && (
+              <TaskList items={sections.undated} children={children} parents={parents} collapsedGroups={collapsedGroups} onToggle={toggle} onEdit={setEditingTask} onToggleCollapse={toggleCollapse} />
+            )}
+            <SectionLabel title="Completadas" count={sections.done.length} />
+            {sections.done.length > 0 && (
+              <TaskList items={sections.done} children={children} parents={parents} collapsedGroups={collapsedGroups} onToggle={toggle} onEdit={setEditingTask} onToggleCollapse={toggleCollapse} muted />
+            )}
           </>
         )}
       </div>
@@ -117,229 +129,45 @@ export default function TareasPage() {
   );
 }
 
-type GroupOrTask =
-  | { kind: 'task'; task: Task }
-  | { kind: 'group'; parent: Task; children: Task[] };
+function SectionLabel({ title, count, accent }: { title: string; count: number; accent?: string }) {
+  if (count === 0) return null;
+  return (
+    <h2 className="text-caption mb-2 px-1 uppercase tracking-wider" style={{ color: accent || 'var(--text-tertiary)' }}>
+      {title} <span className="text-[var(--text-quaternary)] font-normal">· {count}</span>
+    </h2>
+  );
+}
 
-type Groups = {
-  overdue: GroupOrTask[];
-  thisWeek: GroupOrTask[];
-  undated: GroupOrTask[];
-  done: GroupOrTask[];
-};
-
-function groupTasks(tasks: Task[]): Groups {
+/**
+ * Agrupa los items en buckets temporales. Para grupos, el bucket se decide
+ * por el estado AGREGADO de las hijas pendientes (vencidas / esta semana /
+ * sin fecha) o "completadas" cuando todas están done.
+ */
+function bucketize(items: GroupOrTask[]): { overdue: GroupOrTask[]; thisWeek: GroupOrTask[]; undated: GroupOrTask[]; done: GroupOrTask[] } {
   const now = new Date();
   const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+  const buckets = { overdue: [] as GroupOrTask[], thisWeek: [] as GroupOrTask[], undated: [] as GroupOrTask[], done: [] as GroupOrTask[] };
 
-  const childrenByParent = new Map<string, Task[]>();
-  for (const t of tasks) {
-    if (t.parent_task_id) {
-      const arr = childrenByParent.get(t.parent_task_id) || [];
-      arr.push(t);
-      childrenByParent.set(t.parent_task_id, arr);
-    }
-  }
-
-  const items: { item: GroupOrTask; bucket: keyof Groups }[] = [];
-
-  for (const t of tasks) {
-    if (t.parent_task_id) continue;
-
-    const kids = childrenByParent.get(t.id) || [];
-    if (kids.length > 0) {
-      const allDone = kids.every(k => k.status === 'done');
-      const item: GroupOrTask = { kind: 'group', parent: t, children: kids };
-      if (allDone) items.push({ item, bucket: 'done' });
-      else {
-        const pendingKids = kids.filter(k => k.status !== 'done');
-        const hasOverdue = pendingKids.some(k => k.due_date && new Date(k.due_date) < now);
-        const hasThisWeek = pendingKids.some(k => k.due_date && new Date(k.due_date) <= weekEnd);
-        if (hasOverdue) items.push({ item, bucket: 'overdue' });
-        else if (hasThisWeek) items.push({ item, bucket: 'thisWeek' });
-        else items.push({ item, bucket: 'undated' });
-      }
+  for (const it of items) {
+    if (it.kind === 'group') {
+      const g = it.group;
+      if (g.allDone) buckets.done.push(it);
+      else if (g.hasOverdue) buckets.overdue.push(it);
+      else if (g.hasPendingThisWeek) buckets.thisWeek.push(it);
+      else buckets.undated.push(it);
     } else {
-      const taskItem: GroupOrTask = { kind: 'task', task: t };
-      if (t.status === 'done') items.push({ item: taskItem, bucket: 'done' });
-      else if (!t.due_date) items.push({ item: taskItem, bucket: 'undated' });
+      const t = it.task;
+      if (t.status === 'done') buckets.done.push(it);
+      else if (!t.due_date) buckets.undated.push(it);
       else {
         const due = new Date(t.due_date);
-        if (due < now) items.push({ item: taskItem, bucket: 'overdue' });
-        else if (due <= weekEnd) items.push({ item: taskItem, bucket: 'thisWeek' });
-        else items.push({ item: taskItem, bucket: 'undated' });
+        if (due < now) buckets.overdue.push(it);
+        else if (due <= weekEnd) buckets.thisWeek.push(it);
+        else buckets.undated.push(it);
       }
     }
   }
-
-  return {
-    overdue: items.filter(i => i.bucket === 'overdue').map(i => i.item),
-    thisWeek: items.filter(i => i.bucket === 'thisWeek').map(i => i.item),
-    undated: items.filter(i => i.bucket === 'undated').map(i => i.item),
-    done: items.filter(i => i.bucket === 'done').map(i => i.item),
-  };
-}
-
-function Section({
-  title, groups, childById, parentById, onToggle, onToggleCollapse, onEdit, collapsed, accent, muted,
-}: {
-  title: string;
-  groups: GroupOrTask[];
-  childById: (id: string | null) => Child | null | undefined;
-  parentById: (id: string | null) => Parent | null | undefined;
-  onToggle: (t: Task) => void;
-  onToggleCollapse: (id: string) => void;
-  onEdit: (t: Task) => void;
-  collapsed: Set<string>;
-  accent?: string;
-  muted?: boolean;
-}) {
-  if (groups.length === 0) return null;
-  const totalCount = groups.reduce((acc, g) => acc + (g.kind === 'group' ? g.children.length : 1), 0);
-  return (
-    <section>
-      <h2 className="text-caption mb-2 px-1 uppercase tracking-wider" style={{ color: accent || 'var(--text-tertiary)' }}>
-        {title} <span className="text-[var(--text-quaternary)] font-normal">· {totalCount}</span>
-      </h2>
-      <div className="space-y-2">
-        {groups.map(g => {
-          if (g.kind === 'task') {
-            return (
-              <div key={g.task.id} className="list-group">
-                <TaskRow task={g.task} childById={childById} parentById={parentById} onToggle={onToggle} onEdit={onEdit} muted={muted} />
-              </div>
-            );
-          }
-          const isCollapsed = collapsed.has(g.parent.id);
-          return (
-            <GroupCard
-              key={g.parent.id}
-              parent={g.parent}
-              childrenTasks={g.children}
-              childById={childById}
-              parentById={parentById}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              isCollapsed={isCollapsed}
-              onToggleCollapse={() => onToggleCollapse(g.parent.id)}
-              muted={muted}
-            />
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function GroupCard({
-  parent, childrenTasks, childById, parentById, onToggle, onEdit, isCollapsed, onToggleCollapse, muted,
-}: {
-  parent: Task;
-  childrenTasks: Task[];
-  childById: (id: string | null) => Child | null | undefined;
-  parentById: (id: string | null) => Parent | null | undefined;
-  onToggle: (t: Task) => void;
-  onEdit: (t: Task) => void;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
-  muted?: boolean;
-}) {
-  const total = childrenTasks.length;
-  const done = childrenTasks.filter(c => c.status === 'done').length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  return (
-    <div className={`card p-0 overflow-hidden ${muted ? 'opacity-65' : ''}`}>
-      <div className="flex items-stretch">
-        <button
-          onClick={onToggleCollapse}
-          className="flex-1 flex items-center gap-3 px-4 py-3 tap-highlight focus-ring text-left min-w-0"
-          aria-label={isCollapsed ? 'Expandir grupo' : 'Colapsar grupo'}
-        >
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
-            <Layers size={16} className="text-[var(--nanny-purple)]" />
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-subhead text-[var(--text-primary)] truncate">{parent.title}</p>
-            <p className="text-caption text-[var(--text-tertiary)]">
-              {done}/{total} completadas
-            </p>
-          </div>
-          {isCollapsed ? <ChevronRight size={16} className="text-[var(--text-quaternary)]" /> : <ChevronDown size={16} className="text-[var(--text-quaternary)]" />}
-        </button>
-        <button
-          onClick={() => onEdit(parent)}
-          className="px-3 hover:bg-[var(--gray-50)] focus-ring border-l border-[var(--separator)]"
-          aria-label="Editar grupo"
-        >
-          <span className="text-caption text-[var(--nanny-purple)] font-semibold">Editar</span>
-        </button>
-      </div>
-      <div className="h-1 bg-[var(--gray-100)]">
-        <div className="h-full bg-[var(--nanny-purple)] transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      {!isCollapsed && (
-        <div className="border-t border-[var(--separator)]">
-          {childrenTasks.map(child => (
-            <TaskRow
-              key={child.id}
-              task={child}
-              childById={childById}
-              parentById={parentById}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              muted={muted}
-              indent
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskRow({
-  task, childById, parentById, onToggle, onEdit, muted, indent,
-}: {
-  task: Task;
-  childById: (id: string | null) => Child | null | undefined;
-  parentById: (id: string | null) => Parent | null | undefined;
-  onToggle: (t: Task) => void;
-  onEdit: (t: Task) => void;
-  muted?: boolean;
-  indent?: boolean;
-}) {
-  const child = childById(task.child_id);
-  const assignee = parentById(task.assigned_to);
-  const isDone = task.status === 'done';
-  return (
-    <div className={`list-row ${muted && !indent ? 'opacity-65' : ''}`} style={indent ? { paddingLeft: '24px' } : undefined}>
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggle(task); }}
-        aria-label={isDone ? 'Marcar como pendiente' : 'Marcar como hecha'}
-        className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 focus-ring"
-      >
-        {isDone
-          ? <CheckCircle2 size={22} className="text-[var(--success)]" />
-          : <Circle size={22} className="text-[var(--text-quaternary)]" />}
-      </button>
-      <button
-        onClick={() => onEdit(task)}
-        className="flex-1 min-w-0 text-left tap-highlight focus-ring rounded-lg py-1 -my-1 px-1"
-      >
-        <p className={`text-subhead truncate ${isDone ? 'line-through text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'}`}>
-          {task.title}
-        </p>
-        <p className="text-footnote text-[var(--text-tertiary)] truncate">
-          {[
-            task.due_date ? new Date(task.due_date).toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' }) : null,
-            child ? child.name : null,
-            assignee ? assignee.name : (isDone ? null : 'sin asignar'),
-          ].filter(Boolean).join(' · ') || '—'}
-        </p>
-      </button>
-    </div>
-  );
+  return buckets;
 }
 
 function TaskEditSheet({

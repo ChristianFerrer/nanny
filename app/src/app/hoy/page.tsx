@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Circle, Clock, MapPin, AlertTriangle, CalendarDays, Plus, X, CalendarPlus, ListPlus, Pill, CheckSquare, Undo2, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, User as UserIcon, BellOff, BellRing, ChevronRight } from 'lucide-react';
+import { buildGroupedTasks, filterForToday } from '@/lib/task-grouping';
+import { TaskList } from '@/components/TaskList';
 import { getTodayEvents, getUpcomingEvents, getTasks, getChildren, getParents, completeTask, uncompleteTask, addEvent, addTask, getFamily, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { FamilyEvent, Task, Child, Parent, Medication } from '@/lib/types';
 
@@ -55,6 +57,7 @@ export default function HoyPage() {
   const [loading, setLoading] = useState(!_snap);
   const [confirmToast, setConfirmToast] = useState<string | null>(null);
   const [dismissedReminders, setDismissedReminders] = useState<Set<string>>(new Set());
+  const [hoyCollapsed, setHoyCollapsed] = useState<Set<string>>(new Set());
 
   const showConfirmToast = (msg: string) => {
     setConfirmToast(msg);
@@ -370,47 +373,44 @@ export default function HoyPage() {
           )}
         </section>
 
-        {/* Tasks */}
-        <section>
-          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
-            <CheckSquare size={12} /> Tareas pendientes <span className="text-[var(--text-quaternary)] normal-case">· {tasks.length}</span>
-          </h2>
-          {tasks.length === 0 ? (
-            <div className="card-flat text-center py-8 px-5">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--success-soft)] flex items-center justify-center mb-3">
-                <CheckCircle2 size={22} className="text-[var(--success)]" />
-              </div>
-              <p className="text-subhead text-[var(--text-primary)]">Todo al día</p>
-              <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-4">No tienes tareas pendientes</p>
-              <button onClick={openTaskModal} className="btn btn-tinted btn-sm">
-                <ListPlus size={14} /> Nueva tarea
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {urgentTasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  child={getChild(task.child_id)}
-                  parent={getParent(task.assigned_to)}
-                  onComplete={handleComplete}
-                  onClick={() => setDetail({ type: 'task', item: task })}
+        {/* Tasks — agrupadas por parent paraguas (igual que /tareas) */}
+        {(() => {
+          const groupedItems = filterForToday(buildGroupedTasks(tasks));
+          const totalCount = groupedItems.reduce((acc, it) => acc + (it.kind === 'group' ? it.group.children.length : 1), 0);
+          return (
+            <section>
+              <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckSquare size={12} /> Tareas pendientes <span className="text-[var(--text-quaternary)] normal-case">· {totalCount}</span>
+              </h2>
+              {totalCount === 0 ? (
+                <div className="card-flat text-center py-8 px-5">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--success-soft)] flex items-center justify-center mb-3">
+                    <CheckCircle2 size={22} className="text-[var(--success)]" />
+                  </div>
+                  <p className="text-subhead text-[var(--text-primary)]">Todo al día</p>
+                  <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-4">No tienes tareas pendientes</p>
+                  <button onClick={openTaskModal} className="btn btn-tinted btn-sm">
+                    <ListPlus size={14} /> Nueva tarea
+                  </button>
+                </div>
+              ) : (
+                <TaskList
+                  items={groupedItems}
+                  children={children}
+                  parents={parents}
+                  collapsedGroups={hoyCollapsed}
+                  onToggle={(t) => handleComplete(t.id)}
+                  onToggleCollapse={(id) => setHoyCollapsed(prev => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  })}
                 />
-              ))}
-              {normalTasks.map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  child={getChild(task.child_id)}
-                  parent={getParent(task.assigned_to)}
-                  onComplete={handleComplete}
-                  onClick={() => setDetail({ type: 'task', item: task })}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+              )}
+            </section>
+          );
+        })()}
 
         {/* Upcoming */}
         {upcomingEvents.length > 0 && (
