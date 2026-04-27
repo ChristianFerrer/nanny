@@ -52,6 +52,7 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 |---|---|---|---|
 | `Nanny-Autopilot` | `https://nanny-xi.vercel.app/api/cron/autopilot` | `* * * * *` (cada minuto) | Procesa el job de autopilot AI; cada invocación tiene budget de 45s |
 | `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. |
+| `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. |
 
 **Auth:** los endpoints aceptan tres formas (cualquiera funciona):
 1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).

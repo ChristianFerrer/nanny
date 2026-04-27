@@ -24,7 +24,12 @@ const tabs = [
 // /perfil — es config, conceptualmente fuera de las 4 tabs.
 const AGENDA_ROUTES = ['/agenda', '/hoy', '/semana']; // /hoy y /semana redirigen, pero por las dudas
 
-const HIDE_ON = new Set(['/login', '/onboarding', '/', '/chat']);
+// /chat ya NO está oculto: la nav vive consistente en todas las tabs.
+// Antes el /chat la escondía y delegaba navegación a un menú "..." en su
+// header — eso era inconsistente y forzaba al chat a tener affordances de
+// "manipular" la app. Ahora la barra es la nav, y el header del chat queda
+// limpio (solo ⚙ settings).
+const HIDE_ON = new Set(['/login', '/onboarding', '/']);
 
 export default function BottomNav() {
   const pathname = usePathname();

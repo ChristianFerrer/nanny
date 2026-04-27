@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search } from 'lucide-react';
+import Link from 'next/link';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -115,7 +116,8 @@ export default function ChatPage() {
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
   const [toast, setToast] = useState<{ text: string; href: string } | null>(null);
-  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  // showHeaderMenu eliminado: el header del chat ya no tiene menú "..." desde
+  // que la navegación vive en el bottom nav y la config en el gear ⚙.
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingMedConfirm, setPendingMedConfirm] = useState<{
@@ -999,6 +1001,18 @@ export default function ChatPage() {
     setPendingMedConfirm(null);
   };
 
+  // Si se llega con ?catchup=1 (desde /perfil → "Avanzado → Re-analizar"),
+  // ejecutar runCatchup automáticamente y limpiar el query param.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('catchup') === '1' && messages.length > 0 && !catchingUp) {
+      window.history.replaceState({}, '', '/chat');
+      runCatchup();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
+
   const runCatchup = async () => {
     if (catchingUp || messages.length === 0) return;
     setCatchingUp(true);
@@ -1358,45 +1372,27 @@ export default function ChatPage() {
           </div>
           {!onboardingMode && (
             <div className="flex items-center gap-2 relative shrink-0">
-              {/* Quick action: Ponte al dia inline (mas accesible que dentro del menu) */}
-              <button
-                onClick={() => setShowSearch(v => !v)}
-                aria-label={showSearch ? 'Cerrar búsqueda' : 'Buscar mensajes'}
-                aria-pressed={showSearch}
-                className={`w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring ${showSearch ? 'bg-[var(--nanny-purple-tint)]' : ''}`}
-              >
-                <Search size={16} className={showSearch ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
-              </button>
-              <button
-                onClick={runCatchup}
-                disabled={catchingUp || messages.length === 0}
-                aria-label="Ponte al día"
-                className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors disabled:opacity-40 focus-ring"
-              >
-                <RefreshCw size={16} className={catchingUp ? 'animate-spin text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
-              </button>
-              <button
-                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                aria-label="Menú"
-                aria-expanded={showHeaderMenu}
+              {/* Solo ⚙ — la navegación vive en el bottom nav.
+                  Search/refresh/catchup eliminados: cada uno era una pequeña
+                  admisión de que el asistente no estaba haciendo su trabajo.
+                  Si querés algo viejo, le preguntás a Nanny; el polling ya
+                  trae mensajes nuevos; el catchup corre solo de noche. */}
+              <Link
+                href="/perfil"
+                aria-label="Configuración"
                 className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
               >
-                <MoreVertical size={18} className="text-[var(--text-secondary)]" />
-              </button>
-              {showHeaderMenu && (
-                <div className="absolute right-0 top-11 bg-[var(--bg-elevated)] rounded-xl shadow-lg border border-[var(--border-subtle)] py-1 z-20 min-w-[200px] animate-scale-in">
-                  <MenuItem icon={<CalendarDays size={16} className="text-[var(--text-secondary)]" />} label="Hoy" onClick={() => { setShowHeaderMenu(false); router.push('/hoy'); }} />
-                  <MenuItem icon={<Clock size={16} className="text-[var(--text-secondary)]" />} label="Semana" onClick={() => { setShowHeaderMenu(false); router.push('/semana'); }} />
-                  <MenuItem icon={<ListChecks size={16} className="text-[var(--text-secondary)]" />} label="Hijos" onClick={() => { setShowHeaderMenu(false); router.push('/hijo'); }} />
-                  <MenuItem icon={<UserIcon size={16} className="text-[var(--text-secondary)]" />} label="Perfil" onClick={() => { setShowHeaderMenu(false); router.push('/perfil'); }} />
-                </div>
-              )}
+                <Settings size={18} className="text-[var(--text-secondary)]" />
+              </Link>
             </div>
           )}
         </div>
       </div>
 
-      {/* Search bar (expandible) */}
+      {/* Search bar (expandible) — DEPRECATED: se eliminó el botón. El bloque queda
+          condicional a showSearch que ya nunca se setea, por lo que es no-op.
+          Lo dejo unos commits hasta limpiar definitivamente para no romper nada
+          relacionado en este pase. */}
       {showSearch && (
         <div className="shrink-0 px-3 py-2 border-b border-[var(--separator)] bg-[var(--bg-elevated)] animate-slide-up">
           <div className="relative">
@@ -1499,7 +1495,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 space-y-3" onClick={() => showHeaderMenu && setShowHeaderMenu(false)}>
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 space-y-3">
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
@@ -1834,18 +1830,6 @@ export default function ChatPage() {
         </>
       )}
     </div>
-  );
-}
-
-function MenuItem({ icon, label, onClick, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-subhead text-[var(--text-primary)] hover:bg-[var(--gray-50)] disabled:opacity-40 text-left transition-colors"
-    >
-      {icon} {label}
-    </button>
   );
 }
 

@@ -407,6 +407,24 @@ function PerfilInner() {
           </div>
         </section>
 
+        {/* Avanzado — acciones raras (catchup manual, etc.) */}
+        <details className="text-footnote text-[var(--text-tertiary)]">
+          <summary className="cursor-pointer py-2 px-1 select-none focus-ring rounded">
+            Avanzado
+          </summary>
+          <div className="card mt-2 space-y-2">
+            <p className="text-caption text-[var(--text-tertiary)]">
+              Nanny revisa el chat automáticamente cada noche para detectar lo que se le haya escapado durante el día. Si necesitás forzar una revisión ahora, podés hacerla desde el chat.
+            </p>
+            <button
+              onClick={() => router.push('/chat?catchup=1')}
+              className="btn btn-secondary btn-sm btn-block"
+            >
+              Re-analizar el chat ahora
+            </button>
+          </div>
+        </details>
+
         {/* Logout */}
         <button
           onClick={() => setConfirmLogout(true)}
