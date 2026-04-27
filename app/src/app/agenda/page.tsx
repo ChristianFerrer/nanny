@@ -105,16 +105,27 @@ export default function AgendaPage() {
     <div className="min-h-screen bg-white page-enter">
       {/* Header — sticky, glass, Apple-style */}
       <header className="glass px-4 pt-12 pb-3 sticky top-0 z-10">
-        {/* Title + settings gear */}
+        {/* Title + (botón Hoy condicional) + settings gear */}
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-title-3 text-[var(--text-primary)] font-semibold">Agenda</h1>
-          <Link
-            href="/perfil"
-            aria-label="Configuración"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-          >
-            <Settings size={18} />
-          </Link>
+          <div className="flex items-center gap-2">
+            {weekOffset !== 0 && (
+              <button
+                onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
+                aria-label="Ir a hoy"
+                className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
+              >
+                Hoy
+              </button>
+            )}
+            <Link
+              href="/perfil"
+              aria-label="Configuración"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            >
+              <Settings size={18} />
+            </Link>
+          </div>
         </div>
         <div className="flex items-center justify-between mb-4">
           <button
@@ -127,12 +138,9 @@ export default function AgendaPage() {
           <div className="text-center">
             <p className="text-headline text-[var(--text-primary)] capitalize font-semibold">{monthYear}</p>
             {weekOffset !== 0 ? (
-              <button
-                onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
-                className="text-caption text-[var(--nanny-purple)] font-semibold"
-              >
-                Ir a esta semana
-              </button>
+              <p className="text-caption text-[var(--text-tertiary)]">
+                Hoy: {today.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}
+              </p>
             ) : (
               <button
                 onClick={() => setSelectedDayIdx(prev => prev === null ? todayInitialIdx : null)}
@@ -160,13 +168,33 @@ export default function AgendaPage() {
             const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
             const dayLabel = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i];
 
-            // Mini-timeline: 24 hour buckets, mark hours with events
-            const hourBuckets = Array.from({ length: 24 }, (_, h) => {
-              return dayEvents.some(e => new Date(e.date_start).getHours() === h);
+            // Mini-timeline: para cada uno de 6 segmentos de 4h, decidir el "tipo
+            // dominante" (event > medication > task > none) usando prioridad. Así
+            // el strip muestra a un vistazo qué tipo de cosas tiene cada día.
+            const dayMeds = medications.filter(m => {
+              if (m.status !== 'active') return false;
+              const start = new Date(m.start_date);
+              const end = m.end_date ? new Date(m.end_date) : new Date(8.64e15);
+              const dMid = new Date(day); dMid.setHours(0, 0, 0, 0);
+              return dMid >= start && dMid <= end;
             });
-            // Compress to 6 segments of 4h each for readability
-            const segments = Array.from({ length: 6 }, (_, s) => {
-              return hourBuckets.slice(s * 4, s * 4 + 4).some(Boolean);
+            // Por hora: event=3, med=2, task=1, none=0 (tomamos el max por slot)
+            const hourBuckets = Array.from({ length: 24 }, (_, h) => {
+              const hasEvent = dayEvents.some(e => new Date(e.date_start).getHours() === h);
+              if (hasEvent) return 'event';
+              const hasMed = dayMeds.some(m => (m.schedule_times || []).some(t => parseInt(t.split(':')[0], 10) === h));
+              if (hasMed) return 'med';
+              const hasTask = dayTasks.some(t => t.due_date && new Date(t.due_date).getHours() === h);
+              if (hasTask) return 'task';
+              return null;
+            });
+            // Comprimir a 6 segmentos de 4h con el "más fuerte" en ese rango
+            const segments = Array.from({ length: 6 }, (_, s): 'event' | 'med' | 'task' | null => {
+              const slice = hourBuckets.slice(s * 4, s * 4 + 4);
+              if (slice.includes('event')) return 'event';
+              if (slice.includes('med')) return 'med';
+              if (slice.includes('task')) return 'task';
+              return null;
             });
 
             return (
@@ -174,7 +202,7 @@ export default function AgendaPage() {
                 key={i}
                 role="radio"
                 aria-checked={isSelected}
-                aria-label={`${dayLabel} ${day.getDate()}, ${dayEvents.length} eventos, ${dayTasks.length} tareas`}
+                aria-label={`${dayLabel} ${day.getDate()}, ${dayEvents.length} eventos, ${dayTasks.length} tareas, ${dayMeds.length} tratamientos`}
                 onClick={() => setSelectedDayIdx(i)}
                 className={`flex-1 flex flex-col items-center gap-1 pt-2 pb-1.5 px-1 rounded-xl transition-all min-w-0 focus-ring ${
                   isSelected
@@ -188,20 +216,26 @@ export default function AgendaPage() {
                 <span className="text-headline font-semibold leading-none">{day.getDate()}</span>
                 {/* Mini-timeline: 6 segments representando 4h cada uno */}
                 <div className="flex gap-[1px] mt-1 w-full px-0.5" aria-hidden="true">
-                  {segments.map((hasEvent, idx) => (
-                    <span
-                      key={idx}
-                      className={`flex-1 h-[3px] rounded-full transition-colors ${
-                        hasEvent
-                          ? isSelected
-                            ? 'bg-white'
-                            : 'bg-[var(--nanny-purple)]'
-                          : isSelected
-                            ? 'bg-white/20'
-                            : 'bg-[var(--gray-200)]'
-                      }`}
-                    />
-                  ))}
+                  {segments.map((kind, idx) => {
+                    let bg: string;
+                    if (kind === null) {
+                      bg = isSelected ? 'bg-white/20' : 'bg-[var(--gray-200)]';
+                    } else if (isSelected) {
+                      // Cuando el día está seleccionado (fondo morado), todos los
+                      // segments en blanco para mantener contraste limpio
+                      bg = 'bg-white';
+                    } else {
+                      bg = kind === 'event' ? 'bg-[var(--nanny-purple)]'
+                        : kind === 'med' ? 'bg-[var(--danger)]'
+                        : 'bg-[var(--warning)]';
+                    }
+                    return (
+                      <span
+                        key={idx}
+                        className={`flex-1 h-[3px] rounded-full transition-colors ${bg}`}
+                      />
+                    );
+                  })}
                 </div>
                 {dayTasks.length > 0 && (
                   <span className={`text-[9px] font-semibold leading-none ${
@@ -252,9 +286,15 @@ export default function AgendaPage() {
                 {smartLabel}
               </h3>
               {hasNothing ? (
-                <div className="bg-white rounded-xl p-3 text-center text-sm text-[var(--nanny-gray)]">
-                  Sin eventos ni tareas
-                </div>
+                <Link
+                  href="/chat"
+                  className="block bg-white rounded-xl p-4 text-center hover:bg-[var(--gray-50)] transition-colors focus-ring"
+                >
+                  <p className="text-sm text-[var(--text-tertiary)]">Día libre.</p>
+                  <p className="text-caption text-[var(--nanny-purple)] font-semibold mt-1">
+                    ¿Querés agendar algo? Decile a Nanny →
+                  </p>
+                </Link>
               ) : (
                 <div className="space-y-2">
                   {dayEvents.map(event => {
