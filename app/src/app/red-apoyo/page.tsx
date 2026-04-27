@@ -6,7 +6,7 @@ import { ArrowLeft, Users2, Sparkles } from 'lucide-react';
 export default function RedApoyoPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-14 pb-4">
+      <header className="px-5 pt-header pb-4">
         <Link href="/mas" className="inline-flex items-center gap-1 text-footnote text-[var(--nanny-purple)] mb-3">
           <ArrowLeft size={14} /> Más
         </Link>

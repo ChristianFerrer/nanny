@@ -125,7 +125,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
   if (loading) {
     return (
       <div className="min-h-screen bg-white pb-24 page-enter">
-        <header className="px-5 pt-14 pb-4">
+        <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-48 mb-2" />
           <div className="skeleton h-4 w-32" />
         </header>
@@ -139,7 +139,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
   if (notFound || !medication) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-14">
+      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-header">
         <Link href="/hoy" className="inline-flex items-center gap-1 text-footnote text-[var(--nanny-purple)] mb-4">
           <ArrowLeft size={14} /> Volver
         </Link>
@@ -163,7 +163,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="min-h-screen bg-white pb-24 page-enter">
-      <header className="px-5 pt-14 pb-4 flex items-start justify-between">
+      <header className="px-5 pt-header pb-4 flex items-start justify-between">
         <button
           onClick={() => router.back()}
           aria-label="Volver"

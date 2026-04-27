@@ -33,7 +33,7 @@ export default function HijosPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <header className="px-5 pt-14 pb-4">
+        <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-32 mb-2" />
           <div className="skeleton h-4 w-48" />
         </header>
@@ -47,7 +47,7 @@ export default function HijosPage() {
 
   return (
     <div className="min-h-screen bg-white page-enter">
-      <header className="px-5 pt-14 pb-4 flex items-end justify-between">
+      <header className="px-5 pt-header pb-4 flex items-end justify-between">
         <div>
           <h1 className="text-large-title text-[var(--text-primary)]">Hijos</h1>
           <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Perfiles y memoria de cada hijo</p>

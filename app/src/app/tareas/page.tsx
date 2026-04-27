@@ -66,7 +66,7 @@ export default function TareasPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-14 pb-4 flex items-start justify-between">
+      <header className="px-5 pt-header pb-4 flex items-start justify-between">
         <div>
           <h1 className="text-large-title text-[var(--text-primary)]">Tareas</h1>
           <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">

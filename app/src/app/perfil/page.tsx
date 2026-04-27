@@ -51,7 +51,7 @@ export default function PerfilPage() {
 function PerfilSkeleton() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="px-5 pt-14 pb-5">
+      <header className="px-5 pt-header pb-5">
         <div className="skeleton h-9 w-48 mb-2" />
         <div className="skeleton h-4 w-32" />
       </header>
@@ -288,7 +288,7 @@ function PerfilInner() {
   return (
     <div className="min-h-screen bg-white pb-24 page-enter">
       {/* Header limpio Apple */}
-      <header className="px-5 pt-14 pb-4">
+      <header className="px-5 pt-header pb-4">
         <h1 className="text-large-title text-[var(--text-primary)]">{family.name}</h1>
         <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Configuración familiar</p>
       </header>

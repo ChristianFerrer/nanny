@@ -21,7 +21,7 @@ const items: Item[] = [
 export default function MasPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-14 pb-4">
+      <header className="px-5 pt-header pb-4">
         <h1 className="text-large-title text-[var(--text-primary)]">Más</h1>
         <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
           Vista semanal, red de apoyo, métricas y configuración

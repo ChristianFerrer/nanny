@@ -80,7 +80,7 @@ export default function AgendaPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="px-4 pt-12 pb-4 border-b border-[var(--separator)]">
+        <div className="px-4 pt-header pb-4 border-b border-[var(--separator)]">
           <div className="flex items-center justify-between mb-4">
             <div className="skeleton h-8 w-8 rounded-full" />
             <div className="skeleton h-5 w-32" />
@@ -104,7 +104,7 @@ export default function AgendaPage() {
   return (
     <div className="min-h-screen bg-white page-enter">
       {/* Header — sticky, glass, Apple-style */}
-      <header className="glass px-4 pt-12 pb-3 sticky top-0 z-10">
+      <header className="glass px-4 pt-header pb-3 sticky top-0 z-10">
         {/* Title + (botón Hoy condicional) + settings gear */}
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-title-3 text-[var(--text-primary)] font-semibold">Agenda</h1>

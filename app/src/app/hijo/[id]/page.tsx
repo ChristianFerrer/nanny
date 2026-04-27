@@ -41,7 +41,7 @@ export default function HijoDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="px-4 pt-12 pb-6">
+        <div className="px-4 pt-header pb-6">
           <div className="skeleton h-8 w-8 rounded-full mb-4" />
           <div className="flex items-center gap-4">
             <div className="skeleton w-20 h-20 rounded-full" />
@@ -79,7 +79,7 @@ export default function HijoDetailPage() {
   return (
     <div className="min-h-screen bg-white page-enter">
       {/* Header limpio Apple-style */}
-      <header className="px-4 pt-12 pb-5">
+      <header className="px-4 pt-header pb-5">
         <div className="flex items-center justify-between mb-5">
           <button
             onClick={() => router.back()}

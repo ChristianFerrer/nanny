@@ -705,3 +705,7 @@ body[data-keyboard="open"] .bottom-nav {
 .pt-safe { padding-top: var(--safe-top); }
 .pb-safe { padding-bottom: var(--safe-bottom); }
 .pb-nav  { padding-bottom: var(--nav-h); }
+/* Header de página: respeta safe-area + 8px de respiro (no más).
+   Reemplaza los pt-14 / pt-12 fijos que desperdiciaban espacio en
+   navegador y en dispositivos sin notch. */
+.pt-header { padding-top: calc(var(--safe-top) + 8px); }
