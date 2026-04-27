@@ -387,7 +387,8 @@ export default function AgendaPage() {
         <div className="fixed inset-0 z-[60] flex items-end justify-center" onClick={() => setDetail(null)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
-            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up pb-20"
+            className="relative bg-white rounded-t-2xl w-full max-w-[430px] max-h-[70vh] overflow-y-auto animate-slide-up"
+            style={{ paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-white px-5 pt-4 pb-2 flex items-center justify-between border-b border-gray-100 z-10">

@@ -583,7 +583,11 @@ body[data-keyboard="open"] .bottom-nav {
   flex-direction: column;
   animation: slideUp var(--duration-slow) var(--ease-out);
   box-shadow: var(--shadow-xl);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  /* Compensar la altura del bottom-nav (z:50) que vive siempre visible.
+     El sheet sigue arrancando desde bottom:0 pero su contenido recibe
+     padding-bottom equivalente al nav + safe-area, evitando que la
+     última fila quede tapada por la barra de tabs. */
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0));
 }
 
 .sheet-handle {
