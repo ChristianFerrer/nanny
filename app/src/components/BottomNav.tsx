@@ -3,19 +3,26 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, CalendarDays, Users, CheckSquare, Menu } from 'lucide-react';
+import { MessageCircle, CalendarDays, Users, CheckSquare } from 'lucide-react';
 import { getMessages, getTasks, getCurrentParentId } from '@/lib/store';
 
+// Bottom nav simplificada: 4 tabs principales.
+//
+// Decisión de UX: Chat (input) → Agenda (qué pasa cuándo) → Tareas (pendientes
+// y backlog) → Hijos (memoria estable). La configuración vive en un gear ⚙
+// dentro del header de cada pantalla, no en una tab — es un flujo raro.
 const tabs = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
-  { href: '/hoy', icon: CalendarDays, label: 'Hoy' },
-  { href: '/hijo', icon: Users, label: 'Hijos' },
+  { href: '/agenda', icon: CalendarDays, label: 'Agenda' },
   { href: '/tareas', icon: CheckSquare, label: 'Tareas' },
-  { href: '/mas', icon: Menu, label: 'Más' },
+  { href: '/hijo', icon: Users, label: 'Hijos' },
 ];
 
-// Routes inside the "Más" submenu — they highlight the Más tab
-const MAS_ROUTES = ['/mas', '/semana', '/red-apoyo', '/insights', '/configuracion', '/perfil'];
+// Rutas que no son tabs pero deben mantener una tab "iluminada" para no
+// confundir al usuario. /perfil cae bajo Agenda (donde está el gear), pero
+// si llegara desde otro lugar igual no resaltamos ninguna tab para
+// /perfil — es config, conceptualmente fuera de las 4 tabs.
+const AGENDA_ROUTES = ['/agenda', '/hoy', '/semana']; // /hoy y /semana redirigen, pero por las dudas
 
 const HIDE_ON = new Set(['/login', '/onboarding', '/', '/chat']);
 
@@ -58,8 +65,8 @@ export default function BottomNav() {
   if (HIDE_ON.has(pathname) || pathname.startsWith('/admin')) return null;
 
   const isActive = (href: string) => {
-    if (href === '/mas') {
-      return MAS_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
+    if (href === '/agenda') {
+      return AGENDA_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
     }
     return pathname === href || pathname.startsWith(href + '/');
   };

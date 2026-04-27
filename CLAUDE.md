@@ -171,21 +171,22 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/` | Landing / redirect |
 | `/login` | Auth email/password |
 | `/onboarding` | Setup inicial de familia |
-| `/chat` | Chat familiar principal (Nanny AI) |
-| `/hoy` | Vista del día (tab principal) |
-| `/hijo` | Lista de hijos (tab principal) |
+| `/chat` | Chat familiar principal (Nanny AI) — **tab 1** |
+| `/agenda` | Línea temporal: eventos + tareas con fecha + tomas — **tab 2** |
+| `/tareas` | Backlog completo de tareas (con y sin fecha), agrupadas — **tab 3** |
+| `/hijo` | Lista de hijos — **tab 4** |
 | `/hijo/[id]` | Perfil de hijo (incluye sección de tratamientos activos) |
-| `/tareas` | Lista de tareas (tab principal) |
-| `/mas` | Submenú "Más" (tab principal) — agrupa Semana, Red de Apoyo, Insights, Configuración |
-| `/semana` | Vista semanal (accesible desde "Más") |
-| `/red-apoyo` | Red de apoyo — stub, próximamente (accesible desde "Más") |
-| `/insights` | Insights — stub, próximamente (accesible desde "Más") |
-| `/perfil` | Configuración familiar (accesible desde "Más" como "Configuración") |
+| `/perfil` | Configuración familiar — accedida vía gear ⚙ en headers (no es tab) |
 | `/tratamiento/[id]` | Detalle de un tratamiento médico: fechas, estado, tomas realizadas |
+| `/hoy` | **Deprecated** — redirige a `/agenda` (back-compat con bookmarks) |
+| `/semana` | **Deprecated** — redirige a `/agenda` (back-compat con bookmarks) |
+| `/mas` | Submenú legacy — fuera del nav, accesible solo por URL directa |
+| `/red-apoyo` | Stub, próximamente — fuera del nav |
+| `/insights` | Stub, próximamente — fuera del nav |
 | `/admin/testing` | Dashboard de testing/eval |
 | `/admin/testing/[runId]` | Detalle de un run de evaluación |
 
-**Navegación inferior:** 5 tabs siempre visibles — Chat, Hoy, Hijos, Tareas, Más. El tab "Más" agrega un sub-menú con rutas secundarias (Semana, Red de Apoyo, Insights, Configuración). Todas las rutas dentro del submenu resaltan el tab "Más" como activo. Ver `app/src/components/BottomNav.tsx` (constante `MAS_ROUTES`).
+**Navegación inferior (simplificada, abril 2026):** 4 tabs — Chat, Agenda, Tareas, Hijos. La configuración vive en un gear ⚙ en el header de cada tab principal (no es tab). Las rutas legacy `/hoy`, `/semana`, `/mas`, `/red-apoyo`, `/insights` ya no aparecen en el nav pero las rutas siguen funcionando para back-compat. Ver `app/src/components/BottomNav.tsx`.
 
 ---
 

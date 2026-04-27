@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Sparkles, X, Save, Trash2, Layers } from 'lucide-react';
+import { Sparkles, X, Save, Trash2, Layers, Settings } from 'lucide-react';
 import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot, updateTask, deleteTask } from '@/lib/store';
 import { buildGroupedTasks, type GroupOrTask } from '@/lib/task-grouping';
 import { TaskList } from '@/components/TaskList';
@@ -66,11 +66,20 @@ export default function TareasPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-14 pb-4">
-        <h1 className="text-large-title text-[var(--text-primary)]">Tareas</h1>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
-          Pendientes con y sin fecha
-        </p>
+      <header className="px-5 pt-14 pb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-large-title text-[var(--text-primary)]">Tareas</h1>
+          <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
+            Pendientes con y sin fecha
+          </p>
+        </div>
+        <Link
+          href="/perfil"
+          aria-label="Configuración"
+          className="w-9 h-9 mt-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+        >
+          <Settings size={18} />
+        </Link>
       </header>
 
       <div className="px-4 space-y-5">
