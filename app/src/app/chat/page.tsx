@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, MoreVertical, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily } from '@/lib/store';
+import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
@@ -288,7 +288,13 @@ export default function ChatPage() {
         }
       }
 
-      // Family exists — load all data (hits cache if fresh)
+      // Family exists — load all data (hits cache if fresh).
+      // Para mensajes invalidamos el cache: el chat necesita SIEMPRE la versión
+      // más fresca, sino el TTL puede tener una ventana ciega y los mensajes
+      // del otro padre llegados en los últimos 30s no aparecen hasta que vence
+      // (el síntoma reportado: "los últimos 2 mensajes aparecen segundos
+      // después como segunda carga").
+      invalidateTableCache('messages');
       const [fam, msgs, prts, chld, evts, tsks, meds] = await Promise.all([
         getFamily(), getMessages(), getParents(), getChildren(), getEvents(), getTasks(), getMedications(),
       ]);
@@ -530,12 +536,21 @@ export default function ChatPage() {
     }
   };
 
-  // Poll for new messages every 3 seconds (messages from other parent or other sessions)
+  // Poll for new messages every 3 seconds (messages from other parent or other sessions).
+  // - Usa una ref para que el intervalo siempre vea el último estado de mensajes
+  //   sin re-crearse en cada cambio (antes recreaba el setInterval con cada msg
+  //   nuevo, lo que reseteaba el reloj y causaba lag percibido).
+  // - Dispara una pasada INMEDIATA en mount, sin esperar 3s. Esto cubre el caso
+  //   donde la familia abre el chat justo después de recibir mensajes nuevos
+  //   y antes los veía como una "segunda carga" 3 segundos después.
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
   useEffect(() => {
     if (!familyId) return;
-    const interval = setInterval(async () => {
+    const checkNew = async () => {
       try {
-        const lastMsg = messages[messages.length - 1];
+        const lastMsg = messagesRef.current[messagesRef.current.length - 1];
         if (!lastMsg) return;
         const newMsgs = await getNewMessages(lastMsg.created_at);
         if (newMsgs.length > 0) {
@@ -548,9 +563,11 @@ export default function ChatPage() {
       } catch {
         // Silently ignore polling errors
       }
-    }, 3000);
+    };
+    checkNew(); // pasada inmediata
+    const interval = setInterval(checkNew, 3000);
     return () => clearInterval(interval);
-  }, [familyId, messages]);
+  }, [familyId]);
 
   // Push notification registration
   useEffect(() => {

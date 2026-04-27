@@ -29,6 +29,13 @@ function invalidateCache(table?: string) {
   }
 }
 
+// Pública: usada por /chat para forzar fetch fresco de mensajes en mount
+// (el cache TTL de 30s puede tener una "ventana ciega" donde mensajes
+// recibidos mientras está fresco no aparecen hasta que vence).
+export function invalidateTableCache(table: string) {
+  invalidateCache(table);
+}
+
 function notify() {
   _listeners.forEach(fn => fn());
 }
