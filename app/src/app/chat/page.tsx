@@ -1051,6 +1051,38 @@ export default function ChatPage() {
         let createdCount = 0;
         let medFound = false;
 
+        // Pre-pass: para cada task_group único, asegurar que existe la tarea
+        // padre (reutilizamos si ya existe, sino la creamos). El mapa nos
+        // permite linkear cada hija con parent_task_id sin re-buscar.
+        type TaskGroup = { parent_title: string; child_name: string | null };
+        const parentTaskCache = new Map<string, string>(); // lower(parent_title) → parent.id
+        for (const item of items) {
+          const tg = (item as { task_group?: TaskGroup | null }).task_group;
+          if (item.type === 'task' && tg?.parent_title) {
+            const key = tg.parent_title.toLowerCase().trim();
+            if (parentTaskCache.has(key)) continue;
+            const existingParent = tasks.find(t =>
+              t.parent_task_id === null &&
+              t.title.toLowerCase().trim() === key
+            );
+            if (existingParent) {
+              parentTaskCache.set(key, existingParent.id);
+            } else {
+              const matchedChild = children.find(c => c.name.toLowerCase() === (tg.child_name || '').toLowerCase());
+              const parentTask = await addTask({
+                family_id: familyId, child_id: matchedChild?.id || null, parent_task_id: null,
+                title: tg.parent_title, description: null,
+                assigned_to: null, due_date: null,
+                status: 'pending', priority: 'normal', source: 'chat',
+                auto_detected: true, created_by: currentParent, completed_at: null,
+              });
+              setTasks(prev => [...prev, parentTask]);
+              parentTaskCache.set(key, parentTask.id);
+              console.log('[Catchup] Created parent task:', tg.parent_title);
+            }
+          }
+        }
+
         for (const item of items) {
           console.log('[Catchup] Processing item:', item.type, item.summary);
           try {
@@ -1090,23 +1122,39 @@ export default function ChatPage() {
               }
             } else if (item.type === 'task' && item.data) {
               const taskTitle = (item.data.title as string) || item.summary || 'Tarea';
-              const isDupTask = tasks.some(t => t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done');
+              const tg = (item as { task_group?: TaskGroup | null }).task_group;
+              const groupKey = tg?.parent_title ? tg.parent_title.toLowerCase().trim() : null;
+              const parentTaskId = groupKey ? (parentTaskCache.get(groupKey) || null) : null;
+
+              // Para deduplicación: si la tarea está en un grupo, dedupe solo
+              // dentro de ese grupo (mismo parent_task_id). Si es suelta,
+              // dedupe global por título.
+              const isDupTask = parentTaskId
+                ? tasks.some(t => t.parent_task_id === parentTaskId && t.title.toLowerCase() === taskTitle.toLowerCase())
+                : tasks.some(t => t.title.toLowerCase() === taskTitle.toLowerCase() && t.status !== 'done' && t.parent_task_id === null);
+
               if (!isDupTask) {
                 const matchedChild = children.find(c => c.name.toLowerCase() === (item.child || '').toLowerCase());
+                const explicitStatus = String((item.data.status as string) || 'pending').toLowerCase();
+                const status: 'pending' | 'done' = explicitStatus === 'done' ? 'done' : 'pending';
+                const completedAt = status === 'done'
+                  ? (item.data.completed_at as string) || new Date().toISOString()
+                  : null;
                 const newTask = await addTask({
                   family_id: familyId,
                   child_id: matchedChild?.id || null,
-                  parent_task_id: null,
+                  parent_task_id: parentTaskId,
                   title: taskTitle,
                   description: item.summary || null,
                   assigned_to: roleToParentId(item.data.assigned_to),
                   due_date: (item.data.due_date as string) || null,
-                  status: 'pending', priority: 'normal', source: 'chat',
-                  auto_detected: true, created_by: currentParent, completed_at: null,
+                  status, priority: 'normal', source: 'chat',
+                  auto_detected: true, created_by: currentParent,
+                  completed_at: completedAt,
                 });
                 setTasks(prev => [...prev, newTask]);
                 createdCount++;
-                console.log('[Catchup] Created task:', taskTitle);
+                console.log('[Catchup] Created task:', taskTitle, parentTaskId ? `(grupo: ${tg!.parent_title})` : '');
               } else {
                 console.log('[Catchup] Skipped duplicate task:', taskTitle);
               }
