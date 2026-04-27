@@ -258,6 +258,11 @@ export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Ta
   return (result.data || newTask) as Task;
 }
 
+export async function updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at'>>): Promise<void> {
+  await writeData('tasks', 'update', updates as Record<string, unknown>, taskId);
+  notify();
+}
+
 export async function getMedications(): Promise<Medication[]> {
   const data = await fetchFamilyData(['medications']);
   return (data.medications as Medication[]) || [];

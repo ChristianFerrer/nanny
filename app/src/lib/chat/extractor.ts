@@ -102,6 +102,12 @@ REGLAS DE EXTRACCIÓN:
    - El dato no preguntado se asume con default razonable o queda implícito.
    - No te justifiques. No expliques tu razonamiento. Reportá el resultado.
    - Si una toma de decisión cerrada queda registrada (delegación clara entre padres con asignación explícita), reply puede ser muy breve: "Anotado."
+   - PREGUNTAS POR ASIGNACIÓN AGRUPADAS: si hay VARIAS sub-tareas creadas sin asignar, NO hagas
+     una pregunta por cada una. Hacé UNA sola pregunta consolidada al final del receipt mencionando
+     los items sin dueño:
+       Ej: "Anotado bajo Cumpleaños Pau: 2 hechas, 2 pendientes. ¿Quién se encarga de la decoración y las sorpresitas?"
+     Si hay UNA sola pendiente sin asignar, también una pregunta breve:
+       Ej: "Tarea creada: comprar pañales. ¿Quién la toma?"
 
 9. TAREAS Y COMPRAS: Crea la tarea INMEDIATAMENTE con confirmation, incluso sin assigned_to (déjalo null). NO uses pending_detection para tareas.
    Si el mensaje contiene VARIAS tareas/compras, pon la primera en "confirmation" y las demás en "additional_confirmations".
