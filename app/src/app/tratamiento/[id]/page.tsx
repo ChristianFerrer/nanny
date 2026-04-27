@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Pill, CheckCircle2, Circle, AlertCircle, Calendar,
-  Clock, User as UserIcon, MoreVertical, X, SkipForward
+  Clock, User as UserIcon, SkipForward
 } from 'lucide-react';
 import { getMedicationDetail, upsertIntake, updateMedication, getCurrentParentId, getChildren } from '@/lib/store';
 import type { Medication, MedicationIntake, MedicationIntakeStatus, Child } from '@/lib/types';
@@ -26,7 +26,6 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
   const [child, setChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [actionMenu, setActionMenu] = useState(false);
   const [savingIntake, setSavingIntake] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -119,7 +118,6 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
     if (!medication) return;
     await updateMedication(medication.id, { status: newStatus });
     setMedication({ ...medication, status: newStatus });
-    setActionMenu(false);
   };
 
   if (loading) {
@@ -170,13 +168,6 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
           className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
         >
           <ArrowLeft size={26} />
-        </button>
-        <button
-          onClick={() => setActionMenu(true)}
-          aria-label="Acciones"
-          className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
-        >
-          <MoreVertical size={20} />
         </button>
       </header>
 
@@ -261,43 +252,25 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
             ))}
           </div>
         </section>
-      </div>
 
-      {actionMenu && (
-        <>
-          <div className="sheet-backdrop" onClick={() => setActionMenu(false)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Acciones del tratamiento">
-            <div className="sheet-handle" />
-            <div className="sheet-header flex items-center justify-between">
-              <h2 className="text-title-3 text-[var(--text-primary)]">Acciones</h2>
-              <button
-                onClick={() => setActionMenu(false)}
-                aria-label="Cerrar"
-                className="w-9 h-9 rounded-full bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-secondary)] focus-ring"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="sheet-body space-y-2">
-              {medication.status !== 'completed' && (
-                <button onClick={() => handleStatusChange('completed')} className="btn btn-secondary btn-block">
-                  <CheckCircle2 size={16} /> Marcar como completado
-                </button>
-              )}
-              {medication.status !== 'cancelled' && (
-                <button onClick={() => handleStatusChange('cancelled')} className="btn btn-block" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>
-                  Cancelar tratamiento
-                </button>
-              )}
-              {medication.status !== 'active' && (
-                <button onClick={() => handleStatusChange('active')} className="btn btn-secondary btn-block">
-                  Reactivar
-                </button>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+        <section className="space-y-2 pt-2">
+          {medication.status !== 'completed' && (
+            <button onClick={() => handleStatusChange('completed')} className="btn btn-secondary btn-block">
+              <CheckCircle2 size={16} /> Marcar como completado
+            </button>
+          )}
+          {medication.status !== 'cancelled' && (
+            <button onClick={() => handleStatusChange('cancelled')} className="btn btn-block" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>
+              Cancelar tratamiento
+            </button>
+          )}
+          {medication.status !== 'active' && (
+            <button onClick={() => handleStatusChange('active')} className="btn btn-secondary btn-block">
+              Reactivar
+            </button>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
