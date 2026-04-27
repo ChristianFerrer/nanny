@@ -55,7 +55,7 @@ export default function HijosPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/perfil?addChild=1"
+            href="/perfil/hijo/nuevo"
             aria-label="Agregar hijo"
             className="w-10 h-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
           >

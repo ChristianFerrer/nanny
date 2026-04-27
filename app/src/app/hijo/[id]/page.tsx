@@ -91,7 +91,7 @@ export default function HijoDetailPage() {
             <ArrowLeft size={26} />
           </button>
           <Link
-            href={`/perfil?editChild=${child.id}`}
+            href={`/perfil/hijo/${child.id}`}
             className="btn btn-tinted btn-sm"
             aria-label="Editar perfil"
           >
