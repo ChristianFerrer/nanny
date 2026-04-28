@@ -32,7 +32,7 @@
 | Branch | Rol |
 |---|---|
 | `claude/continue-previous-session-OleqU` | **Producción Vercel.** Cualquier push acá deploya. Es la branch a la que apuntan los pushes de cambios validados. |
-| `claude/continue-markdown-docs-JmrP4` | Branch del rediseño UI. Mantener en sync con la de producción (fast-forward) cuando hay cambios. |
+| `claude/continue-markdown-docs-JmrP4` | Branch histórica del rediseño UI (cerrado). Mantener en sync con producción si hay cambios cross-cutting. |
 | `claude/refactor-chat-into-components` | Pendiente de crear cuando arranque la sesión dedicada del refactor del chat. Ver `CHAT-REFACTOR-PLAN.md`. |
 
 ### Deployment
@@ -51,8 +51,8 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 | Cron | Endpoint | Schedule | Notas |
 |---|---|---|---|
 | `Nanny-Autopilot` | `https://nanny-xi.vercel.app/api/cron/autopilot` | `* * * * *` (cada minuto) | Procesa el job de autopilot AI; cada invocación tiene budget de 45s |
-| `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. |
-| `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. |
+| `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. Endpoint: `app/src/app/api/cron/morning-brief/route.ts`. |
+| `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. Endpoint: `app/src/app/api/cron/nightly-catchup/route.ts`. |
 
 **Auth:** los endpoints aceptan tres formas (cualquiera funciona):
 1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).
@@ -72,17 +72,31 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 
 ### Rediseño Apple-inspired — ✅ Cerrado
 
-14/14 micro-batches completados. Toda la app tiene el nuevo design system, animaciones de entrada, dark mode auto, bottom sheets, headers Apple-style. Detalle completo en `REDESIGN-PLAN.md`.
+14/14 micro-batches completados. Toda la app tiene el nuevo design system, animaciones de entrada, dark mode auto, headers Apple-style. Detalle completo en `REDESIGN-PLAN.md`.
 
-**Tareas adicionales completadas post-rediseño:**
-- Feature de color del hijo completa (DB + tipo + UI)
-- Bottom sheet para editor de horarios de medicación
-- Animación `page-enter` en cada pantalla
-- Componentes UI reutilizables en `app/src/components/ui/` (Button, Input, Sheet, Card, ListRow, Skeleton)
+### Refactor de UI a páginas full-screen — ✅ Cerrado (abril 2026)
+
+Toda edición de detalle ahora vive en páginas full-screen con back arrow, no en bottom sheets / popups. El patrón unificado:
+- `/tarea/[id]`, `/evento/[id]`, `/tratamiento/[id]` (detalle/edit)
+- `/perfil/familia`, `/perfil/padre/[id]`, `/perfil/hijo/[id]`, `/perfil/hijo/nuevo` (config)
+- `/hijo/[id]/rutina/nueva` (creación manual de rutina)
+
+Los confirms destructivos (logout, eliminar hijo, eliminar evento/tarea) se mantienen como confirm inline o dialog modal — no son edición de detalle.
+
+Composer del chat slim (8px 10px / 16px) extendido como base de inputs en toda la app (`globals.css` `.input`).
+
+### Rutinas semanales + cancelaciones puntuales — ✅ Cerrado (abril 2026)
+
+Soporte para horarios fijos recurrentes (guardería, cole, fútbol semanal) como concepto separado de eventos:
+- Tabla `routines` ya existía; nueva tabla `routine_exceptions` para overrides puntuales (cancelar un día / cambiar horario para una fecha específica)
+- Migración: `supabase/migrations/20260427_routine_exceptions.sql`
+- Agenda expande rutinas activas por día con estilo distinto (borde punteado morado, badge `RUTINA`)
+- Pestaña Rutinas en `/hijo/[id]` agrupa por momento del día (mañana/tarde/noche/sin horario) derivado de `time_start`, no de la columna `type`
+- Detector determinístico (`app/src/lib/chat/routine-detector.ts`) corre como red de seguridad después del LLM. Si el extractor falla en crear rutina cuando el mensaje describe horario fijo claro ("X tiene Y de lunes a viernes de 9 a 17"), el detector la fuerza y reescribe el reply. Cubre patrones comunes con tests en `routine-detector.test.ts` (`npx tsx`).
 
 ### Refactor del chat — ⏳ Pendiente (sesión dedicada)
 
-`app/src/app/chat/page.tsx` tiene 1609 líneas con 30 useStates. Plan en 7 fases para extraer componentes y hooks. Plan completo en `CHAT-REFACTOR-PLAN.md`.
+`app/src/app/chat/page.tsx` tiene ~1900 líneas y ~32 useStates (creció con state de routines/routineExceptions). Plan en 7 fases para extraer componentes y hooks. Plan completo en `CHAT-REFACTOR-PLAN.md`.
 
 **Red de seguridad ya establecida (PR #1 mergeado, commit `7843a75`):**
 - Playwright + workflow GH Actions en `.github/workflows/e2e.yml` corre en cada push a `claude/**`
@@ -167,27 +181,58 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 ## 6. Páginas
 
+### Tabs principales (bottom nav)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/chat` | Chat familiar principal (Nanny AI) — **tab 1** |
+| `/agenda` | Línea temporal: eventos + tareas con fecha + rutinas semanales expandidas + tomas — **tab 2** |
+| `/tareas` | Backlog completo de tareas (con y sin fecha), agrupadas — **tab 3** |
+| `/hijo` | Lista de hijos — **tab 4** |
+
+### Páginas de detalle / edición (full-screen, back arrow)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/evento/[id]` | Editar/eliminar evento (creado en abril 2026, reemplaza popup en `/agenda`) |
+| `/tarea/[id]` | Editar/eliminar tarea (incluye vista de tarea paraguas con sub-actividades) |
+| `/tratamiento/[id]` | Detalle de tratamiento médico (fechas, estado, tomas) + acciones inline (marcar completado / cancelar / reactivar) |
+| `/hijo/[id]` | Perfil del hijo (tabs: Info / Agenda / Salud / Rutinas) |
+| `/hijo/[id]/rutina/nueva` | Crear rutina semanal manualmente (nombre, tipo, días, hora) |
+| `/perfil` | Hub de configuración familiar — solo navegación, accedido vía gear ⚙ |
+| `/perfil/familia` | Editar nombre + zona horaria de la familia |
+| `/perfil/padre/[id]` | Editar mamá/papá |
+| `/perfil/hijo/[id]` | Editar hijo (datos + delete) |
+| `/perfil/hijo/nuevo` | Agregar hijo |
+
+### Auth + landing
+
 | Ruta | Descripción |
 |------|-------------|
 | `/` | Landing / redirect |
 | `/login` | Auth email/password |
 | `/onboarding` | Setup inicial de familia |
-| `/chat` | Chat familiar principal (Nanny AI) — **tab 1** |
-| `/agenda` | Línea temporal: eventos + tareas con fecha + tomas — **tab 2** |
-| `/tareas` | Backlog completo de tareas (con y sin fecha), agrupadas — **tab 3** |
-| `/hijo` | Lista de hijos — **tab 4** |
-| `/hijo/[id]` | Perfil de hijo (incluye sección de tratamientos activos) |
-| `/perfil` | Configuración familiar — accedida vía gear ⚙ en headers (no es tab) |
-| `/tratamiento/[id]` | Detalle de un tratamiento médico: fechas, estado, tomas realizadas |
+
+### Admin / testing
+
+| Ruta | Descripción |
+|------|-------------|
+| `/admin/testing` | Dashboard de testing/eval |
+| `/admin/testing/[runId]` | Detalle de un run de evaluación |
+
+### Deprecated / fuera del nav
+
+| Ruta | Descripción |
+|------|-------------|
 | `/hoy` | **Deprecated** — redirige a `/agenda` (back-compat con bookmarks) |
 | `/semana` | **Deprecated** — redirige a `/agenda` (back-compat con bookmarks) |
 | `/mas` | Submenú legacy — fuera del nav, accesible solo por URL directa |
 | `/red-apoyo` | Stub, próximamente — fuera del nav |
 | `/insights` | Stub, próximamente — fuera del nav |
-| `/admin/testing` | Dashboard de testing/eval |
-| `/admin/testing/[runId]` | Detalle de un run de evaluación |
 
-**Navegación inferior (simplificada, abril 2026):** 4 tabs — Chat, Agenda, Tareas, Hijos. La configuración vive en un gear ⚙ en el header de cada tab principal (no es tab). Las rutas legacy `/hoy`, `/semana`, `/mas`, `/red-apoyo`, `/insights` ya no aparecen en el nav pero las rutas siguen funcionando para back-compat. Ver `app/src/components/BottomNav.tsx`.
+**Navegación inferior (simplificada, abril 2026):** 4 tabs — Chat, Agenda, Tareas, Hijos. La configuración vive en un gear ⚙ en el header de cada tab principal (no es tab). Las rutas legacy ya no aparecen en el nav pero siguen funcionando para back-compat. Ver `app/src/components/BottomNav.tsx`.
+
+**Patrón de edición (vinculante):** cualquier flow de "ver detalle" o "editar" abre una **página full-screen con back arrow `size={26}`**, no un popup ni bottom sheet. Los confirms destructivos (delete con doble-tap, logout) se mantienen como dialog modal centrado o como confirm inline al pie de la página. Ver decisión 11.
 
 ---
 
@@ -195,12 +240,12 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 | Ruta | Descripción |
 |------|-------------|
-| `/api/chat` | Procesa mensajes del chat (pipeline AI) |
+| `/api/chat` | Procesa mensajes del chat (pipeline AI streaming SSE) |
 | `/api/chat-catchup` | Resumen de mensajes perdidos |
 | `/api/onboarding` | Crea familia y padres |
 | `/api/onboarding-chat` | Chat conversacional del onboarding |
-| `/api/family-data` | Lee datos de la familia |
-| `/api/family-write` | Escribe datos de la familia (incluye `medication_intakes`) |
+| `/api/family-data` | Lee datos de la familia (acepta `tables=` con `family,parents,children,events,tasks,messages,medications,routines,routine_exceptions`) |
+| `/api/family-write` | Escribe datos de la familia. Tablas sin `family_id` (`routines`, `routine_exceptions`, `families`) están en `TABLES_WITHOUT_FAMILY_ID` y NO reciben scope automático — heredan acceso vía FK a `children` |
 | `/api/check-family` | Verifica si el usuario tiene familia |
 | `/api/join-family` | Unirse a familia existente (idempotente, retry-safe) |
 | `/api/medication/[id]` | Devuelve un tratamiento + sus tomas (`medication_intakes`) |
@@ -217,19 +262,22 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/eval/prompt` | GET/POST/PUT/DELETE de reglas del prompt |
 | `/api/cron/autopilot` | Cron (cron-job.org cada 1 min): procesa job de autopilot |
 | `/api/cron/morning-brief` | Cron (cron-job.org cada 1 hora): brief matutino por familia, filtra por TZ local (envía a las 8am locales) |
+| `/api/cron/nightly-catchup` | Cron (cron-job.org cada 1 hora): nightly catchup automático a las 4am locales — encuentra items que Nanny no capturó durante el día |
 
 ---
 
 ## 8. Pipeline de Chat AI (`app/src/lib/chat/`)
 
-1. `processChat.ts` — orquestador público; el `SYSTEM_PROMPT` exportado es legacy (solo eval offline)
+1. `processChat.ts` — orquestador público + `ChatInput` interface; el `SYSTEM_PROMPT` exportado es legacy (solo eval offline)
 2. `classifier.ts` — clasifica intención + flags del mensaje (incluye `silent_action`)
-3. `extractor.ts` — extrae datos estructurados (eventos, tareas, medicamentos)
+3. `extractor.ts` — extrae datos estructurados (eventos, tareas, medicamentos, **rutinas**, **excepciones de rutinas**)
 4. `responder.ts` — genera respuesta de Nanny (tono profesional, default 1 oración, una pregunta máx)
-5. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación)
-6. `pipeline.ts` — orquestación: emite stream de eventos `will_respond` + `response`; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm); buffered receipt para casos `silent_action`
-7. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
-8. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
+5. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación). NO filtra `routine` ni `routine_exception` — pasan directo
+6. `routine-detector.ts` — **red de seguridad determinística** (regex): detecta patrones claros de rutina semanal en el mensaje. Si el LLM no creó `confirmation: type=routine` y el regex matchea (hijo + actividad + días + horario), el pipeline fuerza la creación reescribiendo el reply
+7. `pipeline.ts` — orquestación: emite stream de eventos `will_respond` + `response`; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm); buffered receipt para casos `silent_action`. Ejecuta `routine-detector` **después** del LLM, antes de `postprocess`
+8. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
+9. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
+10. `routine-detector.test.ts` — runner de tests (no framework, solo asserts) — `npx tsx src/lib/chat/routine-detector.test.ts`
 
 ### Streaming SSE (`/api/chat`)
 
@@ -356,16 +404,21 @@ Helpers disponibles:
 - Fases pesadas se separan con `yield` para no exceder `maxDuration=60s` de Vercel
 - En lookups por `auth_user_id` o por familia, usar `.maybeSingle()` (no `.single()`) para no lanzar excepciones cuando no hay fila — esto causaba que `/api/check-family` y `/api/join-family` fallaran silenciosamente en el flujo de invitación
 - El flujo de invitación al segundo padre persiste el `family_id` de invitación en `localStorage` (`nanny:pendingInvite`). Sobrevive a redirects de confirmación de email y se reintenta en `/chat` si la primera llamada a `/api/join-family` falla por race de cookies tras `signUp`
+- `family-write` distingue tablas con/sin columna `family_id`: `routines`, `routine_exceptions` y `families` están en `TABLES_WITHOUT_FAMILY_ID` y NO reciben scope automático en insert/update/delete (heredan acceso vía FK al hijo). Si se inyectara `family_id` en estas tablas, Postgres rechazaría el insert silenciosamente.
+- Las rutinas son un concepto separado de eventos: las rutinas son horarios fijos recurrentes en `routines` (con `days_of_week INT[]`); las cancelaciones puntuales viven en `routine_exceptions` (referencia a `routine_id` + `date`). La agenda expande las rutinas activas por día y filtra excepciones canceladas
+- El extractor LLM no es 100% confiable para crear rutinas; el `routine-detector` (regex determinístico) actúa como red de seguridad y reescribe el reply si encuentra patrón claro y el LLM no creó confirmation type=routine
 
 ### Diseño UI
 
 - Color de acento único: `#7C3AED` (purple Apple)
 - Tipografía: `Inter` via `next/font`
-- Modales: bottom sheet en toda la app (deprecar fullscreen)
+- **Patrón de edición: páginas full-screen con back arrow `size={26}`**, no popups ni bottom sheets. Excepción: confirms destructivos (logout, delete con doble-tap) son dialog modal centrado o confirm inline al pie
 - Headers: white por defecto, purple eliminado salvo el avatar del hijo
+- Inputs base: `padding: 8px 10px`, `font-size: 16px` (slim, alineado al composer del chat). Definido en `globals.css` `.input`
 - Dark mode: auto vía `prefers-color-scheme`
-- Componentes UI reutilizables: `app/src/components/ui/` (Button, Input, Sheet, Card, ListRow, Skeleton)
+- Componentes UI reutilizables: `app/src/components/ui/` (Button, Input, Sheet, Card, ListRow, Skeleton). El `Sheet` solo se usa para confirms destructivos, no para edición
 - Animaciones: `.page-enter` al entrar a cada pantalla; respeta `prefers-reduced-motion`
+- Edad de hijos: formato humano ("2 años y 11 meses" / "10 meses" / "1 año y 1 mes") via `app/src/lib/age.ts` `formatAge()` — usado en UI y en el contexto que recibe Nanny
 
 ### Documentación
 

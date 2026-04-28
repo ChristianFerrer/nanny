@@ -6,7 +6,7 @@
 
 ## 1. Contexto
 
-`app/src/app/chat/page.tsx` tiene **1609 líneas**, **30 useStates**, y mezcla render con lógica de negocio (buffering, polling, intent detection, medication flow, swipe-to-reply, search, catch-up, onboarding mode).
+`app/src/app/chat/page.tsx` tiene **~1900 líneas**, **~32 useStates**, y mezcla render con lógica de negocio (buffering, polling, intent detection, medication flow, swipe-to-reply, search, catch-up, onboarding mode, **routines + routine_exceptions** agregados en abril 2026).
 
 El plan original de rediseño Apple-inspired (`REDESIGN-PLAN.md`) marcó esto como **alto riesgo, sesión dedicada**. Esa es esta sesión.
 
@@ -14,7 +14,7 @@ El plan original de rediseño Apple-inspired (`REDESIGN-PLAN.md`) marcó esto co
 
 | Métrica | Hoy | Después |
 |---|---|---|
-| Líneas en `chat/page.tsx` | 1609 | ~600 |
+| Líneas en `chat/page.tsx` | ~1900 | ~700 |
 | Re-renders por keystroke en input | 50+ (todos los mensajes) | 0 (con `React.memo`) |
 | Tamaño de PR típico | 200-500 líneas | 50-100 |
 | Cobertura de tests viable | ~0% | 70%+ |
@@ -79,13 +79,14 @@ Usar una familia/cuenta de prueba en Supabase (NO la cuenta real del usuario). S
 
 ## 3. Estado actual del archivo
 
-`app/src/app/chat/page.tsx` — **1609 líneas**
+`app/src/app/chat/page.tsx` — **~1900 líneas**
 
-### Estados (30 total)
+### Estados (~32 total)
 
 ```ts
 // Datos cargados
-messages, parents, children, events, tasks, medications, familyId, currentParent
+messages, parents, children, events, tasks, medications, routines, routineExceptions,
+familyId, currentParent
 
 // UI/Input
 input, showHeaderMenu, showSearch, searchQuery, replyingTo
@@ -96,7 +97,7 @@ feedbackGiven (Record<msgId, 'up'|'down'>)
 // Push notifications
 pushStatus, toast
 
-// Medication flow (acoplado)
+// Medication flow (acoplado, ahora inline en el bubble)
 pendingMedConfirm, editingMedTimes
 
 // Pending detection / catch-up
@@ -109,6 +110,8 @@ nannyThinking, nannyWaiting, dataLoaded
 onboardingMode, onboardingExtracted, onboardingSending, onboardingSaving,
 onboardingAuthUserId, onboardingAuthEmail
 ```
+
+> **Cambio post-plan original:** se agregaron `routines` y `routineExceptions` cuando se introdujo la feature de rutinas semanales (abril 2026). El handler de `confirmation: type=routine` y `type=routine_exception` está en el callback de `callChatStream`. El editor de horarios de medicación se pasó de bottom sheet a inline dentro del bubble (para alinearse con el patrón "no popups").
 
 ### Refs y timers
 

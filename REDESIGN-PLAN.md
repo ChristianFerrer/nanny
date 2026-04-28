@@ -309,7 +309,47 @@ Disponibles en `app/src/app/globals.css` para usar en los batches restantes:
 
 ---
 
-**Última actualización:** 2026-04-26 — sesión completa terminada.
+**Última actualización:** 2026-04-28 — agregada sección de trabajo post-rediseño.
+
+## Trabajo post-rediseño (abril 2026)
+
+Después del cierre del rediseño Apple-inspired hubo varios sprints sucesivos que cambiaron decisiones del plan original. Esta sección documenta lo nuevo para que sesiones futuras no asuman el estado del rediseño como vigente.
+
+### Cambio de patrón: edición full-screen, no bottom sheets
+
+**Decisión:** toda pantalla de **edición de detalle** ahora es página full-screen con back arrow `size={26}`, no bottom sheet ni popup. El plan original estandarizaba a bottom sheet — esa decisión quedó superada.
+
+Nuevas rutas creadas con este patrón:
+- `/evento/[id]` (reemplaza el modal de detalle en `/agenda`)
+- `/tarea/[id]` (reemplaza el sheet `TaskEditSheet` en `/tareas`)
+- `/perfil/familia`, `/perfil/padre/[id]`, `/perfil/hijo/[id]`, `/perfil/hijo/nuevo` (reemplazan los sheets de `/perfil`)
+- `/hijo/[id]/rutina/nueva` (creación manual de rutina)
+
+Las acciones del menú de tratamiento (`/tratamiento/[id]` ⋮) se inlinearon al pie de la página. El editor de horarios de medicación en `/chat` también se inlineó dentro del bubble de Nanny.
+
+Se mantienen como dialog/confirm: logout, delete con doble-tap (no son edición de detalle).
+
+### Nueva arquitectura de navegación (4 tabs + gear)
+
+Bottom nav simplificada: **Chat / Agenda / Tareas / Hijos**. La configuración vive en un gear ⚙ en el header de cada tab principal, no como pestaña. Rutas legacy `/hoy`, `/semana`, `/mas`, `/red-apoyo`, `/insights` salen del nav pero siguen existiendo para back-compat.
+
+### Rutinas semanales como concepto separado
+
+Agregada feature de rutinas (horarios fijos recurrentes) y cancelaciones puntuales. UI:
+- En `/agenda`, las rutinas activas se expanden por día con borde punteado morado y badge `RUTINA`
+- En `/hijo/[id]` pestaña Rutinas, agrupadas por momento del día (mañana/tarde/noche/sin horario) derivado de `time_start`
+
+Migración nueva: `supabase/migrations/20260427_routine_exceptions.sql`. Detalles en `CLAUDE.md` sección 2.
+
+### Inputs slim por default
+
+Padding y font-size de inputs base reducidos (`8px 10px / 16px`) en `globals.css` para alinearse con el composer del chat. Aplica a todos los formularios.
+
+### Edad de hijos en formato humano
+
+Helper `app/src/lib/age.ts` `formatAge()` muestra "2 años y 11 meses" / "10 meses" / "1 año y 1 mes" en lugar de solo años. Aplicado en UI y en el contexto que recibe Nanny.
+
+---
 
 ## Cierre de la sesión 2026-04-26
 

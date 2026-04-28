@@ -29,16 +29,20 @@ CRON_SECRET=cualquier-string-largo   # opcional, autentica el cron de Vercel
 
 1. Crea un proyecto en [supabase.com](https://supabase.com)
 2. En **SQL Editor**, ejecuta en orden:
-   - `../supabase-schema.sql` — schema base (familias, hijos, eventos, tareas, mensajes)
+   - `../supabase-schema.sql` — schema base (familias, hijos, eventos, tareas, mensajes, rutinas)
    - `../supabase-migration-auth.sql` — tabla parents + RLS por `auth_user_id`
    - `../supabase-migration-medications.sql` — tabla medicamentos
-   - Luego cada archivo de `../supabase/migrations/` por fecha:
-     - `20260312_push_subscriptions.sql`
-     - `20260318_evaluation_runs.sql`
-     - `20260318_system_prompts.sql`
-     - `20260408_autopilot_jobs.sql`
-     - `20260409_autopilot_jobs_lock.sql`
-     - `20260409_prompt_rules.sql`
+3. Aplicar las migraciones de `../supabase/migrations/`:
+
+   **Recomendado:** usar el helper:
+   ```bash
+   ../scripts/db-migrate.sh           # aplica las pendientes
+   ../scripts/db-migrate.sh --status  # ver qué falta
+   ../scripts/db-migrate.sh --dry     # listar pendientes sin aplicar
+   ```
+   Requiere `SUPABASE_DB_URL` en `app/.env.local`. Tracking en tabla `_nanny_migrations`.
+
+   **Manual:** ejecutar cada `.sql` por fecha en SQL Editor. Lista completa en `../CLAUDE.md` sección 10.
 
 ### 3. Instalar y correr
 
@@ -69,19 +73,48 @@ Para correr eval offline (análisis manual sin OpenAI): `npx tsx src/lib/eval/ru
 
 ## Pantallas
 
+**Bottom nav (4 tabs):** Chat, Agenda, Tareas, Hijos. Configuración vía gear ⚙ en headers.
+
+### Tabs principales
+
+| Ruta | Descripción |
+|------|-------------|
+| `/chat` | Chat familiar principal con Nanny AI |
+| `/agenda` | Línea temporal: eventos + tareas con fecha + rutinas semanales + tomas |
+| `/tareas` | Backlog completo de tareas, agrupadas |
+| `/hijo` | Lista de hijos |
+
+### Detalle / edición (full-screen, back arrow)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/evento/[id]` | Editar/eliminar evento |
+| `/tarea/[id]` | Editar/eliminar tarea (vista paraguas si tiene sub-actividades) |
+| `/tratamiento/[id]` | Detalle de tratamiento médico + acciones inline |
+| `/hijo/[id]` | Perfil del hijo (Info / Agenda / Salud / Rutinas) |
+| `/hijo/[id]/rutina/nueva` | Crear rutina semanal manualmente |
+| `/perfil` | Hub de configuración familiar (solo navegación) |
+| `/perfil/familia` | Editar nombre + zona horaria |
+| `/perfil/padre/[id]` | Editar mamá/papá |
+| `/perfil/hijo/[id]` | Editar hijo (datos + delete) |
+| `/perfil/hijo/nuevo` | Agregar hijo |
+
+### Auth + admin
+
 | Ruta | Descripción |
 |------|-------------|
 | `/` | Landing / redirect según auth |
 | `/login` | Auth email/password (Supabase Auth) |
 | `/onboarding` | Setup conversacional de familia (chat-driven) |
-| `/chat` | Chat familiar principal con Nanny AI |
-| `/hoy` | Agenda del día y tareas urgentes |
-| `/semana` | Vista semanal navegable |
-| `/hijo` | Lista de hijos |
-| `/hijo/[id]` | Perfil del hijo (Identidad / Operativo / Rutinas) |
-| `/perfil` | Perfil del padre / configuración |
 | `/admin/testing` | Dashboard de evaluación + autopilot |
 | `/admin/testing/[runId]` | Detalle de un run de eval |
+
+### Deprecated (back-compat con bookmarks)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/hoy`, `/semana` | Redirigen a `/agenda` |
+| `/mas`, `/red-apoyo`, `/insights` | Fuera del nav |
 
 ---
 
@@ -90,14 +123,15 @@ Para correr eval offline (análisis manual sin OpenAI): `npx tsx src/lib/eval/ru
 ### Chat y onboarding
 | Ruta | Descripción |
 |------|-------------|
-| `POST /api/chat` | Pipeline AI: clasifica → extrae → responde |
+| `POST /api/chat` | Pipeline AI streaming SSE: classifier → extractor → routine-detector → postprocess |
 | `POST /api/chat-catchup` | Resumen de mensajes perdidos |
 | `POST /api/onboarding` | Crea familia + padre (admin client) |
 | `POST /api/onboarding-chat` | Chat conversacional del onboarding |
 | `GET /api/check-family` | Verifica vínculo parent ↔ family |
 | `POST /api/join-family` | Unirse a familia existente por código |
-| `GET/POST /api/family-data` | Lee datos de la familia (eventos, tareas, etc.) |
-| `POST /api/family-write` | Escribe datos validados |
+| `GET /api/family-data` | Lee datos (acepta `?tables=...` con `family,parents,children,events,tasks,messages,medications,routines,routine_exceptions`) |
+| `POST /api/family-write` | Escribe datos. Tablas sin `family_id` (`routines`, `routine_exceptions`, `families`) NO reciben scope automático |
+| `GET /api/medication/[id]` | Tratamiento + sus tomas |
 
 ### Push notifications
 | Ruta | Descripción |
@@ -118,7 +152,9 @@ Para correr eval offline (análisis manual sin OpenAI): `npx tsx src/lib/eval/ru
 | `DELETE /api/eval/autopilot` | Cancela el job activo |
 | `POST /api/eval/diagnose` | Diagnóstico AI sobre un run |
 | `GET/POST/PUT/DELETE /api/eval/prompt` | CRUD de reglas dinámicas del prompt |
-| `GET /api/cron/autopilot` | Cron endpoint (Vercel, cada 1 min) |
+| `GET /api/cron/autopilot` | Cron (cron-job.org, cada 1 min): autopilot |
+| `GET /api/cron/morning-brief` | Cron (cron-job.org, cada 1 hora): brief matutino por TZ local |
+| `GET /api/cron/nightly-catchup` | Cron (cron-job.org, cada 1 hora): catchup automático a las 4am locales |
 
 ---
 
@@ -142,7 +178,7 @@ Deploy: **Vercel Hobby** (`maxDuration` 60s, cron cada 1 min).
 ```
 app/
 ├── package.json
-├── vercel.json              # framework: nextjs (cron config en raíz del repo)
+├── vercel.json              # framework: nextjs (crons externos en cron-job.org)
 ├── next.config.ts
 ├── public/
 └── src/
@@ -150,21 +186,33 @@ app/
     ├── app/
     │   ├── layout.tsx
     │   ├── page.tsx         # landing / redirect
-    │   ├── globals.css
+    │   ├── globals.css      # design system (.input slim, .sheet, .btn, .glass...)
     │   ├── login/
     │   ├── onboarding/
-    │   ├── chat/
-    │   ├── hoy/
-    │   ├── semana/
+    │   ├── chat/            # ~1900 líneas, refactor pendiente
+    │   ├── agenda/          # tab 2: eventos + tareas + rutinas expandidas
+    │   ├── tareas/          # tab 3: backlog
     │   ├── hijo/
-    │   │   ├── page.tsx
+    │   │   ├── page.tsx     # tab 4: lista
     │   │   └── [id]/
+    │   │       ├── page.tsx          # perfil del hijo (Info/Agenda/Salud/Rutinas)
+    │   │       └── rutina/nueva/     # crear rutina manualmente
+    │   ├── evento/[id]/     # detalle/edit evento
+    │   ├── tarea/[id]/      # detalle/edit tarea (incluye paraguas)
+    │   ├── tratamiento/[id]/ # detalle medicación + acciones
     │   ├── perfil/
+    │   │   ├── page.tsx              # hub navegación
+    │   │   ├── familia/               # editar nombre + TZ
+    │   │   ├── padre/[id]/
+    │   │   ├── hijo/[id]/             # edit + delete
+    │   │   └── hijo/nuevo/
+    │   ├── hoy/             # redirect → /agenda (back-compat)
+    │   ├── semana/          # redirect → /agenda (back-compat)
     │   ├── admin/testing/
     │   │   ├── page.tsx
     │   │   └── [runId]/
     │   └── api/
-    │       ├── chat/
+    │       ├── chat/                  # pipeline streaming SSE
     │       ├── chat-catchup/
     │       ├── onboarding/
     │       ├── onboarding-chat/
@@ -172,10 +220,14 @@ app/
     │       ├── join-family/
     │       ├── family-data/
     │       ├── family-write/
+    │       ├── medication/[id]/
     │       ├── push-subscribe/
     │       ├── push-notify/
     │       ├── reset-user/
-    │       ├── cron/autopilot/
+    │       ├── cron/
+    │       │   ├── autopilot/
+    │       │   ├── morning-brief/
+    │       │   └── nightly-catchup/
     │       └── eval/
     │           ├── run/
     │           ├── runs/
@@ -184,11 +236,17 @@ app/
     │           ├── diagnose/
     │           └── prompt/
     ├── components/
-    │   └── BottomNav.tsx
+    │   ├── BottomNav.tsx
+    │   ├── TaskList.tsx
+    │   └── ui/              # Button, Input, Sheet, Card, ListRow, Skeleton
     └── lib/
         ├── supabase.ts      # getSupabase() + getSupabaseAdmin()
-        ├── types.ts
-        ├── store.ts
+        ├── types.ts         # Family, Parent, Child, Routine, RoutineException, ...
+        ├── store.ts         # capa de datos (cache + fetch + write)
+        ├── chat-stream.ts   # callChatStream() para el endpoint SSE
+        ├── age.ts           # formatAge() — "2 años y 11 meses"
+        ├── task-grouping.ts # buildGroupedTasks() — paraguas + sub-actividades
+        ├── timezone.ts      # detectBrowserTimezone()
         ├── validation.ts
         ├── push.ts
         ├── demo-data.ts
@@ -199,7 +257,10 @@ app/
         │   ├── responder.ts
         │   ├── postprocess.ts
         │   ├── pipeline.ts
-        │   └── prompt-rules.ts
+        │   ├── prompt-rules.ts
+        │   ├── correction-rules.ts
+        │   ├── routine-detector.ts        # red de seguridad regex
+        │   └── routine-detector.test.ts   # tsx test runner
         └── eval/            # sistema de evaluación + autopilot
             ├── conversations/   # 10 conversaciones de test
             ├── profiles.ts
@@ -217,12 +278,20 @@ app/
 
 ## Pipeline de chat AI
 
-Cada mensaje pasa por `src/lib/chat/processChat.ts`:
+Cada mensaje pasa por `src/lib/chat/pipeline.ts` (el `processChat.ts` legacy queda solo para eval offline):
 
-1. **classifier** — decide si el mensaje contiene info útil
-2. **extractor** — saca eventos / tareas / medicamentos / cambios de plan
-3. **responder** — genera el mensaje de Nanny en el chat
-4. **postprocess** — valida, deduplica y persiste
+1. **classifier** — decide si el mensaje es accionable y qué intent (EVENT_*, TASK_*, MEDICATION, SCHEDULE_CHANGE, ...) + `silent_action` flag
+2. **extractor** — saca eventos / tareas / medicamentos / **rutinas semanales** / **excepciones de rutinas** / cambios de plan
+3. **routine-detector** — red de seguridad determinística (regex). Si el extractor LLM no creó `confirmation: type=routine` y el mensaje matchea patrón claro de horario semanal (hijo + actividad + días + horario), fuerza la creación. Tests en `routine-detector.test.ts`
+4. **postprocess** — valida, deduplica, normaliza fechas, fija `assigned_to` a "mama"/"papa"
+5. **responder** — solo se invoca si el mensaje NO es accionable (saludos, preguntas, concerns)
+
+El endpoint `/api/chat` devuelve **Server-Sent Events**:
+- `event: will_respond` apenas el classifier decide → cliente prende los 3 puntos solo si va a haber respuesta real
+- `event: response` con el `ChatResponse` completo
+- `event: done` o `event: error` cierran el stream
+
+Cliente: `src/lib/chat-stream.ts` con `callChatStream(payload, callbacks)`.
 
 Las reglas del prompt viven en Supabase (`prompt_rules_state`, fila singleton `id=1`) y se editan vía `/api/eval/prompt` o desde el dashboard de testing. Esto sobrevive entre invocaciones serverless.
 
