@@ -1,5 +1,7 @@
 # Nanny
 
+> **Estado de implementación (2026-04-28):** Este documento describe la visión completa del producto. El estado real de la app está en `CLAUDE.md` (sección "Estado del Agente IA") y la siguiente fase de trabajo en `PLAN-IMPLEMENTACION.md`. Funciones implementadas a hoy: chat con extracción IA, perfiles de hijos, hoy, semana, medicamentos. Funciones aún no implementadas: red de apoyo, integración email del cole, sincronización Google/Apple Calendar, insights, resumen semanal automático.
+
 ## Tu cuidas a tus hijos. Nanny cuida los detalles.
 
 **Nanny** es una app con su propio chat familiar donde mama, papa y un asistente inteligente conviven en un mismo grupo. Los padres hablan entre ellos de forma natural — sobre medicinas, disfraces, citas, pañales — y Nanny, el tercer miembro del chat, escucha, recuerda, organiza y **actua**.
