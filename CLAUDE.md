@@ -20,6 +20,7 @@
 | `CLAUDE.md` (este) | Siempre (automático) | Contexto base + índice |
 | `NANNY.md` | Si necesitás contexto de producto / user stories | Documento de producto, estable |
 | `REDESIGN-PLAN.md` | Si trabajás en UI/UX o querés ver el plan de rediseño | Plan del rediseño Apple-inspired (cerrado, archivo histórico) |
+| `RELIABILITY-PLAN.md` | Si trabajás en uno de los 5 sprints de confiabilidad/sync (push reminders, realtime, function calling) | Plan vivo de confiabilidad post-rutinas |
 | `CHAT-REFACTOR-PLAN.md` | Si vas a refactorizar el chat | Plan vivo de refactor del chat (pendiente) |
 | `app/README.md` | Onboarding rápido al stack | README de Next.js del app |
 
@@ -93,6 +94,12 @@ Soporte para horarios fijos recurrentes (guardería, cole, fútbol semanal) como
 - Agenda expande rutinas activas por día con estilo distinto (borde punteado morado, badge `RUTINA`)
 - Pestaña Rutinas en `/hijo/[id]` agrupa por momento del día (mañana/tarde/noche/sin horario) derivado de `time_start`, no de la columna `type`
 - Detector determinístico (`app/src/lib/chat/routine-detector.ts`) corre como red de seguridad después del LLM. Si el extractor falla en crear rutina cuando el mensaje describe horario fijo claro ("X tiene Y de lunes a viernes de 9 a 17"), el detector la fuerza y reescribe el reply. Cubre patrones comunes con tests en `routine-detector.test.ts` (`npx tsx`).
+
+### Plan de confiabilidad y sincronización — ⏳ En curso (mayo 2026)
+
+5 sprints documentados en `RELIABILITY-PLAN.md`: setup/baseline, push reminders X min antes, real-time sync vía Supabase Realtime, function calling en el extractor (alto riesgo), validación en prod. Cada uno con quality gate explícito.
+
+Filosofía del plan: calidad sobre cantidad. Las primeras dos fases son additive y de bajo riesgo (entregan valor visible inmediato); la tercera es la inversión de confiabilidad mayor (function calling); la última es observación.
 
 ### Refactor del chat — ⏳ Pendiente (sesión dedicada)
 
