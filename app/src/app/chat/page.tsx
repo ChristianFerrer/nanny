@@ -787,9 +787,12 @@ export default function ChatPage() {
                     showToast(`Tarea creada: ${confData.title}`, `/tarea/${newTask.id}`);
                   }
                 } else if (type === 'routine') {
-                  const childName = String(confData.child_name || '');
-                  const childMatch = children.find(c => c.name.toLowerCase() === childName.toLowerCase());
-                  if (childMatch) {
+                  const childName = String(confData.child_name || '').trim();
+                  const childMatch = children.find(c => c.name.toLowerCase().trim() === childName.toLowerCase());
+                  if (!childMatch) {
+                    console.warn('[routine] child_name no matchea ningún hijo registrado', { childName, knownChildren: children.map(c => c.name) });
+                    showToast(`No encontré a ${childName || 'ese hijo'} en la familia`, '/hijo');
+                  } else {
                     const newRoutine = await addRoutine({
                       child_id: childMatch.id,
                       type: (confData.type as string) || 'custom',
