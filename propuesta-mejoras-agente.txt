@@ -1,0 +1,211 @@
+# Diagnóstico y propuestas para hacer a Nanny más inteligente
+
+## Por qué falla el caso "guardería L-V de 9 a 4:30"
+
+No es un fallo del prompt aislado — es un fallo arquitectural que se manifiesta en este caso. Tienes tres limitaciones acumuladas:
+
+1. El schema de `event` solo soporta un `date_start` único. No hay concepto de recurrencia (`days_of_week`, `recurrence_rule`, `repeat_until`). Una "rutina" no se puede representar en BD aunque el LLM la entienda.
+
+2. `confirmation` es un objeto único, no un array. Aunque el LLM detectara "esto son 2 eventos diarios" no tendría dónde meterlos. La validación tampoco itera sobre múltiples items.
+
+3. El prompt no le enseña al modelo a separar un drop-off + pick-up de una sola mención. Para él "guarde de 9 a 4:30" es UN evento con `date_start: 09:00`. La hora final 4:30 se pierde silenciosamente.
+
+El caso de medicamentos (`schedule_times: ["08:00", "16:00"]`) demuestra que el equipo ya sabe modelar repetición — pero la solución es ad-hoc para un solo dominio. La generalización no se hizo.
+
+## Categoría real del problema
+
+"Guardería" no es un caso aislado. Es la primera manifestación de una clase entera:
+
+| Mensaje | Lo que debería pasar | Lo que pasa hoy |
+|---|---|---|
+| "Pau tiene guarde L-V de 9 a 4:30" | 2 eventos recurrentes (drop + pick), L-V, hasta fin de ciclo escolar | 1 evento puntual a las 9:00 |
+| "Pau tiene fútbol martes y jueves a las 5" | 2 eventos recurrentes semanales | 1 evento puntual al próximo martes |
+| "Cumpleaños de Pau el 14 de mayo" | Evento anual recurrente | 1 evento puntual |
+| "Excursión sábado 8am, regreso lunes 6pm" | 2 eventos vinculados (salida + regreso) | 1 evento o se confunde |
+| "Inscripciones del 10 al 15" | Evento con rango de fechas | 1 evento puntual el día 10 |
+| "Pediatra martes a las 10 y dentista jueves a las 4" | 2 eventos independientes | 1 evento (el más reciente o ambos en uno) |
+
+Todos comparten dos features faltantes: recurrencia y multi-evento por mensaje. Si arreglas solo el caso guardería con un parche al prompt, los otros 5 siguen rotos.
+
+═══════════════════════════════════════════════════════════════
+## Propuestas, en 3 niveles de ambición
+═══════════════════════════════════════════════════════════════
+
+─────────────────────────────────────────────────────────────
+### NIVEL 1 — Parche puntual (1 día, fix solo guardería)
+─────────────────────────────────────────────────────────────
+
+Solo si necesitas demo mañana. NO lo recomiendo como solución.
+
+- Agregar al prompt una regla: "Si detectas una rutina escolar/guardería con hora de entrada Y hora de salida, crea DOS eventos puntuales para el próximo día hábil: uno de llevar y otro de recoger"
+- Crear un `intent: ROUTINE_DROPOFF_PICKUP` específico
+- Cambiar `confirmation` a `confirmations: []` (array) para soportar 2 items
+- Iterar la validación por cada item
+
+Esto te tapa el caso pero no la categoría. Vas a tener que volver en 2 semanas.
+
+─────────────────────────────────────────────────────────────
+### NIVEL 2 — Arreglar la categoría completa (1–2 sprints, RECOMENDADO)
+─────────────────────────────────────────────────────────────
+
+Cuatro cambios coordinados:
+
+#### 2.1 Schema: agregar recurrencia y vínculos
+
+```sql
+ALTER TABLE events ADD COLUMN recurrence_rule jsonb;
+-- ej: { "freq": "weekly", "days": ["mon","tue","wed","thu","fri"], "until": "2026-07-15" }
+ALTER TABLE events ADD COLUMN linked_event_id uuid REFERENCES events(id);
+-- para vincular drop-off ↔ pick-up del mismo día
+ALTER TABLE events ADD COLUMN time_end time;
+```
+
+Esto es la base. Sin esto, ningún cambio del LLM importa porque no hay dónde guardarlo.
+
+#### 2.2 Schema de respuesta: `confirmations: []` en lugar de `confirmation: {}`
+
+Cambio menor pero crítico. Permite que un solo mensaje genere múltiples items (no solo 2 eventos — también "evento + tarea de pago de inscripción", "medicamento + cita de control").
+
+```ts
+// antes
+confirmation: { type, data } | null
+
+// después
+confirmations: Array<{ type, data, links_to?: string }> | []
+```
+
+#### 2.3 Prompt: introducir el concepto de "rutina"
+
+Agregar una nueva capacidad explícita al prompt:
+
+"CAPACIDAD 6: DETECTAR RUTINAS. Una rutina es un evento que se repite. Identifícala cuando veas: (a) días de semana mencionados ('lunes a viernes', 'martes y jueves'), (b) frecuencia explícita ('todos los días', 'cada miércoles'), (c) instituciones que implican rutina (guardería, cole, clases regulares).
+
+Para una rutina con hora de entrada Y salida (ej: guarde 9 a 4:30), genera DOS eventos vinculados por día: uno de tipo `dropoff` con hora de entrada, otro de tipo `pickup` con hora de salida.
+
+Marca el campo `recurrence_rule` con días y `until` (si no se sabe el fin, usa el final del año escolar: 30 de junio o 15 de diciembre según corresponda)."
+
+Y agregar 2-3 ejemplos few-shot del caso guardería y caso fútbol M+J en el prompt.
+
+#### 2.4 Validación: iterar y validar coherencia entre items vinculados
+
+```ts
+function validateConfirmations(confirmations, ...) {
+  // valida cada item individualmente
+  // valida que los linked_to apunten a items del mismo response
+  // valida que pickup.time > dropoff.time si están vinculados
+  // valida que recurrence_rule.until > start_date
+}
+```
+
+#### 2.5 UI: render de recurrencia en /hoy y /semana
+
+- /hoy debe mostrar instancias generadas a partir de la regla, no solo eventos one-shot
+- /semana debe mostrar el patrón completo, no 5 cards repetidas
+- Editar una instancia debe preguntar: "¿solo este día o toda la rutina?"
+
+Resultado: este nivel hace inteligente a Nanny en TODA la categoría de rutinas + multi-eventos. Es el sweet spot ROI.
+
+─────────────────────────────────────────────────────────────
+### NIVEL 3 — Re-arquitectura para inteligencia de verdad (4–6 semanas)
+─────────────────────────────────────────────────────────────
+
+Si quieres que Nanny escale a las funciones que prometiste en NANNY.md (red de apoyo, emails del cole, conflictos avanzados, insights), el prompt monolítico de 340 líneas no va a aguantar. Aquí los cambios estructurales:
+
+#### 3.1 Migrar de "JSON-by-prompt" a OpenAI Function Calling / Tool Use
+
+Hoy le pides al LLM que escriba un JSON específico vía instrucciones. Frágil: si el formato falla, hay un `try/catch` silencioso que devuelve `intent: CHAT`. Estás perdiendo detecciones sin saberlo.
+
+Solución: define las acciones como tools con JSON Schema:
+
+```ts
+tools: [
+  { name: "create_event", parameters: {...} },
+  { name: "create_recurring_event", parameters: {...} },
+  { name: "create_task", parameters: {...} },
+  { name: "create_medication", parameters: {...} },
+  { name: "update_event", parameters: {...} },
+  { name: "ask_for_missing_info", parameters: {...} },
+  { name: "stay_silent", parameters: {} }
+]
+```
+
+El modelo puede llamar múltiples tools en una sola respuesta ("crear drop-off" + "crear pick-up" + "crear tarea de pago"). Es el feature que justo te falta. Y OpenAI garantiza el formato, no el prompt.
+
+#### 3.2 Split del agente monolítico → Router + Specialists
+
+```
+Mensaje
+   │
+   ▼
+┌─────────────────────────┐
+│  Router (gpt-4o-mini)   │  → clasifica dominio:
+│  prompt corto, ~30 lín  │     medical | school | logistics
+│                         │     | routine | shopping | chat
+└──────────┬──────────────┘
+           │
+   ┌───────┼────────┬──────────┬──────────┐
+   ▼       ▼        ▼          ▼          ▼
+┌──────┐ ┌──────┐ ┌──────┐  ┌──────┐  ┌─────────┐
+│Medi- │ │School│ │Logi- │  │Routi-│  │ Chat /  │
+│cation│ │      │ │stics │  │ne    │  │ Silent  │
+└──────┘ └──────┘ └──────┘  └──────┘  └─────────┘
+   prompts especializados, ~80 líneas cada uno
+```
+
+Ventajas:
+- Cada specialist tiene un prompt enfocado, sin colisiones
+- Agregar un dominio nuevo (red de apoyo, email del cole) = nuevo specialist sin tocar los demás
+- Tests por specialist, no contra el monolito
+- Costo similar o menor (los specialists son cortos)
+
+Riesgo: 2 LLM calls por mensaje en lugar de 1 → +200ms latencia. Mitigable con cache.
+
+#### 3.3 Self-critique pass para detecciones críticas
+
+Para cualquier `create_recurring_event` o `create_medication` (alto costo si está mal), hacer una segunda llamada que pregunte:
+
+"Aquí está la confirmación que voy a guardar: {data}. Aquí está el mensaje original: {msg}. ¿Hay alguna inconsistencia, fecha imposible, hora ambigua o información faltante? Responde solo 'OK' o describe el problema."
+
+Si la crítica encuentra problemas → no persistir, volver al usuario con pregunta. Para casos de bajo riesgo (chat casual, tareas simples), saltar este paso.
+
+Esto reduce la tasa de "Nanny se equivocó y guardó algo raro" — que es uno de los killers de confianza.
+
+#### 3.4 Family memory estructurada (no solo historial de chat)
+
+Hoy el LLM solo tiene los últimos N mensajes + lista de eventos abiertos. Cuando alguien dice "Pau tiene fútbol", no sabe si es la actividad regular o algo nuevo. Necesitas contexto persistente:
+
+```ts
+familyContext = {
+  children: [{ name: "Pau", age: 6, school: "Montessori", regular_activities: [...] }],
+  routines: [...],   // las rutinas activas
+  preferences: { default_pickup: "papa", default_dropoff: "mama" },
+  relationships: [...]  // abuela, niñera con disponibilidad
+}
+```
+
+El LLM ya recibe `family_context` pero como string libre. Estructurarlo como JSON consultable + reglas de inyección selectiva (solo lo relevante al intent del router) reduce tokens y aumenta precisión.
+
+#### 3.5 Migración a Claude con prompt caching (opcional, ahorra costo)
+
+Tu prompt es gigante y estático. Es el caso de uso perfecto de cache de prompts (descuento del ~90% en input tokens repetidos). Si los costos te aprietan en escala, esto los baja sustancialmente.
+
+Vale considerar dado que CLAUDE.md menciona que esta decisión está en el aire (NANNY.md describe Claude, código usa OpenAI).
+
+═══════════════════════════════════════════════════════════════
+## Recomendación priorizada
+═══════════════════════════════════════════════════════════════
+
+NO hagas el Nivel 1. Es trampa — vas a parchearlo y volver al mismo problema.
+
+HAZ el Nivel 2 ya, completo. Es el ROI claro: arregla guardería, fútbol, cumpleaños, excursiones, inscripciones, citas múltiples — todo de un golpe. Es ~2 semanas bien invertidas. Concretamente:
+
+- Día 1–2: schema (recurrence_rule, time_end, linked_event_id) + migración Supabase
+- Día 3: cambiar `confirmation` → `confirmations: []` en backend + validación iterativa
+- Día 4–5: reescribir sección del prompt con capacidad "rutinas" + ejemplos few-shot
+- Día 6–7: UI render de recurrencia en /hoy y /semana
+- Día 8: agregar 5 conversaciones de eval que cubran rutinas, multi-evento, recurrencia (si no fallan, es regresión y ya tienes red de seguridad)
+- Día 9–10: pulir, testing manual, deploy
+
+EMPIEZA a planear el Nivel 3 después. Específicamente, el paso 3.1 (function calling) es el que más ROI tiene del nivel 3 y se puede colar como parte del Nivel 2 sin gran sobrecosto. Te lo recomiendo encarecidamente — vas a dejar de perder detecciones por JSON malformado.
+
+El split a router + specialists (3.2) lo dejas para cuando agregues el cuarto dominio (emails del cole). Antes de eso es prematuro.
