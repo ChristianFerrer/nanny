@@ -147,7 +147,7 @@ export default function HijoDetailPage() {
         {activeTab === 'identidad' && <IdentidadTab child={child} />}
         {activeTab === 'operativo' && <OperativoTab events={events} tasks={tasks} childId={child.id} />}
         {activeTab === 'salud' && <SaludTab child={child} medications={medications} />}
-        {activeTab === 'rutinas' && <RutinasTab routines={routines} />}
+        {activeTab === 'rutinas' && <RutinasTab routines={routines} childId={child.id} />}
       </div>
     </div>
   );
@@ -334,18 +334,40 @@ function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks
   );
 }
 
-function RutinasTab({ routines }: { routines: Routine[] }) {
+function RutinasTab({ routines, childId }: { routines: Routine[]; childId: string }) {
+  // Agrupar por momento del día según time_start (no por la columna `type`,
+  // que puede ser school/activity/meal/... y no se mapea 1:1 a momento).
+  // Las rutinas sin time_start van al final como "Todo el día".
+  const dayShort = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const bucket = (r: Routine): 'morning' | 'afternoon' | 'night' | 'untimed' => {
+    if (!r.time_start) return 'untimed';
+    const h = parseInt(r.time_start.slice(0, 2), 10);
+    if (h < 12) return 'morning';
+    if (h < 18) return 'afternoon';
+    return 'night';
+  };
+
   const grouped = {
-    morning: routines.filter(r => r.type === 'morning'),
-    afternoon: routines.filter(r => r.type === 'afternoon'),
-    night: routines.filter(r => r.type === 'night'),
+    morning: routines.filter(r => bucket(r) === 'morning').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    afternoon: routines.filter(r => bucket(r) === 'afternoon').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    night: routines.filter(r => bucket(r) === 'night').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    untimed: routines.filter(r => bucket(r) === 'untimed'),
   };
 
   const sections = [
     { key: 'morning' as const, title: 'Mañana', icon: <Sunrise size={16} className="text-amber-500" />, items: grouped.morning },
     { key: 'afternoon' as const, title: 'Tarde', icon: <Sun size={16} className="text-orange-500" />, items: grouped.afternoon },
     { key: 'night' as const, title: 'Noche', icon: <Moon size={16} className="text-indigo-500" />, items: grouped.night },
+    { key: 'untimed' as const, title: 'Sin horario', icon: <Clock size={16} className="text-gray-500" />, items: grouped.untimed },
   ];
+
+  const formatDays = (dow: number[]): string => {
+    if (dow.length === 7) return 'Todos los días';
+    const sorted = [...dow].sort();
+    if (sorted.length === 5 && sorted.join(',') === '1,2,3,4,5') return 'Lun-Vie';
+    if (sorted.length === 2 && sorted.join(',') === '0,6') return 'Fin de semana';
+    return sorted.map(d => dayShort[d]).join(', ');
+  };
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -356,13 +378,14 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
               {section.items.map(routine => (
                 <div key={routine.id} className="flex items-center gap-3 py-1.5">
                   <div className="text-footnote text-[var(--nanny-purple)] font-mono w-14 shrink-0">
-                    {routine.time_start || '--:--'}
+                    {routine.time_start ? routine.time_start.slice(0, 5) : '--:--'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-subhead text-[var(--text-primary)] truncate">{routine.name}</p>
-                    {routine.description && (
-                      <p className="text-footnote text-[var(--text-tertiary)] truncate">{routine.description}</p>
-                    )}
+                    <p className="text-footnote text-[var(--text-tertiary)] truncate">
+                      {formatDays(routine.days_of_week)}
+                      {routine.time_end ? ` · hasta ${routine.time_end.slice(0, 5)}` : ''}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -371,14 +394,12 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
         )
       ))}
 
-      {/* Agregar rutina (placeholder — integracion a Supabase pendiente) */}
-      <button
-        type="button"
-        onClick={() => alert('Por ahora puedes agregar rutinas hablándole a Nanny en el chat. Editor visual próximamente.')}
-        className="w-full card-flat text-[var(--nanny-purple)] text-subhead font-semibold py-4 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+      <Link
+        href={`/hijo/${childId}/rutina/nueva`}
+        className="block w-full card-flat text-[var(--nanny-purple)] text-subhead font-semibold py-4 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
       >
         <Plus size={16} /> Agregar rutina
-      </button>
+      </Link>
 
       {routines.length === 0 && (
         <div className="card-flat text-center py-8 px-5">
@@ -386,7 +407,7 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
             <BookOpen size={22} className="text-[var(--nanny-purple)]" />
           </div>
           <p className="text-subhead text-[var(--text-primary)]">Sin rutinas todavía</p>
-          <p className="text-footnote text-[var(--text-tertiary)] mt-1">Habla con Nanny y te ayuda a crearlas</p>
+          <p className="text-footnote text-[var(--text-tertiary)] mt-1">Agrega una desde el botón de arriba o decile a Nanny en el chat.</p>
         </div>
       )}
     </div>
