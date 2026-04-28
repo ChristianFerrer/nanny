@@ -172,8 +172,11 @@ REGLAS DE EXTRACCIÓN:
     }
     Si NO existe una rutina que coincida, NO inventes una excepción.
     Si NO existe rutina pero la conversación habla de un cambio de horario, intent=SCHEDULE_CHANGE
-    y reply: pregunta breve "¿Querés que registre [actividad] como rutina semanal de [hijo]?"
-    sin crear confirmation. NO digas "anotado" si no hay nada concreto que registrar.
+    y emite pending_detection con type="routine" anotando los datos que sí tenés del mensaje
+    (ej. child_name + name) y missing con lo que falta (días, horarios). Reply pregunta
+    BREVE: "¿Pau va a la guardería todos los días? ¿Qué horario?". NO digas "anotado".
+    Cuando en el turno siguiente el padre conteste con días/horario, COMPLETÁ el pending
+    como confirmation type="routine" con todos los campos.
 
 FORMATO DE RESPUESTA (solo JSON puro):
 {
@@ -194,7 +197,7 @@ FORMATO DE RESPUESTA (solo JSON puro):
   "additional_confirmations": [],
   "task_group": null o { "parent_title": "string", "child_name": "string o null" },
   "pending_detection": null o {
-    "type": "event|task|medication",
+    "type": "event|task|medication|routine",
     "partial_data": {},
     "missing": [],
     "summary": "breve"
