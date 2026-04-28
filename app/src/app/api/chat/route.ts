@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     existingTasks: (body.existingTasks as string) || 'Ninguna',
     activeMedications: (body.activeMedications as string) || 'Ninguno',
     existingRoutines: (body.existingRoutines as string) || 'Ninguna',
+    childrenNames: Array.isArray(body.childrenNames) ? body.childrenNames as string[] : [],
     senderName: (body.senderName as string) || 'Padre',
     senderRole: (body.senderRole as 'mama' | 'papa') || 'mama',
     pendingDetection: (body.pendingDetection as Record<string, unknown> | null) || null,

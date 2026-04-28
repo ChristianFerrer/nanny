@@ -468,6 +468,7 @@ export interface ChatInput {
   existingTasks: string;
   activeMedications: string;
   existingRoutines?: string; // "<routineId>: Pau · guardería · L-V 09:00-17:00" — para que el extractor matchee
+  childrenNames?: string[]; // Nombres literales de hijos — usados por el detector determinístico
   senderName: string;
   senderRole: 'mama' | 'papa';
   pendingDetection: Record<string, unknown> | null;

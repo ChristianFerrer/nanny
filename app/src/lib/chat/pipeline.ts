@@ -346,7 +346,11 @@ async function runExtraction(
   const alreadyHasRoutine = rawResponse.confirmation?.type === 'routine' ||
     (rawResponse.additional_confirmations || []).some(c => c.type === 'routine');
   if (!alreadyHasRoutine) {
-    const childrenNames = getChildrenNames(input.familyContext);
+    // Preferimos los nombres pasados explícitamente desde el cliente (más
+    // confiables); caemos al parser de familyContext solo si no llegaron.
+    const childrenNames = (input.childrenNames && input.childrenNames.length > 0)
+      ? input.childrenNames
+      : getChildrenNames(input.familyContext);
     const detected = detectRoutineInMessage(input.message, childrenNames);
     if (detected) {
       const routineConf = {

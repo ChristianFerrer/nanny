@@ -689,6 +689,7 @@ export default function ChatPage() {
           existingTasks: existingTasksStr,
           activeMedications: activeMeds || 'Ninguno',
           existingRoutines: existingRoutinesStr || 'Ninguna',
+          childrenNames: children.map(c => c.name),
           senderName: currentParentObj?.name || 'Padre',
           senderRole: currentParentObj?.role || 'mama',
           pendingDetection,
