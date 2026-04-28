@@ -16,6 +16,7 @@ import { extractData } from './extractor';
 import { generateDirectResponse } from './responder';
 import { postProcessResponse } from './postprocess';
 import { persistCorrectionIfGeneral } from './correction-rules';
+import { detectRoutineInMessage } from './routine-detector';
 import type { ChatInput, ChatResponse } from './processChat';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
@@ -337,6 +338,52 @@ async function runExtraction(
     pending_detection: extracted.pending_detection || null,
     task_group: extracted.task_group || null,
   };
+
+  // Red de seguridad: si el mensaje describe inequívocamente una rutina semanal
+  // y el extractor LLM no la creó, la inyectamos determinísticamente. Esto evita
+  // que clasificaciones erróneas (SCHEDULE_CHANGE, LOGISTICS_PICKUP, etc.) hagan
+  // que Nanny conteste "Anotado" sin registrar nada.
+  const alreadyHasRoutine = rawResponse.confirmation?.type === 'routine' ||
+    (rawResponse.additional_confirmations || []).some(c => c.type === 'routine');
+  if (!alreadyHasRoutine) {
+    const childrenNames = getChildrenNames(input.familyContext);
+    const detected = detectRoutineInMessage(input.message, childrenNames);
+    if (detected) {
+      const routineConf = {
+        type: 'routine',
+        data: {
+          child_name: detected.child_name,
+          name: detected.name,
+          type: detected.type,
+          days_of_week: detected.days_of_week,
+          time_start: detected.time_start,
+          time_end: detected.time_end,
+        },
+      };
+      // Si el extractor ya tenía otra confirmation (ej event mal clasificado),
+      // la mantenemos como additional para no perder info, pero la rutina toma
+      // el slot principal.
+      const existingConfs = [
+        ...(rawResponse.confirmation ? [rawResponse.confirmation] : []),
+        ...(rawResponse.additional_confirmations || []),
+      ];
+      rawResponse.confirmation = routineConf;
+      rawResponse.additional_confirmations = existingConfs;
+      rawResponse.intent = 'EVENT_SCHOOL'; // El badge usa intent; school encaja para guarde/cole
+      rawResponse.next_action = 'confirm_routine';
+      rawResponse.pending_detection = null;
+      // Receipt explícito reemplazando el "Anotado" genérico
+      const dayNames = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+      const daysLabel = detected.days_of_week.length === 5 &&
+        detected.days_of_week.every(d => d >= 1 && d <= 5)
+        ? 'lun a vie'
+        : detected.days_of_week.map(d => dayNames[d]).join(', ');
+      const timeLabel = detected.time_end
+        ? `${detected.time_start}–${detected.time_end}`
+        : detected.time_start;
+      rawResponse.reply = `Rutina registrada: ${detected.name} de ${detected.child_name}, ${daysLabel} ${timeLabel}.`;
+    }
+  }
 
   return postProcessResponse({
     response: rawResponse,
