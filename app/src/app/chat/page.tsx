@@ -819,8 +819,10 @@ export default function ChatPage() {
                     showToast(`${routine?.name || 'Rutina'}: día cancelado`, '/agenda');
                   }
                 }
-              } catch {
-                console.error('Failed to auto-create event/task/routine');
+              } catch (err) {
+                console.error('Failed to auto-create event/task/routine', err);
+                const msg = err instanceof Error ? err.message : 'Error desconocido';
+                showToast(`No pude guardar: ${msg}`, '/chat');
               }
             }
 
