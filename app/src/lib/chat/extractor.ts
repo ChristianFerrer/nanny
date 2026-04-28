@@ -58,6 +58,20 @@ DETECCIÓN PENDIENTE:
 REGLAS DE EXTRACCIÓN:
 ═══════════════════════════════════════
 
+0. **PRIORIDAD MÁXIMA — RUTINA SEMANAL DETECTADA**:
+   Si el mensaje describe un horario REPETIDO (X de días de la semana de hora a hora),
+   sin importar el intent recibido, emití confirmation type="routine" con todos los datos.
+   Patrones que califican:
+   - "[hijo] tiene/va a [actividad] de [días] de [hora] a [hora]"
+   - "[hijo] hace [actividad] los [día] y [día] a las [hora]"
+   - "[actividad] [días] [hora]-[hora]"
+   Esta regla OVERRIDE rule 12 (cancelación). Si la conversación reciente preguntó
+   "¿registro como rutina?" y el padre acaba de responder con días+horas, ESO ES la
+   creación: emití confirmation type="routine", NO sigas preguntando.
+
+   FORMATO HORAS: "9 a 4:30" en contexto de día completo = 09:00–16:30 (PM implícito
+   si la hora final es menor a la inicial). "9 a 17" = 09:00–17:00. Normalizá siempre a HH:MM 24h.
+
 1. ASSIGNED_TO: Usa "mama" o "papa" (literal). {sender_name} es {sender_role}.
    - "yo lo hago/llevo/recojo/compro" → assigned_to = "{sender_role}"
    - "tú encárgate/pasa por" → assigned_to = el OTRO rol
