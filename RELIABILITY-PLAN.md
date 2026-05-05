@@ -286,7 +286,7 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 |---|---|---|---|---|---|
 | 1 — Setup y baseline | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `617a505` | Eval ✅ Migración ✅ E2E ✅ (vía 1.5) | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. Quality gate completo tras Fase 1.5. |
 | 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
-| 2 — Push reminders | 🟡 Código pusheado, pendiente migración + cron-job.org | `claude/continue-previous-session-OleqU` | (siguiente) | ⏳ | Migración + endpoint listos. Falta aplicar migración en Supabase + configurar cron-job.org. |
+| 2 — Push reminders | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `cb16b27` | Smoke test 200 OK, push real validado por usuario | Migración aplicada en Supabase. Cron `Nanny-UpcomingReminders` corriendo cada 10 min. Push proactivo confirmado funcionando para evento real. |
 | 3 — Real-time sync | ⏳ | — | — | — | — |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
 | 5 — Validación en prod | ⏳ | — | — | — | — |
@@ -300,6 +300,11 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
   - 3 bugs en mocks/tests identificados: `/api/chat` mock devolvía JSON cuando ahora es SSE; `/api/family-data` mock no incluía `familyId`/`currentParentId`/`routines`/`routine_exceptions`; tests 3-4 testeaban un bottom sheet del editor de medicación que ya no existe (se inlinemos en `78b93fc`).
   - Fix en `1d4fae8`: mock SSE con 3 eventos (will_respond, response, done), family-data completo, tests 3-4 reescritos para validar el editor inline.
   - **5/5 verdes en CI** (run 1:12 min). Quality gate cumplido — Fase 4 (function calling) ya tiene la red de seguridad.
+- **2026-05-05 (continuación)** — Fase 2 cerrada en la misma sesión:
+  - Migración `20260505_notifications_sent.sql` aplicada manualmente (UNIQUE en entity_type+entity_id para idempotencia).
+  - Endpoint `/api/cron/upcoming-reminders` (`cb16b27`): query eventos en próximos 30 min + tomas en próximos 15 min, push con web-push, registra en `notifications_sent` para evitar reenvíos.
+  - Cron `Nanny-UpcomingReminders` configurado en cron-job.org cada 10 min. Smoke test 200 OK (731ms).
+  - Validado end-to-end: push real llegó a dispositivo del usuario con un evento agendado dentro de la ventana.
 
 ---
 
