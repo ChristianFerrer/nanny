@@ -287,7 +287,7 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 | 1 — Setup y baseline | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `617a505` | Eval ✅ Migración ✅ E2E ✅ (vía 1.5) | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. Quality gate completo tras Fase 1.5. |
 | 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
 | 2 — Push reminders | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `cb16b27` | Smoke test 200 OK, push real validado por usuario | Migración aplicada en Supabase. Cron `Nanny-UpcomingReminders` corriendo cada 10 min. Push proactivo confirmado funcionando para evento real. |
-| 3 — Real-time sync | ⏳ | — | — | — | — |
+| 3 — Real-time sync | 🟡 Código pusheado, pendiente SQL de habilitar Realtime | `claude/continue-previous-session-OleqU` | (siguiente) | ⏳ | Hook `useRealtimeFamily` + aplicado en /agenda, /tareas, /hijo/[id]. Falta habilitar Realtime en Supabase para las tablas (SQL en sección "Pasos de Fase 3"). |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
 | 5 — Validación en prod | ⏳ | — | — | — | — |
 

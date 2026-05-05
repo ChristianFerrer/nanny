@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Circle, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinAlt, Plus, Settings, Repeat } from 'lucide-react';
-import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot } from '@/lib/store';
+import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
+import { useRealtimeFamily } from '@/lib/realtime';
 import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
 
 export default function AgendaPage() {
@@ -50,6 +51,23 @@ export default function AgendaPage() {
   };
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Real-time sync: cuando otro padre agrega/edita/borra algo, invalidar
+  // las caches relevantes y refetchear sin esperar al próximo refresh manual.
+  const familyId = _snap?.family?.id || '';
+  useRealtimeFamily({
+    familyId,
+    tables: ['events', 'tasks', 'medications', 'routines', 'routine_exceptions'],
+    enabled: !!familyId,
+    onChange: () => {
+      invalidateTableCache('events');
+      invalidateTableCache('tasks');
+      invalidateTableCache('medications');
+      invalidateTableCache('routines');
+      invalidateTableCache('routine_exceptions');
+      loadData();
+    },
+  });
 
   // Calculate week dates
   const today = new Date();

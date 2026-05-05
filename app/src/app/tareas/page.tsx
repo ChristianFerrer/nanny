@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sparkles, Settings } from 'lucide-react';
-import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot } from '@/lib/store';
+import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
+import { useRealtimeFamily } from '@/lib/realtime';
 import { buildGroupedTasks, type GroupOrTask } from '@/lib/task-grouping';
 import { TaskList } from '@/components/TaskList';
 import type { Task, Child, Parent } from '@/lib/types';
@@ -30,6 +31,18 @@ export default function TareasPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Real-time sync: refrescar la lista cuando otro padre marca/completa/agrega tareas.
+  const familyId = _snap?.family?.id || '';
+  useRealtimeFamily({
+    familyId,
+    tables: ['tasks'],
+    enabled: !!familyId,
+    onChange: () => {
+      invalidateTableCache('tasks');
+      loadData();
+    },
+  });
 
   const toggle = async (t: Task) => {
     if (t.status === 'done') {

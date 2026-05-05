@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon, Pencil, Plus, Pill, ChevronRight } from 'lucide-react';
-import { getChild, getRoutines, getEvents, getTasks, getMedications } from '@/lib/store';
+import { getChild, getRoutines, getEvents, getTasks, getMedications, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
+import { useRealtimeFamily } from '@/lib/realtime';
 import type { Child, Routine, FamilyEvent, Task, Medication } from '@/lib/types';
 import { formatAge } from '@/lib/age';
 
@@ -38,6 +39,23 @@ export default function HijoDetailPage() {
   }, [params.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Real-time sync: el perfil del hijo refleja cambios en sus rutinas,
+  // medicaciones, eventos y tareas que el otro padre haga desde otro
+  // dispositivo, sin esperar a re-mount.
+  const familyId = getCachedSnapshot()?.family?.id || '';
+  useRealtimeFamily({
+    familyId,
+    tables: ['routines', 'medications', 'events', 'tasks'],
+    enabled: !!familyId,
+    onChange: () => {
+      invalidateTableCache('routines');
+      invalidateTableCache('medications');
+      invalidateTableCache('events');
+      invalidateTableCache('tasks');
+      loadData();
+    },
+  });
 
   if (loading) {
     return (
