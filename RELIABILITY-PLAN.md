@@ -285,7 +285,7 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 | Fase | Status | Branch | Commit clave | Validación | Notas |
 |---|---|---|---|---|---|
 | 1 — Setup y baseline | ⚠️ Parcial | `claude/continue-previous-session-OleqU` | (este) | Eval ✅ Migración ✅ E2E ❌ | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. E2E rotos por feature changes pre-existentes (deuda conocida) — fix obligatorio antes de Fase 4. |
-| 1.5 — Fix E2E (mini-sprint) | ⏳ | — | — | — | Bloquea Fase 4. No bloquea Fase 2 ni 3 (additive, bajo riesgo). |
+| 1.5 — Fix E2E (mini-sprint) | 🟡 Pusheado, pendiente CI | `claude/continue-previous-session-OleqU` | `1d4fae8` | ⏳ esperando run de Actions | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
 | 2 — Push reminders | ⏳ | — | — | — | — |
 | 3 — Real-time sync | ⏳ | — | — | — | — |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
