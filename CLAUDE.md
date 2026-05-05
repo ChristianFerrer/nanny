@@ -349,19 +349,60 @@ evaluation (10 convs) → saving → diagnosis (OpenAI) → reeval (10 convs) �
 - Cada invocación procesa ~45s de trabajo (2 conversaciones aprox.)
 - Un ciclo completo (eval 10 + diagnosis + reeval 10) toma ~10-15 min
 
+### Baseline post-rutinas — RELIABILITY-PLAN Fase 1 (mayo 2026)
+
+Run de eval completa ejecutada desde `/admin/testing` el 5 de mayo 2026 (autopilot v9-iterative).
+
+**Scores globales:**
+- Overall: **70%**
+- Precision: **60%**
+- Recall: **74%**
+
+**Por conversación (10/10 completadas):**
+
+| Conversación | Score |
+|---|---|
+| Tres cambios de plan en una semana | 86% |
+| Mamá organiza todo, papá ejecuta | 84% |
+| Coordinación médica de bebé prematuro | 83% |
+| Amor y caos: info perdida entre cariño | 79% |
+| Coordinación bilingüe español-inglés | 75% |
+| Mañana caótica con tres hijos | 68% |
+| Semana organizada con múltiples eventos | 62% |
+| Logística doble: primaria y guardería | 57% |
+| Negociación tensa de responsabilidades | 56% |
+| Coordinación con mensajes telegráficos | 46% |
+
+**Las 3 peores (foco para Fase 4 / function calling):**
+- Coordinación con mensajes telegráficos: 46%
+- Negociación tensa de responsabilidades: 56%
+- Logística doble: primaria y guardería: 57%
+
+**Estado de tests E2E al inicio del plan (5/5 fallan):**
+
+| Test | Estado | Causa probable |
+|---|---|---|
+| 1 — mandar mensaje y recibir respuesta de Nanny | ❌ | `getByText('Entendido, anotado.')` no aparece — mock o flujo cambió |
+| 2 — intent MEDICATION muestra 3 botones | ❌ | flujo de medicación cambió post-inline |
+| 3 — click "Editar horarios" abre el bottom sheet | ❌ | **Test obsoleto**: el sheet ya no existe, lo inlinemos en commit `78b93fc` |
+| 4 — editar horarios y confirmar medicación | ❌ | depende del editor inline, asume bottom sheet |
+| 5 — botón de reply (alternativa al swipe) | ❌ | a investigar |
+
+**Decisión de quality gate:** los E2E rotos son **deuda técnica conocida** por feature changes de abril 2026 que no se reflejaron en los tests. Fase 1 cierra como ⚠️ parcial. Los E2E se arreglan como mini-sprint **antes de Fase 4** (function calling), donde son la red de seguridad principal contra regresiones del extractor. Fase 2 y 3 son additive y no dependen de los E2E para validarse.
+
 ### Estado del autopilot (abril 2026)
 
 - ✅ La evaluación (10/10 conversaciones) funciona correctamente
-- ✅ Las fases de saving y diagnosis completan OK
-- ⏳ La fase reeval estaba fallando por timeout (yield fix desplegado, pendiente de verificar con un run completo)
-- 📊 Scores recientes: ~70% overall, precision ~52%, recall ~80%
+- ✅ Las fases de saving completan OK
+- ⚠️ Fase de diagnosis falla intermitentemente por quota 429 (no afecta scores de la eval, solo el análisis post)
+- 📊 Scores recientes: ~70% overall, precision ~60%, recall ~74% (ver baseline arriba)
 - ⚠️ Diagnóstico AI propone ajustes pero los scores no mejoran significativamente aún
 
 ### Problemas conocidos / áreas de mejora
 
-1. **Reeval pendiente de verificar**: el yield fix (`5c9182c`) debería resolver el timeout en reeval. Verificar con un run completo.
-2. **Scores bajos en precision (52%)**: el extractor tiene dificultades con `assigned_to`, fechas, y detección de múltiples eventos en mensajes complejos.
-3. **Conversaciones difíciles**: "Coordinación bilingüe español-inglés" (38%) y "Logística doble: primaria y guardería" (39%) son las peores.
+1. **Diagnosis 429**: el paso de diagnóstico AI consume tokens — cuando el plan de OpenAI hace rate-limit, falla. Eval scores siguen siendo válidos.
+2. **Scores bajos en precision (60%)**: el extractor tiene dificultades con `assigned_to`, fechas, y detección de múltiples eventos en mensajes complejos. Función calling (Fase 4 del RELIABILITY-PLAN) es la mitigación principal.
+3. **Conversaciones más difíciles**: "Coordinación con mensajes telegráficos" (46%), "Negociación tensa de responsabilidades" (56%), "Logística doble: primaria y guardería" (57%).
 4. **prompt_version**: las eval runs del autopilot usan `'autopilot-pre'`/`'autopilot-post'` pero no diferencian qué reglas estaban activas.
 
 ---
