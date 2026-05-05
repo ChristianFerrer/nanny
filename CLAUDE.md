@@ -54,6 +54,7 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 | `Nanny-Autopilot` | `https://nanny-xi.vercel.app/api/cron/autopilot` | `* * * * *` (cada minuto) | Procesa el job de autopilot AI; cada invocación tiene budget de 45s |
 | `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. Endpoint: `app/src/app/api/cron/morning-brief/route.ts`. |
 | `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. Endpoint: `app/src/app/api/cron/nightly-catchup/route.ts`. |
+| `Nanny-UpcomingReminders` | `https://nanny-xi.vercel.app/api/cron/upcoming-reminders` | `*/10 * * * *` (cada 10 min) | Push proactivo antes de eventos (ventana de 30 min) y tomas de medicación (15 min). Idempotente vía tabla `notifications_sent`. Endpoint: `app/src/app/api/cron/upcoming-reminders/route.ts`. |
 
 **Auth:** los endpoints aceptan tres formas (cualquiera funciona):
 1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).
@@ -270,6 +271,7 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/cron/autopilot` | Cron (cron-job.org cada 1 min): procesa job de autopilot |
 | `/api/cron/morning-brief` | Cron (cron-job.org cada 1 hora): brief matutino por familia, filtra por TZ local (envía a las 8am locales) |
 | `/api/cron/nightly-catchup` | Cron (cron-job.org cada 1 hora): nightly catchup automático a las 4am locales — encuentra items que Nanny no capturó durante el día |
+| `/api/cron/upcoming-reminders` | Cron (cron-job.org cada 10 min): push proactivo antes de eventos (30 min) y tomas de medicación (15 min). Usa tabla `notifications_sent` para idempotencia. |
 
 ---
 
@@ -430,6 +432,7 @@ Helpers disponibles:
 | `20260427_families_timezone_manual_flag.sql` | Columna `timezone_set_manually` en `families` (lock para auto-detect) |
 | `20260427_tasks_parent.sql` | Columna `parent_task_id` en `tasks` (self-reference) para agrupar sub-actividades bajo tarea paraguas |
 | `20260427_routine_exceptions.sql` | Tabla `routine_exceptions`: overrides puntuales de rutinas (cancelar un día / cambiar horario para una fecha específica) |
+| `20260505_notifications_sent.sql` | Tabla `notifications_sent`: registra push proactivos enviados (UNIQUE por entity_type+entity_id). Usada por el cron `upcoming-reminders` para idempotencia. |
 
 ---
 

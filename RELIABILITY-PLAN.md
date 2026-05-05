@@ -286,7 +286,7 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 |---|---|---|---|---|---|
 | 1 — Setup y baseline | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `617a505` | Eval ✅ Migración ✅ E2E ✅ (vía 1.5) | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. Quality gate completo tras Fase 1.5. |
 | 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
-| 2 — Push reminders | ⏳ | — | — | — | — |
+| 2 — Push reminders | 🟡 Código pusheado, pendiente migración + cron-job.org | `claude/continue-previous-session-OleqU` | (siguiente) | ⏳ | Migración + endpoint listos. Falta aplicar migración en Supabase + configurar cron-job.org. |
 | 3 — Real-time sync | ⏳ | — | — | — | — |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
 | 5 — Validación en prod | ⏳ | — | — | — | — |
