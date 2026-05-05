@@ -378,17 +378,14 @@ Run de eval completa ejecutada desde `/admin/testing` el 5 de mayo 2026 (autopil
 - Negociación tensa de responsabilidades: 56%
 - Logística doble: primaria y guardería: 57%
 
-**Estado de tests E2E al inicio del plan (5/5 fallan):**
+**Estado de tests E2E (Fase 1.5 cerrada — 5/5 verdes en CI):**
 
-| Test | Estado | Causa probable |
-|---|---|---|
-| 1 — mandar mensaje y recibir respuesta de Nanny | ❌ | `getByText('Entendido, anotado.')` no aparece — mock o flujo cambió |
-| 2 — intent MEDICATION muestra 3 botones | ❌ | flujo de medicación cambió post-inline |
-| 3 — click "Editar horarios" abre el bottom sheet | ❌ | **Test obsoleto**: el sheet ya no existe, lo inlinemos en commit `78b93fc` |
-| 4 — editar horarios y confirmar medicación | ❌ | depende del editor inline, asume bottom sheet |
-| 5 — botón de reply (alternativa al swipe) | ❌ | a investigar |
+3 bugs en mocks identificados y fixeados en commit `1d4fae8`:
+1. Mock `/api/chat` devolvía JSON cuando el endpoint real ahora emite SSE (`will_respond` + `response` + `done`). El cliente nunca veía la respuesta.
+2. Mock `/api/family-data` no incluía `familyId`/`currentParentId`/`routines`/`routineExceptions` que el cliente espera para inicializar el store.
+3. Tests 3-4 testeaban un bottom sheet del editor de horarios que se inlineó en `78b93fc` (commit de abril 2026).
 
-**Decisión de quality gate:** los E2E rotos son **deuda técnica conocida** por feature changes de abril 2026 que no se reflejaron en los tests. Fase 1 cierra como ⚠️ parcial. Los E2E se arreglan como mini-sprint **antes de Fase 4** (function calling), donde son la red de seguridad principal contra regresiones del extractor. Fase 2 y 3 son additive y no dependen de los E2E para validarse.
+Tests reescritos para validar el editor inline (inputs `Horario 1/2/3` + Cancelar/Guardar dentro del bubble de Nanny). Suite verde, quality gate de Fase 4 (function calling) cumplido — la red de seguridad está activa.
 
 ### Estado del autopilot (abril 2026)
 

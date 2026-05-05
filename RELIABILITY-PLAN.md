@@ -284,8 +284,8 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 
 | Fase | Status | Branch | Commit clave | Validación | Notas |
 |---|---|---|---|---|---|
-| 1 — Setup y baseline | ⚠️ Parcial | `claude/continue-previous-session-OleqU` | (este) | Eval ✅ Migración ✅ E2E ❌ | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. E2E rotos por feature changes pre-existentes (deuda conocida) — fix obligatorio antes de Fase 4. |
-| 1.5 — Fix E2E (mini-sprint) | 🟡 Pusheado, pendiente CI | `claude/continue-previous-session-OleqU` | `1d4fae8` | ⏳ esperando run de Actions | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
+| 1 — Setup y baseline | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `617a505` | Eval ✅ Migración ✅ E2E ✅ (vía 1.5) | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. Quality gate completo tras Fase 1.5. |
+| 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
 | 2 — Push reminders | ⏳ | — | — | — | — |
 | 3 — Real-time sync | ⏳ | — | — | — | — |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
@@ -296,6 +296,10 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 ### Bitácora de sesiones
 
 - **2026-05-05** — Fase 1 ejecutada: migración aplicada, baseline numérico tomado (70% overall). E2E test suite revisada y se confirma que los 5 tests fallan por feature changes de abril que no se reflejaron en los tests. Se documenta como Fase 1.5 mini-sprint pre-Fase 4.
+- **2026-05-05 (continuación)** — Fase 1.5 ejecutada en la misma sesión:
+  - 3 bugs en mocks/tests identificados: `/api/chat` mock devolvía JSON cuando ahora es SSE; `/api/family-data` mock no incluía `familyId`/`currentParentId`/`routines`/`routine_exceptions`; tests 3-4 testeaban un bottom sheet del editor de medicación que ya no existe (se inlinemos en `78b93fc`).
+  - Fix en `1d4fae8`: mock SSE con 3 eventos (will_respond, response, done), family-data completo, tests 3-4 reescritos para validar el editor inline.
+  - **5/5 verdes en CI** (run 1:12 min). Quality gate cumplido — Fase 4 (function calling) ya tiene la red de seguridad.
 
 ---
 
