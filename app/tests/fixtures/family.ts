@@ -1,4 +1,4 @@
-import type { Family, Parent, Child, FamilyEvent, Task, Message, Medication } from '../../src/lib/types';
+import type { Family, Parent, Child, FamilyEvent, Task, Message, Medication, Routine, RoutineException } from '../../src/lib/types';
 
 /**
  * Datos fijos de una familia mock para tests E2E.
@@ -90,9 +90,16 @@ export const mockEvents: FamilyEvent[] = [];
 export const mockTasks: Task[] = [];
 export const mockMedications: Medication[] = [];
 export const mockMessages: Message[] = [];
+export const mockRoutines: Routine[] = [];
+export const mockRoutineExceptions: RoutineException[] = [];
 
 /**
  * Devuelve los datos para el endpoint `/api/family-data` según las tablas pedidas.
+ *
+ * IMPORTANTE: el endpoint real siempre incluye `familyId` y `currentParentId`
+ * en la respuesta (el cliente los usa para inicializar `_currentFamilyId` y
+ * `_currentParentId` en el store). Sin estos, getCachedSnapshot() falla y la
+ * app queda en estado "loading" infinito.
  */
 export function getFamilyDataResponse(tables: string[]): Record<string, unknown> {
   const lookup: Record<string, unknown> = {
@@ -103,10 +110,20 @@ export function getFamilyDataResponse(tables: string[]): Record<string, unknown>
     tasks: mockTasks,
     medications: mockMedications,
     messages: mockMessages,
+    routines: mockRoutines,
+    routineExceptions: mockRoutineExceptions,
   };
-  const result: Record<string, unknown> = {};
+  // Estos dos siempre van en la respuesta del endpoint real
+  const result: Record<string, unknown> = {
+    familyId: FAMILY_ID,
+    currentParentId: MAMA_ID,
+  };
   for (const t of tables) {
-    if (t in lookup) result[t] = lookup[t];
+    if (t === 'routine_exceptions') {
+      result.routineExceptions = lookup.routineExceptions;
+    } else if (t in lookup) {
+      result[t] = lookup[t];
+    }
   }
   return result;
 }

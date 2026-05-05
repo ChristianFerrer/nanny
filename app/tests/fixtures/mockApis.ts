@@ -38,7 +38,9 @@ export async function setupChatMocks(page: Page) {
     }),
   );
 
-  // 4) /api/family-data?tables=... → datos según las tablas pedidas
+  // 4) /api/family-data?tables=... → datos según las tablas pedidas.
+  // Incluye familyId + currentParentId que el cliente espera para inicializar
+  // el state de _currentFamilyId / _currentParentId en el store.
   await page.route(/\/api\/family-data(\?.*)?$/, (route) => {
     const url = new URL(route.request().url());
     const tablesParam = url.searchParams.get('tables') || '';
@@ -51,25 +53,46 @@ export async function setupChatMocks(page: Page) {
     });
   });
 
-  // 5) /api/chat → respuesta determinística según el texto.
-  // Shape esperado por validateNannyResponse: { reply, intent, next_action,
-  // confirmation?, should_respond? } — campos planos, no envueltos.
+  // 5) /api/chat → SSE stream con dos eventos: will_respond + response.
+  //
+  // El cliente (chat-stream.ts) consume Server-Sent Events, no JSON. El mock
+  // tiene que emitir el formato exacto que pareasea parseEvent():
+  //   event: will_respond\n
+  //   data: {"value": true}\n
+  //   \n
+  //   event: response\n
+  //   data: {<ChatResponse>}\n
+  //   \n
+  //   event: done\n
+  //   data: {"ok": true}\n
+  //   \n
   await page.route('**/api/chat', async (route) => {
     const body = route.request().postDataJSON() as { message?: string } | null;
     const text = body?.message || '';
     const response = pickResponse(text);
 
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
+    const sseChunks = [
+      `event: will_respond\ndata: ${JSON.stringify({ value: true })}\n\n`,
+      `event: response\ndata: ${JSON.stringify({
         reply: response.reply,
         intent: response.intent,
         next_action: response.next_action,
         child: response.child,
         confirmation: response.confirmation,
         should_respond: true,
-      }),
+        additional_confirmations: [],
+        pending_detection: null,
+      })}\n\n`,
+      `event: done\ndata: ${JSON.stringify({ ok: true })}\n\n`,
+    ];
+
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+      },
+      body: sseChunks.join(''),
     });
   });
 

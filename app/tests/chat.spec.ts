@@ -55,7 +55,10 @@ test.describe('chat — flujos críticos del refactor', () => {
     await expect(page.getByRole('button', { name: 'No' })).toBeVisible();
   });
 
-  test('3 — click "Editar horarios" abre el bottom sheet del editor', async ({ page }) => {
+  test('3 — click "Editar horarios" expande el editor inline en el bubble', async ({ page }) => {
+    // Post-commit 78b93fc: el editor de horarios ya no es un bottom sheet,
+    // se expande inline dentro del bubble de Nanny. Los 3 botones (Sí/Editar/No)
+    // se reemplazan por inputs de tipo time + Cancelar/Guardar.
     const input = page.getByPlaceholder('Mensaje');
     await input.fill('Pau toma jarabe 3 veces al día');
     await input.press('Enter');
@@ -63,34 +66,34 @@ test.describe('chat — flujos críticos del refactor', () => {
     await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
     await page.getByRole('button', { name: 'Editar horarios' }).click();
 
-    // El sheet con role=dialog debe aparecer
-    const sheet = page.getByRole('dialog', { name: /editar horarios|ajustar horarios/i });
-    await expect(sheet).toBeVisible();
+    // Los inputs inline aparecen (aria-label "Horario 1", "Horario 2", "Horario 3")
+    await expect(page.getByLabel('Horario 1')).toBeVisible();
 
-    // Inputs de hora visibles
-    await expect(sheet.getByLabel(/horario \d/i).first()).toBeVisible();
+    // Botones Cancelar y Guardar reemplazan a los Sí/Editar/No
+    await expect(page.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardar' })).toBeVisible();
 
-    // Botones del sheet
-    await expect(sheet.getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Guardar' })).toBeVisible();
+    // Los 3 botones originales ya no se ven mientras se edita
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).not.toBeVisible();
   });
 
-  test('4 — editar horarios y confirmar medicación', async ({ page }) => {
+  test('4 — editar horarios inline, guardar y confirmar medicación', async ({ page }) => {
     const input = page.getByPlaceholder('Mensaje');
     await input.fill('Pau toma jarabe 3 veces al día');
     await input.press('Enter');
 
-    await page.getByRole('button', { name: 'Editar horarios' }).click({ timeout: NANNY_RESPONSE_TIMEOUT });
-    const sheet = page.getByRole('dialog', { name: /editar horarios|ajustar horarios/i });
-    await expect(sheet).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+    await page.getByRole('button', { name: 'Editar horarios' }).click();
 
-    // Cambiar el primer horario
-    const firstTime = sheet.getByLabel('Horario 1');
+    // Cambiar el primer horario via input inline
+    const firstTime = page.getByLabel('Horario 1');
+    await expect(firstTime).toBeVisible();
     await firstTime.fill('09:30');
 
-    // Guardar — el sheet se cierra
-    await sheet.getByRole('button', { name: 'Guardar' }).click();
-    await expect(sheet).not.toBeVisible();
+    // Guardar — el editor se colapsa, vuelven los 3 botones
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).toBeVisible();
 
     // El bubble debe mostrar el nuevo horario en el resumen
     await expect(page.getByText(/09:30/)).toBeVisible();
