@@ -235,7 +235,22 @@ export async function getNewMessages(since: string): Promise<Message[]> {
   const res = await fetch(`/api/family-data?tables=messages&since=${encodeURIComponent(since)}`);
   if (!res.ok) return [];
   const data = await res.json();
-  return (data.messages as Message[]) || [];
+  const newMessages = (data.messages as Message[]) || [];
+
+  // Mergear los nuevos en la cache en memoria. Sin esto, futuras navegaciones
+  // a /chat leían un getCachedSnapshot() desactualizado (sin los msgs llegados
+  // entre fetch inicial y now), causando el "ver chat antiguo y luego cargar"
+  // que el usuario reportó.
+  if (newMessages.length > 0) {
+    const cached = getCached('messages') as { messages?: Message[] } | null;
+    if (cached && Array.isArray(cached.messages)) {
+      const seen = new Set(cached.messages.map(m => m.id));
+      const merged = [...cached.messages, ...newMessages.filter(m => !seen.has(m.id))];
+      setCache('messages', { ...cached, messages: merged });
+    }
+  }
+
+  return newMessages;
 }
 
 export async function addMessage(msg: Omit<Message, 'id' | 'created_at'>): Promise<Message> {

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, Plus, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2, User as UserIcon, AlertTriangle } from 'lucide-react';
 import { getFamily, getParents, getChildren, resetFamilyCache } from '@/lib/store';
+import { clearCachedChat } from '@/lib/chat-cache';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
 import { formatAge } from '@/lib/age';
@@ -76,6 +77,7 @@ export default function PerfilPage() {
     const supabase = getSupabase();
     await supabase.auth.signOut();
     resetFamilyCache();
+    clearCachedChat(); // localStorage del chat — evita leak entre cuentas
     window.location.href = '/login';
   };
 

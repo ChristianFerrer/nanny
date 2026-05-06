@@ -9,6 +9,8 @@ import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
 import { validateNannyResponse } from '@/lib/validation';
 import { getSupabase } from '@/lib/supabase';
 import { detectBrowserTimezone } from '@/lib/timezone';
+import { loadCachedChat, saveCachedChat, clearCachedChat } from '@/lib/chat-cache';
+import { useRealtimeFamily } from '@/lib/realtime';
 import { formatAge } from '@/lib/age';
 import { callChatStream } from '@/lib/chat-stream';
 import type { Message, Parent, Child, FamilyEvent, Task, Medication, Routine, RoutineException, NannyIntent } from '@/lib/types';
@@ -103,9 +105,15 @@ function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; ch
 
 export default function ChatPage() {
   const router = useRouter();
-  // Initialize from cache to avoid flash on revisit
+  // Initialize from cache to avoid flash on revisit.
+  // Prioridad: localStorage (sobrevive entre sesiones del browser) > snapshot
+  // en memoria (módulo). Esto es lo que da la sensación WhatsApp/Instagram de
+  // ver el chat al toque al abrir la app, sin "carga".
   const _snap = getCachedSnapshot();
-  const [messages, setMessages] = useState<Message[]>(_snap?.messages || []);
+  const _cachedChat = typeof window !== 'undefined' ? loadCachedChat() : null;
+  const [messages, setMessages] = useState<Message[]>(
+    _cachedChat?.messages || _snap?.messages || []
+  );
   const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
   const [children, setChildren] = useState<Child[]>(_snap?.children || []);
   const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
@@ -318,7 +326,21 @@ export default function ChatPage() {
       ]);
       if (!fam) { window.location.href = '/login'; return; }
       setFamilyId(fam.id);
-      setMessages(msgs);
+      // Si la familia del server cambió respecto a la cacheada en localStorage
+      // (otro usuario se logueó en este device), descartamos los mensajes
+      // viejos para no mostrar datos de otro hogar.
+      if (_cachedChat && _cachedChat.familyId !== fam.id) {
+        clearCachedChat();
+      }
+      // Mergear los msgs del server con los que ya estaban en state (de la
+      // cache local) para no perder los que ya se mostraron, y mantener el
+      // orden por created_at.
+      setMessages(prev => {
+        const seen = new Set(prev.map(m => m.id));
+        const merged = [...prev, ...msgs.filter(m => !seen.has(m.id))];
+        merged.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        return merged;
+      });
       setParents(prts);
       setChildren(chld);
       setEvents(evts);
@@ -585,9 +607,49 @@ export default function ChatPage() {
       }
     };
     checkNew(); // pasada inmediata
-    const interval = setInterval(checkNew, 3000);
+    // Polling como red de seguridad por si el WebSocket de realtime falla.
+    // Antes era 3s; con realtime activo bajamos a 30s para reducir batería
+    // sin perder cobertura cuando hay desconexiones del WS.
+    const interval = setInterval(checkNew, 30000);
     return () => clearInterval(interval);
   }, [familyId]);
+
+  // Real-time: cuando llega un mensaje nuevo a la tabla messages (de Nanny
+  // proactiva, del otro padre, etc.), traerlo al state inmediatamente sin
+  // esperar al próximo poll. Reusa la lógica del polling (getNewMessages
+  // desde el último timestamp) — el debounce 200ms del hook agrupa varios
+  // INSERT consecutivos en un solo fetch.
+  useRealtimeFamily({
+    familyId,
+    tables: ['messages'],
+    enabled: !!familyId,
+    onChange: async () => {
+      try {
+        const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+        const newMsgs = lastMsg
+          ? await getNewMessages(lastMsg.created_at)
+          : await getMessages();
+        if (newMsgs.length > 0) {
+          setMessages(prev => {
+            const seen = new Set(prev.map(m => m.id));
+            const truly_new = newMsgs.filter(m => !seen.has(m.id));
+            return truly_new.length > 0 ? [...prev, ...truly_new] : prev;
+          });
+        }
+      } catch {
+        // ignore — el polling lo cubrirá en 30s
+      }
+    },
+  });
+
+  // Persistir messages en localStorage cuando cambian. Usamos debounce
+  // implícito vía effect (React batches updates). Si la pestaña se cierra
+  // entre escritura y persist, perdemos lo último — recovery vía fetch
+  // del server al volver.
+  useEffect(() => {
+    if (!familyId || messages.length === 0) return;
+    saveCachedChat(familyId, messages);
+  }, [familyId, messages]);
 
   // Push notification registration
   useEffect(() => {
