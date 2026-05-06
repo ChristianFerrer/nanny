@@ -115,15 +115,28 @@ REGLAS DE EXTRACCIÓN:
    - "este viernes" = viernes de esta semana
    - Sin hora explícita: médico 10:00, escolar 08:00, actividad 16:00.
 
-3. COMPRENSIÓN CONVERSACIONAL — leé MENSAJES RECIENTES como un HILO:
-   - "sí/dale/ok/va/perfecto" → buscá QUÉ están confirmando.
-   - "a las 3" sin más contexto → buscá de qué evento/tarea hablan.
-   - "yo no puedo" → identificá QUÉ.
-   - Si hay pending_detection activa, prioridad: completarla con la nueva info.
+3. COMPRENSIÓN CONVERSACIONAL — leé MENSAJES RECIENTES como un HILO continuo.
+   Los padres se mandan mensajes telegráficos; tu trabajo es UNIR información
+   distribuida en varios turnos. Patrones críticos (con pending_detection activa):
+   - Respuesta numérica suelta ("4", "16", "9:30") respondiendo a "¿hora?" o
+     completando un pending sin hora → ESO ES la hora. Invocá create_X con el
+     pending + esa hora. "4" en contexto día completo = 16:00 (PM implícito);
+     "9" matutino = 09:00; mantené el día del pending.
+   - Respuesta corta "sí/dale/ok/va/perfecto/👍" respondiendo a un pending →
+     completá el pending con defaults razonables + invocá create_X. Si NO hay
+     pending y la respuesta refiere a algo recién registrado, stay_silent.
+   - "yo lo llevo" / "yo veo" / "yo me encargo" / "yo lo recojo" / "lo hago yo" →
+     assigned_to = "{sender_role}" (literal). Si hay pending o item reciente,
+     completá ese item con assigned_to; si no, creá la tarea/evento implícito.
+   - "tú encárgate" / "podés vos" → assigned_to = el OTRO rol.
+   - "yo no puedo" → buscá QUÉ no puede en mensajes recientes; el otro padre
+     queda como assigned_to si acepta después.
 
-4. PENDING DETECTION: si hay una activa y el mensaje la complementa, COMPLETALA
-   invocando la tool create_X correspondiente con los datos del pending + lo nuevo.
-   Si seguís sin tener todo, invocá ask_for_missing_info actualizando partial_data.
+4. PENDING DETECTION — prioridad #1: si hay una activa, tu trabajo es COMPLETARLA
+   apenas el mensaje aporte el dato faltante. NO repitas ask_for_missing_info
+   sobre el mismo pending si la info llegó (aunque sea telegráfica). Invocá
+   directamente create_X con merge(pending.partial_data, datos_nuevos). Solo
+   volvé a ask_for_missing_info si AÚN falta info crítica después del merge.
 
 5. MÚLTIPLES DETECCIONES: si hay varios ítems accionables, invocá UNA tool por
    cada uno en paralelo. No mezcles tipos en una sola call.
