@@ -287,7 +287,7 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 | 1 — Setup y baseline | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `617a505` | Eval ✅ Migración ✅ E2E ✅ (vía 1.5) | Migración aplicada el 5/5/26. Baseline 70/60/74 registrado en CLAUDE.md §9. Quality gate completo tras Fase 1.5. |
 | 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
 | 2 — Push reminders | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `cb16b27` | Smoke test 200 OK, push real validado por usuario | Migración aplicada en Supabase. Cron `Nanny-UpcomingReminders` corriendo cada 10 min. Push proactivo confirmado funcionando para evento real. |
-| 3 — Real-time sync | 🟡 Código pusheado, pendiente SQL de habilitar Realtime | `claude/continue-previous-session-OleqU` | (siguiente) | ⏳ | Hook `useRealtimeFamily` + aplicado en /agenda, /tareas, /hijo/[id]. Falta habilitar Realtime en Supabase para las tablas (SQL en sección "Pasos de Fase 3"). |
+| 3 — Real-time sync | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `e5233be` | Supabase Realtime habilitado, sync entre 2 pestañas validado por usuario | Hook `useRealtimeFamily` + aplicado en /agenda, /tareas, /hijo/[id]. Publication `supabase_realtime` extendida a las 6 tablas. |
 | 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
 | 5 — Validación en prod | ⏳ | — | — | — | — |
 
@@ -305,6 +305,12 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
   - Endpoint `/api/cron/upcoming-reminders` (`cb16b27`): query eventos en próximos 30 min + tomas en próximos 15 min, push con web-push, registra en `notifications_sent` para evitar reenvíos.
   - Cron `Nanny-UpcomingReminders` configurado en cron-job.org cada 10 min. Smoke test 200 OK (731ms).
   - Validado end-to-end: push real llegó a dispositivo del usuario con un evento agendado dentro de la ventana.
+- **2026-05-05 (continuación)** — Fase 3 cerrada en la misma sesión:
+  - Hook `useRealtimeFamily` (`e5233be`) en `app/src/lib/realtime.ts`: una suscripción por familia con filter por tabla, debounce 200ms, cleanup garantizado en unmount.
+  - Aplicado en `/agenda` (events, tasks, medications, routines, routine_exceptions), `/tareas` (tasks), `/hijo/[id]` (routines, medications, events, tasks).
+  - Publication `supabase_realtime` extendida via `ALTER PUBLICATION ADD TABLE` para las 6 tablas. Validado por el usuario: cambio en una pestaña aparece en otra en <2s.
+
+**Estado final del plan al cierre de la sesión 2026-05-05:** 4/5 fases cerradas con quality gates. Resta Fase 4 (function calling) que el plan original marca como sesión dedicada de 2 semanas y alto riesgo — usar prompt `A.4` del Anexo para arrancarla con red de seguridad completa (E2E verdes, eval baseline registrado).
 
 ---
 
