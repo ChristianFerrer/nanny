@@ -768,6 +768,22 @@ export default function ChatPage() {
               console.log('[Validation warnings]:', data.validation_warnings);
             }
 
+            // Helper para mapear el nombre de hijo (que puede venir en
+            // varios campos del extractor) a su id en la base de datos.
+            // Antes de este fix, los eventos y tareas se creaban con
+            // child_id: null hardcoded, lo que perdía el contexto del hijo
+            // aunque el AI lo hubiera detectado correctamente.
+            const matchChildId = (...candidates: (string | undefined | null)[]): string | null => {
+              for (const candidate of candidates) {
+                if (!candidate) continue;
+                const lower = String(candidate).toLowerCase().trim();
+                if (!lower) continue;
+                const match = children.find(c => c.name.toLowerCase().trim() === lower);
+                if (match) return match.id;
+              }
+              return null;
+            };
+
             // Si el extractor agrupa varias tareas bajo un topic paraguas (ej.
             // "Cumpleaños Pau"), creamos primero la tarea padre (o reutilizamos
             // una con el mismo título si ya existe). Las hijas se crean con
@@ -784,7 +800,9 @@ export default function ChatPage() {
                   parentTaskId = existingParent.id;
                 } else {
                   const parentTask = await addTask({
-                    family_id: familyId, child_id: null, parent_task_id: null,
+                    family_id: familyId,
+                    child_id: matchChildId(taskGroup.child_name, data.child),
+                    parent_task_id: null,
                     title: taskGroup.parent_title, description: null,
                     assigned_to: null, due_date: null,
                     status: 'pending', priority: 'normal', source: 'chat',
@@ -807,7 +825,8 @@ export default function ChatPage() {
                 ? (confData.completed_at as string) || new Date().toISOString()
                 : null;
               const newTask = await addTask({
-                family_id: familyId, child_id: null,
+                family_id: familyId,
+                child_id: matchChildId(confData.child as string, confData.child_name as string, data.child, taskGroup?.child_name),
                 parent_task_id: parentTaskId,
                 title: confData.title as string, description: null,
                 assigned_to: roleToParentId(confData.assigned_to),
@@ -829,7 +848,8 @@ export default function ChatPage() {
                   (data as unknown as Record<string, unknown>)._medMsgId = medMsgId;
                 } else if (type === 'event') {
                   const newEvent = await addEvent({
-                    family_id: familyId, child_id: null,
+                    family_id: familyId,
+                    child_id: matchChildId(confData.child as string, confData.child_name as string, data.child),
                     title: confData.title as string,
                     description: (confData.date_description as string) || null,
                     event_type: (confData.event_type as string) || 'other',
@@ -899,7 +919,8 @@ export default function ChatPage() {
                     await createTaskFromConf(extraConf.data);
                   } else if (extraConf.type === 'event' && extraConf.data?.title) {
                     const newEvent = await addEvent({
-                      family_id: familyId, child_id: null,
+                      family_id: familyId,
+                      child_id: matchChildId(extraConf.data.child as string, extraConf.data.child_name as string, data.child),
                       title: extraConf.data.title as string,
                       description: (extraConf.data.date_description as string) || null,
                       event_type: (extraConf.data.event_type as string) || 'other',
@@ -920,7 +941,9 @@ export default function ChatPage() {
                 try {
                   const pd = data.pending_detection.partial_data;
                   const newTask = await addTask({
-                    family_id: familyId, child_id: null, parent_task_id: null,
+                    family_id: familyId,
+                    child_id: matchChildId(pd.child as string, pd.child_name as string, data.child),
+                    parent_task_id: null,
                     title: pd.title as string, description: null,
                     assigned_to: roleToParentId(pd.assigned_to),
                     due_date: (pd.due_date as string) || null,
