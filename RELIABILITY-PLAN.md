@@ -288,10 +288,11 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 | 1.5 — Fix E2E (mini-sprint) | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `1d4fae8` | 5/5 verdes en CI (run 1:12 min) | Mocks actualizados a SSE + family-data con familyId/routines. Tests 3-4 reescritos para editor inline. |
 | 2 — Push reminders | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `cb16b27` | Smoke test 200 OK, push real validado por usuario | Migración aplicada en Supabase. Cron `Nanny-UpcomingReminders` corriendo cada 10 min. Push proactivo confirmado funcionando para evento real. |
 | 3 — Real-time sync | ✅ Cerrada | `claude/continue-previous-session-OleqU` | `e5233be` | Supabase Realtime habilitado, sync entre 2 pestañas validado por usuario | Hook `useRealtimeFamily` + aplicado en /agenda, /tareas, /hijo/[id]. Publication `supabase_realtime` extendida a las 6 tablas. |
-| 4 — Function calling | ⏳ | — | — | — | Requiere Fase 1.5 cerrada (E2E verdes) como red de seguridad. |
-| 5 — Validación en prod | ⏳ | — | — | — | — |
+| 4 — Function calling | ✅ Cerrada | `claude/extractor-function-calling` (mergeada a OleqU) | `c4ae1c7` | Eval 77/63/90 vs baseline 70/60/74 (+7/+3/+16pp). 4 flujos manuales validados | Catch silencioso del extractor eliminado; tools.ts con 9 schemas; routine-detector regex sigue activo. 2 bugs preexistentes descubiertos en validación (rutinas vía chat / persistencia eventos) — documentados en CLAUDE.md §9 como follow-ups. |
+| 5 — Validación en prod | ⏳ | — | — | — | Próximo sprint: observar 7+ días en prod tras merge de Fase 4. |
 
 **Estado al cierre de la sesión donde se inicia el plan:** sesión 2026-04-28.
+**Cierre de Fase 4:** sesión 2026-05-12.
 
 ### Bitácora de sesiones
 

@@ -102,6 +102,8 @@ Soporte para horarios fijos recurrentes (guardería, cole, fútbol semanal) como
 
 Filosofía del plan: calidad sobre cantidad. Las primeras dos fases son additive y de bajo riesgo (entregan valor visible inmediato); la tercera es la inversión de confiabilidad mayor (function calling); la última es observación.
 
+**Estado al 12/5/26**: Fases 1–4 cerradas. La Fase 4 (function calling en el extractor) mejoró el score de eval de 70/60/74 → 77/63/90. El catch silencioso del extractor murió: anomalías ahora se loguean explícitamente. Pendiente Fase 5 (observación en prod). Durante la validación manual aparecieron 2 bugs preexistentes (rutinas vía chat / persistencia de eventos) documentados en sección 9 como follow-ups.
+
 ### Refactor del chat — ⏳ Pendiente (sesión dedicada)
 
 `app/src/app/chat/page.tsx` tiene ~1900 líneas y ~32 useStates (creció con state de routines/routineExceptions). Plan en 7 fases para extraer componentes y hooks. Plan completo en `CHAT-REFACTOR-PLAN.md`.
@@ -279,14 +281,15 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 1. `processChat.ts` — orquestador público + `ChatInput` interface; el `SYSTEM_PROMPT` exportado es legacy (solo eval offline)
 2. `classifier.ts` — clasifica intención + flags del mensaje (incluye `silent_action`)
-3. `extractor.ts` — extrae datos estructurados (eventos, tareas, medicamentos, **rutinas**, **excepciones de rutinas**)
-4. `responder.ts` — genera respuesta de Nanny (tono profesional, default 1 oración, una pregunta máx)
-5. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación). NO filtra `routine` ni `routine_exception` — pasan directo
-6. `routine-detector.ts` — **red de seguridad determinística** (regex): detecta patrones claros de rutina semanal en el mensaje. Si el LLM no creó `confirmation: type=routine` y el regex matchea (hijo + actividad + días + horario), el pipeline fuerza la creación reescribiendo el reply
-7. `pipeline.ts` — orquestación: emite stream de eventos `will_respond` + `response`; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm); buffered receipt para casos `silent_action`. Ejecuta `routine-detector` **después** del LLM, antes de `postprocess`
-8. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
-9. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
-10. `routine-detector.test.ts` — runner de tests (no framework, solo asserts) — `npx tsx src/lib/chat/routine-detector.test.ts`
+3. `extractor.ts` — extrae datos estructurados **via OpenAI tool calling** (Fase 4, mayo 2026). El modelo invoca tools tipadas (ver `tools.ts`); el `content` textual es el reply. NUNCA silencia errores: anomalías loguean (`[extractor] ...`)
+4. `tools.ts` — 9 tool schemas: `create_event`, `create_task` (con `parent_title` opcional para task_group), `create_medication`, `create_routine`, `create_routine_exception`, `update_existing_event`, `update_existing_task`, `ask_for_missing_info`, `stay_silent`
+5. `responder.ts` — genera respuesta de Nanny (tono profesional, default 1 oración, una pregunta máx)
+6. `postprocess.ts` — post-procesamiento (assigned_to, fechas, deduplicación). NO filtra `routine` ni `routine_exception` — pasan directo
+7. `routine-detector.ts` — **red de seguridad determinística** (regex): detecta patrones claros de rutina semanal en el mensaje. Si el LLM no creó `confirmation: type=routine` y el regex matchea (hijo + actividad + días + horario), el pipeline fuerza la creación reescribiendo el reply
+8. `pipeline.ts` — orquestación: emite stream de eventos `will_respond` + `response`; cuotas anti-spam (3 proactivas/día, ventana 7am-10pm); buffered receipt para casos `silent_action`. Ejecuta `routine-detector` **después** del LLM, antes de `postprocess`
+9. `prompt-rules.ts` — reglas dinámicas persistidas en Supabase (`prompt_rules_state`)
+10. `correction-rules.ts` — destila correcciones del padre en reglas persistidas (rol, preferencias, asignaciones habituales)
+11. `routine-detector.test.ts` — runner de tests (no framework, solo asserts) — `npx tsx src/lib/chat/routine-detector.test.ts`
 
 ### Streaming SSE (`/api/chat`)
 
@@ -351,7 +354,7 @@ evaluation (10 convs) → saving → diagnosis (OpenAI) → reeval (10 convs) �
 - Cada invocación procesa ~45s de trabajo (2 conversaciones aprox.)
 - Un ciclo completo (eval 10 + diagnosis + reeval 10) toma ~10-15 min
 
-### Baseline post-rutinas — RELIABILITY-PLAN Fase 1 (mayo 2026)
+### Baseline pre-Fase 4 — RELIABILITY-PLAN Fase 1 (mayo 2026)
 
 Run de eval completa ejecutada desde `/admin/testing` el 5 de mayo 2026 (autopilot v9-iterative).
 
@@ -380,6 +383,28 @@ Run de eval completa ejecutada desde `/admin/testing` el 5 de mayo 2026 (autopil
 - Negociación tensa de responsabilidades: 56%
 - Logística doble: primaria y guardería: 57%
 
+### Post-Fase 4 — function calling (12/5/26)
+
+Run ejecutado tras `claude/extractor-function-calling` mergeada a OleqU (commit `c4ae1c7`).
+
+**Scores globales:**
+- Overall: **77%** (+7pp)
+- Precision: **63%** (+3pp)
+- Recall: **90%** (+16pp)
+
+**Cambios destacables por conversación (post vs baseline):**
+
+| Conversación | Pre | Post | Δ |
+|---|---|---|---|
+| Coordinación bilingüe español-inglés | 75% | 69% | -6pp ⚠️ (-) ; en run intermedio bajó a 37% antes de fixeo |
+| Coordinación con mensajes telegráficos | 46% | 40% | -6pp ⚠️ sigue siendo la peor |
+| Semana organizada | 62% | 84% | +22pp |
+| Mamá organiza todo, papá ejecuta | 84% | 93% | +9pp |
+| Logística doble | 57% | 58% | ≈ |
+| Tres cambios de plan | 86% | 62% | -24pp ⚠️ regresión |
+
+Trade-off típico de function calling: el modelo se anima más a invocar tools (sube recall +16pp) pero a veces sobre-completa pending detections cancelados ("tres cambios de plan" regresó). Cobertura agregada subió +7pp, quality gate de Fase 4 cumplido.
+
 **Estado de tests E2E (Fase 1.5 cerrada — 5/5 verdes en CI):**
 
 3 bugs en mocks identificados y fixeados en commit `1d4fae8`:
@@ -387,22 +412,35 @@ Run de eval completa ejecutada desde `/admin/testing` el 5 de mayo 2026 (autopil
 2. Mock `/api/family-data` no incluía `familyId`/`currentParentId`/`routines`/`routineExceptions` que el cliente espera para inicializar el store.
 3. Tests 3-4 testeaban un bottom sheet del editor de horarios que se inlineó en `78b93fc` (commit de abril 2026).
 
-Tests reescritos para validar el editor inline (inputs `Horario 1/2/3` + Cancelar/Guardar dentro del bubble de Nanny). Suite verde, quality gate de Fase 4 (function calling) cumplido — la red de seguridad está activa.
+Tests reescritos para validar el editor inline (inputs `Horario 1/2/3` + Cancelar/Guardar dentro del bubble de Nanny). Suite verde — red de seguridad activa.
 
-### Estado del autopilot (abril 2026)
+### Estado del autopilot (mayo 2026)
 
 - ✅ La evaluación (10/10 conversaciones) funciona correctamente
 - ✅ Las fases de saving completan OK
 - ⚠️ Fase de diagnosis falla intermitentemente por quota 429 (no afecta scores de la eval, solo el análisis post)
-- 📊 Scores recientes: ~70% overall, precision ~60%, recall ~74% (ver baseline arriba)
-- ⚠️ Diagnóstico AI propone ajustes pero los scores no mejoran significativamente aún
+- 📊 Scores post-Fase 4: **77% overall / 63% precision / 90% recall** (12/5/26)
+- ⚠️ Diagnóstico AI propone ajustes pero el rollback automático del autopilot lo deshace en ambos runs post-Fase 4
 
 ### Problemas conocidos / áreas de mejora
 
 1. **Diagnosis 429**: el paso de diagnóstico AI consume tokens — cuando el plan de OpenAI hace rate-limit, falla. Eval scores siguen siendo válidos.
-2. **Scores bajos en precision (60%)**: el extractor tiene dificultades con `assigned_to`, fechas, y detección de múltiples eventos en mensajes complejos. Función calling (Fase 4 del RELIABILITY-PLAN) es la mitigación principal.
-3. **Conversaciones más difíciles**: "Coordinación con mensajes telegráficos" (46%), "Negociación tensa de responsabilidades" (56%), "Logística doble: primaria y guardería" (57%).
-4. **prompt_version**: las eval runs del autopilot usan `'autopilot-pre'`/`'autopilot-post'` pero no diferencian qué reglas estaban activas.
+2. **Conversaciones difíciles persistentes**: "Coordinación con mensajes telegráficos" (40% post-Fase 4), "Tres cambios de plan" (62%, regresión por sobre-completar pending), "Logística doble" (58%).
+3. **prompt_version**: las eval runs del autopilot usan `'autopilot-pre'`/`'autopilot-post'` pero no diferencian qué reglas estaban activas.
+
+### Bugs preexistentes descubiertos durante validación manual de Fase 4 (12/5/26)
+
+Ninguno introducido por Fase 4 (verificado: en Fase 4 solo se tocaron `extractor.ts` + `tools.ts`). Merecen sesión dedicada:
+
+**Bug A — Rutinas no se crean vía chat**
+- Síntoma: "Pau tiene guardería de lunes a viernes de 9 a 5" → Nanny no responde, no se crea rutina.
+- Causa probable: `classifier.ts` no tiene el concepto de "rutina" en su prompt ni en el enum de `intent` (no aparece "ROUTINE" como intent posible). El mensaje se clasifica como `is_actionable=false`, el extractor nunca corre, el `routine-detector` (que vive dentro de `runExtraction` en `pipeline.ts:348`) tampoco se dispara.
+- Fix sugerido: (1) agregar `ROUTINE` al enum de intents del classifier + reglas de detección de horarios recurrentes; (2) mover el `routine-detector` regex a un punto del pipeline que corra siempre, independiente del classifier.
+
+**Bug B — Cards visibles en chat pero items no persisten en /agenda**
+- Síntoma: Nanny responde "Anotado." + muestra card "Actividad — Ver evento →" para mensajes como "merienda con Pau a las 18", pero el evento no aparece en `/agenda` ni en el perfil del hijo. Tareas sí se persisten (caso "Comprar pañales" funcionó).
+- Causa probable: bug en el cliente del chat (`chat/page.tsx`) o en la inserción de eventos via `/api/family-write`. Selectivo a eventos, no a tareas.
+- Fix sugerido: agregar logs + repro en local del flujo "create_event desde chat" para identificar dónde se pierde la persistencia.
 
 ---
 
