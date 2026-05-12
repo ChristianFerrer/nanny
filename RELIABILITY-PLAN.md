@@ -284,13 +284,14 @@ Empezá Fase 5 del RELIABILITY-PLAN.md.
 
 | Fase | Status | Branch | Commit clave | Validación | Notas |
 |---|---|---|---|---|---|
-| 1 — Setup y baseline | ⏳ | — | — | — | — |
-| 2 — Push reminders | ⏳ | — | — | — | — |
-| 3 — Real-time sync | ⏳ | — | — | — | — |
-| 4 — Function calling | ⏳ | — | — | — | — |
-| 5 — Validación en prod | ⏳ | — | — | — | — |
+| 1 — Setup y baseline | ✅ | — | — | 5/5/26: 70/60/74 | Baseline registrado en CLAUDE.md §9 |
+| 2 — Push reminders | ✅ | — | — | Prod, mayo 2026 | 30 min eventos / 15 min tomas |
+| 3 — Real-time sync | ✅ | — | — | Prod, mayo 2026 | Supabase Realtime en /agenda, /tareas, /hijo/[id] |
+| 4 — Function calling | ✅ | `claude/extractor-function-calling` | `5702199` | 12/5/26: 77/63/90 (+7/+3/+16pp) | Catch silencioso eliminado; 2 bugs preexistentes documentados como follow-ups (ver §9 CLAUDE.md) |
+| 5 — Validación en prod | ⏳ | — | — | — | Próximo sprint: observar 7+ días en prod tras merge de Fase 4 |
 
 **Estado al cierre de la sesión donde se inicia el plan:** sesión 2026-04-28.
+**Cierre de Fase 4:** sesión 2026-05-12.
 
 ---
 
