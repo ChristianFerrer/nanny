@@ -870,6 +870,7 @@ export default function ChatPage() {
                   }
                 } else if (type === 'routine') {
                   const childName = String(confData.child_name || '').trim();
+                  console.log('[routine] intentando crear', { childName, knownChildren: children.map(c => c.name), confData });
                   const childMatch = children.find(c => c.name.toLowerCase().trim() === childName.toLowerCase());
                   if (!childMatch) {
                     console.warn('[routine] child_name no matchea ningún hijo registrado', { childName, knownChildren: children.map(c => c.name) });
@@ -885,6 +886,7 @@ export default function ChatPage() {
                       time_end: (confData.time_end as string) || null,
                       active: true,
                     });
+                    console.log('[routine] creada OK', newRoutine);
                     setRoutines(prev => [...prev, newRoutine]);
                     (data as unknown as Record<string, unknown>)._routineChildId = childMatch.id;
                     showToast(`Rutina agregada: ${newRoutine.name}`, `/hijo/${childMatch.id}`);

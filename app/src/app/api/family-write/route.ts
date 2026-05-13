@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
         insertData.family_id = insertData.family_id || auth.familyId;
       }
       const { data: result, error } = await admin.from(table).insert(insertData).select().single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('[family-write] insert', table, 'failed:', error.message, { code: error.code, hint: error.hint });
+        return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+      }
       return NextResponse.json({ data: result });
     }
 
@@ -76,7 +79,10 @@ export async function POST(req: NextRequest) {
       // routines / routine_exceptions: confiamos en RLS (con admin client la
       // política se bypassa, así que validamos vía child_id en el insert).
       const { error } = await query;
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('[family-write] update', table, 'failed:', error.message, { code: error.code });
+        return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -87,12 +93,17 @@ export async function POST(req: NextRequest) {
         query = query.eq('family_id', auth.familyId);
       }
       const { error } = await query;
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('[family-write] delete', table, 'failed:', error.message, { code: error.code });
+        return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Invalid operation' }, { status: 400 });
-  } catch {
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  } catch (err) {
+    console.error('[family-write] internal error:', err);
+    const message = err instanceof Error ? err.message : 'Internal error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
