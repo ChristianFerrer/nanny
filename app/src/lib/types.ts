@@ -253,6 +253,8 @@ export type NextAction =
   | 'confirm_event'
   | 'confirm_task'
   | 'confirm_medication'
+  | 'confirm_routine'
+  | 'cancel_routine_date'
   | 'offer_reminders'
   | 'update_existing_event'
   | 'update_existing_task'
