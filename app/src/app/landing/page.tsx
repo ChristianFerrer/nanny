@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   MessageCircle,
-  CalendarDays,
   Bell,
   Users,
   Sparkles,
@@ -15,7 +14,13 @@ import {
   ArrowRight,
   Check,
   Pill,
-  Clock,
+  Bot,
+  User,
+  Settings,
+  Send,
+  HeartHandshake,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 
 /* ============================================================
@@ -118,92 +123,183 @@ function PhoneFrame({
 /* ============================================================
    Mockups concretos
    ============================================================ */
+/* ─────────── ChatMockup ───────────
+   Réplica de la UI real del chat familiar de Nanny.
+   Demuestra el "espíritu" del producto: Nanny vive dentro del chat,
+   escucha a papá y mamá, y coordina con la red de apoyo (abuela)
+   cuando hace falta. */
 function ChatMockup() {
   return (
     <div className="h-full flex flex-col bg-white" style={{ paddingTop: 44 }}>
-      {/* header */}
-      <div className="px-4 pb-3 flex items-center gap-3 border-b border-black/5">
-        <div
-          className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center"
-          style={{ background: '#7C3AED' }}
-        >
-          <Image src="/icon-192.png" alt="Nanny" width={36} height={36} />
+      {/* header — avatar group + título + gear (matches real app) */}
+      <div className="px-3 pb-2 flex items-center gap-2 border-b border-black/5">
+        {/* avatar group */}
+        <div className="flex items-center">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center relative z-10"
+            style={{ background: '#7C3AED' }}
+          >
+            <Bot size={17} className="text-white" />
+          </div>
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center -ml-2"
+            style={{ background: '#EDE9FE', border: '2px solid #fff' }}
+          >
+            <User size={12} style={{ color: '#7C3AED' }} />
+          </div>
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center -ml-2"
+            style={{ background: '#F3F4F6', border: '2px solid #fff' }}
+          >
+            <User size={12} className="text-gray-500" />
+          </div>
         </div>
-        <div>
-          <div className="text-[13px] font-semibold text-gray-900">Nanny</div>
-          <div className="text-[11px] text-gray-500">Asistente familiar</div>
+        <div className="flex-1 min-w-0 ml-1">
+          <div className="text-[13px] font-semibold text-gray-900 leading-tight">Chat Familiar</div>
+          <div className="text-[10px] text-gray-500 truncate leading-tight">
+            Nanny, Christian, Sofía
+          </div>
         </div>
+        <Settings size={15} className="text-gray-400 shrink-0" />
       </div>
 
       {/* messages */}
-      <div className="flex-1 px-3 py-4 space-y-3 overflow-hidden">
-        {/* msg 1 — Mamá */}
-        <div className="flex justify-end">
-          <div className="flex flex-col items-end gap-1 max-w-[82%]">
-            <span
-              className="text-[10px] font-semibold uppercase tracking-wider px-2"
-              style={{ color: '#DB2777' }}
-            >
-              Mamá
-            </span>
-            <div
-              className="text-[13px] text-white px-3 py-2"
-              style={{
-                background: '#7C3AED',
-                borderRadius: '18px 18px 4px 18px',
-              }}
-            >
-              Mañana lleva Pau al pediatra a las 10 y tiene fútbol los miércoles a las 18
-            </div>
+      <div className="flex-1 px-3 py-3 space-y-3 overflow-hidden">
+        {/* Christian — problema */}
+        <div className="flex flex-col items-end">
+          <div className="text-[10px] text-gray-500 flex items-center gap-1 mb-0.5 px-1">
+            <User size={9} /> Christian
+          </div>
+          <div
+            className="text-[12px] text-white px-3 py-1.5"
+            style={{
+              background: '#7C3AED',
+              borderRadius: '14px 14px 4px 14px',
+              maxWidth: '85%',
+              lineHeight: 1.35,
+            }}
+          >
+            Amor, problema con el coche. ¿Puedes recoger a Pau hoy?
+          </div>
+          <div className="text-[9px] text-gray-400 mt-0.5 px-1">14:02</div>
+        </div>
+
+        {/* Sofía — tampoco puede */}
+        <div className="flex flex-col items-start">
+          <div
+            className="text-[10px] flex items-center gap-1 mb-0.5 px-1"
+            style={{ color: '#DB2777' }}
+          >
+            <User size={9} /> Sofía
+          </div>
+          <div
+            className="text-[12px] text-gray-900 px-3 py-1.5"
+            style={{
+              background: '#fff',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '14px 14px 14px 4px',
+              maxWidth: '85%',
+              lineHeight: 1.35,
+            }}
+          >
+            Uy, tengo control médico 😣
           </div>
         </div>
 
-        {/* Nanny — confirmation card (con label) */}
-        <div className="flex justify-start">
-          <div className="flex flex-col items-start gap-1 max-w-[92%]">
-            <span
-              className="text-[10px] font-semibold uppercase tracking-wider px-2"
-              style={{ color: '#7C3AED' }}
-            >
-              Nanny
-            </span>
+        {/* Nanny — propone solución */}
+        <div className="flex flex-col items-start">
+          <div
+            className="text-[10px] flex items-center gap-1 mb-0.5 px-1"
+            style={{ color: '#7C3AED' }}
+          >
+            <Bot size={9} /> Nanny
+          </div>
+          <div
+            className="text-[12px] text-gray-900 px-3 py-1.5"
+            style={{
+              background: '#F5F5F7',
+              borderRadius: '14px 14px 14px 4px',
+              maxWidth: '85%',
+              lineHeight: 1.35,
+            }}
+          >
+            ¿Quieren que le pregunte a la abuela si puede recogerlo?
+          </div>
+        </div>
+
+        {/* Sofía — sí */}
+        <div className="flex flex-col items-start">
+          <div
+            className="text-[12px] text-gray-900 px-3 py-1.5"
+            style={{
+              background: '#fff',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '14px 14px 14px 4px',
+              lineHeight: 1.35,
+            }}
+          >
+            Sí, por favor
+          </div>
+        </div>
+
+        {/* Nanny — coordinando */}
+        <div className="flex flex-col items-start">
+          <div
+            className="text-[12px] text-gray-900 px-3 py-1.5"
+            style={{
+              background: '#F5F5F7',
+              borderRadius: '14px 14px 14px 4px',
+              maxWidth: '85%',
+              lineHeight: 1.35,
+            }}
+          >
+            Le acabo de escribir por WhatsApp, espero respuesta…
+          </div>
+        </div>
+
+        {/* Nanny — confirmación + card */}
+        <div className="flex flex-col items-start">
+          <div
+            className="px-3 py-2"
+            style={{
+              background: '#F5F5F7',
+              borderRadius: '14px 14px 14px 4px',
+              maxWidth: '92%',
+            }}
+          >
+            <div className="text-[12px] text-gray-900" style={{ lineHeight: 1.35 }}>
+              ¡Listo! La abuela recoge a Pau hoy 🎉
+            </div>
             <div
-              className="text-[12px] text-gray-900 px-3 py-3"
+              className="mt-2 px-2 py-1.5 flex items-center gap-2"
               style={{
                 background: '#fff',
                 border: '1px solid rgba(124, 58, 237, 0.18)',
-                borderRadius: 16,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                borderRadius: 10,
               }}
             >
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mb-2">
-                <CalendarDays size={11} /> Evento
-              </div>
-              <div className="font-semibold text-[13px] mb-0.5">Pediatra Pau</div>
-              <div className="text-gray-500 text-[11px] mb-2">Mañana · 10:00 · Asignado a papá</div>
               <div
-                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mt-3 mb-2 pt-2"
-                style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}
+                className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(124, 58, 237, 0.10)' }}
               >
-                <RadioTower size={11} /> Rutina semanal
+                <HeartHandshake size={12} style={{ color: '#7C3AED' }} />
               </div>
-              <div className="font-semibold text-[13px] mb-0.5">Fútbol Pau</div>
-              <div className="text-gray-500 text-[11px]">Miércoles · 18:00</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-gray-900 leading-tight">
+                  Recoger a Pau
+                </div>
+                <div className="text-[9px] text-gray-500 leading-tight">
+                  Abuela · hoy 17:00
+                </div>
+              </div>
+              <ArrowRight size={10} className="text-gray-400 shrink-0" />
             </div>
           </div>
-        </div>
-
-        {/* Nanny reply (continuación — sin label, igual que WhatsApp) */}
-        <div className="flex justify-start">
-          <div
-            className="text-[13px] text-gray-900 px-3 py-2"
-            style={{
-              background: '#F5F5F7',
-              borderRadius: '18px 18px 18px 4px',
-              maxWidth: '78%',
-            }}
-          >
-            Listo. ¿Querés que te recuerde 30 min antes del pediatra?
+          {/* feedback row + timestamp (igual que la app real) */}
+          <div className="flex items-center gap-2 mt-1 px-1">
+            <ThumbsUp size={10} className="text-gray-400" />
+            <ThumbsDown size={10} className="text-gray-400" />
+            <span className="text-[9px] text-gray-400 ml-1">14:04</span>
           </div>
         </div>
       </div>
@@ -214,13 +310,13 @@ function ChatMockup() {
           className="flex-1 text-[12px] text-gray-400 px-3 py-2"
           style={{ background: '#F5F5F7', borderRadius: 14 }}
         >
-          Escribí algo…
+          Mensaje
         </div>
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ background: '#7C3AED' }}
+          style={{ background: 'rgba(124, 58, 237, 0.15)' }}
         >
-          <ArrowRight size={14} className="text-white" />
+          <Send size={13} style={{ color: '#7C3AED' }} />
         </div>
       </div>
     </div>
@@ -508,17 +604,18 @@ export default function LandingPage() {
                 letterSpacing: '-0.025em',
               }}
             >
-              La carga mental de la familia,
+              La asistente que vive dentro
               <br />
-              <span style={{ color: '#7C3AED' }}>compartida.</span>
+              del <span style={{ color: '#7C3AED' }}>chat de tu familia.</span>
             </h1>
             <p
               className="mt-5 text-gray-600 max-w-xl mx-auto lg:mx-0"
               style={{ fontSize: 'clamp(16px, 1.3vw, 19px)', lineHeight: 1.5 }}
             >
-              Nanny organiza la vida de tus hijos por chat. Escribís cómo hablás —
-              citas, cumpleaños, medicación, rutinas — y aparece todo ordenado,
-              sincronizado entre padres, sin formularios.
+              Nanny no es una app a la que le hablas. Es la tercera voz del chat
+              familiar: escucha al grupo, organiza la agenda, te avisa antes y
+              coordina con la red de apoyo — incluso con la abuela cuando ninguno
+              de los dos puede recoger a los niños.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
               <Link
@@ -603,17 +700,17 @@ export default function LandingPage() {
               {
                 title: 'Demasiado para una sola cabeza',
                 body:
-                  'Las apps tradicionales asumen que tenés tiempo de llenar formularios. La realidad es que entre la rutina, el trabajo y los chicos, no hay margen.',
+                  'Las apps tradicionales asumen que tienes tiempo de llenar formularios. La realidad es que entre la rutina, el trabajo y los niños, no hay margen.',
               },
               {
                 title: 'Información perdida entre padres',
                 body:
-                  'Lo que vio mamá en el grupo del cole no llega a papá hasta que es tarde. Y al revés. WhatsApp no es un calendario familiar.',
+                  'Lo que vio mamá en el grupo del colegio no llega a papá hasta que es tarde. Y al revés. WhatsApp no es un calendario familiar.',
               },
               {
-                title: 'Apps que piden más de lo que dan',
+                title: 'Cuando ninguno de los dos puede',
                 body:
-                  'Si organizar la familia te exige más trabajo que el caos que querés evitar, la app no es la solución — es otra carga.',
+                  'Imprevistos en el trabajo, citas médicas que se cruzan, el coche que falla. Coordinar con la abuela o la niñera a último momento es siempre una llamada de más.',
               },
             ].map(item => (
               <div
@@ -647,32 +744,33 @@ export default function LandingPage() {
                 letterSpacing: '-0.022em',
               }}
             >
-              Escribís cómo hablás.
+              Solo hablen entre ustedes.
               <br />
-              <span className="text-gray-400">Nanny organiza el resto.</span>
+              <span className="text-gray-400">Nanny escucha y se encarga.</span>
             </h2>
           </div>
 
           {/* Feature row 1 — chat */}
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center mb-24">
             <div>
-              <FeatureBadge icon={<MessageCircle size={14} />}>Chat natural</FeatureBadge>
+              <FeatureBadge icon={<MessageCircle size={14} />}>Una más en el chat</FeatureBadge>
               <h3
                 className="mt-4 font-bold tracking-tight"
                 style={{ fontSize: 'clamp(24px, 3vw, 34px)', lineHeight: 1.12, letterSpacing: '-0.02em' }}
               >
-                Le hablás como a tu pareja. Nanny entiende.
+                Nanny escucha al chat y propone soluciones.
               </h3>
               <p className="mt-4 text-gray-600" style={{ fontSize: 16, lineHeight: 1.55 }}>
-                <em>“Mañana lleva Pau al pediatra a las 10 y tiene fútbol los miércoles a las 18.”</em>
-                <br />
-                Nanny detecta el evento puntual, la rutina semanal, quién está asignado, y arma la
-                tarjeta para que confirmes con un toque. Sin formularios. Sin clics extra.
+                No es una app que recibe comandos. Es una asistente real dentro del
+                chat familiar — escucha la conversación, entiende el contexto y
+                propone ayuda cuando hace falta. Si ninguno de los dos puede
+                recoger a los niños, Nanny pregunta a la abuela por WhatsApp y
+                confirma en el grupo.
               </p>
               <ul className="mt-6 space-y-3">
-                <FeatureCheck>Detecta eventos, tareas, medicación y rutinas semanales en un solo mensaje</FeatureCheck>
-                <FeatureCheck>Asigna automáticamente al padre correcto según contexto</FeatureCheck>
-                <FeatureCheck>Te pregunta solo lo que falta — sin interrogatorios</FeatureCheck>
+                <FeatureCheck>Detecta citas, tareas, rutinas y medicación en cualquier mensaje</FeatureCheck>
+                <FeatureCheck>Coordina con contactos de emergencia (abuela, niñera) cuando hace falta</FeatureCheck>
+                <FeatureCheck>Pregunta solo lo necesario — sin interrogatorios ni formularios</FeatureCheck>
               </ul>
             </div>
             <div className="flex justify-center">
@@ -690,17 +788,18 @@ export default function LandingPage() {
                 className="mt-4 font-bold tracking-tight"
                 style={{ fontSize: 'clamp(24px, 3vw, 34px)', lineHeight: 1.12, letterSpacing: '-0.02em' }}
               >
-                Lo que vos cargás, tu pareja lo ve al instante.
+                Lo que pasa en el chat, los dos lo ven al instante.
               </h3>
               <p className="mt-4 text-gray-600" style={{ fontSize: 16, lineHeight: 1.55 }}>
-                Agenda compartida en vivo entre dispositivos. Si mamá agrega el pediatra desde su
-                teléfono, papá lo ve aparecer en su pantalla en menos de dos segundos. Sin refrescar.
-                Sin &ldquo;te avisé por WhatsApp&rdquo;.
+                Agenda compartida en vivo entre dispositivos. Cuando Nanny agenda
+                el pediatra desde el chat, papá lo ve aparecer en su teléfono en
+                menos de dos segundos. Sin refrescar. Sin &ldquo;te avisé por
+                WhatsApp&rdquo;.
               </p>
               <ul className="mt-6 space-y-3">
-                <FeatureCheck>WebSocket persistente — actualización &lt; 2 segundos</FeatureCheck>
+                <FeatureCheck>WebSocket persistente — actualización en menos de 2 segundos</FeatureCheck>
                 <FeatureCheck>Vista unificada: eventos, rutinas, medicación, tareas</FeatureCheck>
-                <FeatureCheck>Funciona en cualquier dispositivo con browser</FeatureCheck>
+                <FeatureCheck>Funciona en cualquier dispositivo con navegador</FeatureCheck>
               </ul>
             </div>
             <div className="flex justify-center lg:order-1">
@@ -721,9 +820,9 @@ export default function LandingPage() {
                 Te avisa antes. No después.
               </h3>
               <p className="mt-4 text-gray-600" style={{ fontSize: 16, lineHeight: 1.55 }}>
-                Push 30 minutos antes de cada evento y 15 minutos antes de cada toma de medicación.
-                Y un brief matutino con lo importante del día. Apagás el ruido y prendés lo que
-                realmente cuenta.
+                Notificación 30 minutos antes de cada cita y 15 minutos antes de
+                cada toma de medicación. Y un brief matutino con lo importante
+                del día. Apagas el ruido y prendes lo que realmente cuenta.
               </p>
               <ul className="mt-6 space-y-3">
                 <FeatureCheck>30 min antes de eventos · 15 min antes de medicación</FeatureCheck>
@@ -772,18 +871,18 @@ export default function LandingPage() {
             {[
               {
                 n: '1',
-                title: 'Creás tu familia',
+                title: 'Creas tu familia',
                 body: 'Nombre, hijos, zona horaria. 30 segundos. Sin instalar nada.',
               },
               {
                 n: '2',
-                title: 'Invitás a tu pareja',
-                body: 'Un link por WhatsApp. Los dos ven la misma agenda en vivo.',
+                title: 'Invitas a tu pareja',
+                body: 'Un enlace por WhatsApp. Los dos quedan en el mismo chat con Nanny.',
               },
               {
                 n: '3',
-                title: 'Escribís a Nanny',
-                body: 'En lenguaje natural. Eventos, tareas, medicación, rutinas — todo desde el chat.',
+                title: 'Hablan como siempre',
+                body: 'Nanny escucha al grupo, organiza la agenda y coordina con la red de apoyo cuando hace falta.',
               },
             ].map(step => (
               <div
@@ -834,22 +933,22 @@ export default function LandingPage() {
               {
                 icon: <Brain size={22} style={{ color: '#7C3AED' }} />,
                 title: 'IA que entiende contexto',
-                body: 'Detecta hijos, asignaciones y rutinas en lenguaje natural argentino, mexicano, español.',
+                body: 'Detecta hijos, asignaciones, citas y rutinas en español neutro de toda Latinoamérica.',
+              },
+              {
+                icon: <HeartHandshake size={22} style={{ color: '#7C3AED' }} />,
+                title: 'Coordina con tu red de apoyo',
+                body: 'La abuela, la niñera, contactos de emergencia. Nanny les escribe por WhatsApp cuando ustedes no pueden.',
               },
               {
                 icon: <Users size={22} style={{ color: '#7C3AED' }} />,
-                title: 'Pensado para parejas',
-                body: 'No es una app individual con "modo familia". Es una familia desde el día uno.',
-              },
-              {
-                icon: <Clock size={22} style={{ color: '#7C3AED' }} />,
-                title: 'Cero fricción',
-                body: 'Sin formularios, sin instalar. Funciona en cualquier browser, desde cualquier teléfono.',
+                title: 'Pensada para parejas',
+                body: 'No es una app individual con “modo familia”. Es una familia desde el primer minuto.',
               },
               {
                 icon: <ShieldCheck size={22} style={{ color: '#7C3AED' }} />,
                 title: 'Tus datos, tuyos',
-                body: 'Hosting en Vercel + Supabase. Encriptación en tránsito y reposo. Solo tu familia ve sus datos.',
+                body: 'Infraestructura en Vercel + Supabase. Encriptación en tránsito y en reposo. Solo tu familia ve sus datos.',
               },
             ].map(item => (
               <div
@@ -891,11 +990,11 @@ export default function LandingPage() {
               letterSpacing: '-0.025em',
             }}
           >
-            Listo para sentir el alivio.
+            Una más en la familia.
           </h2>
           <p className="mt-5 text-white/85 max-w-xl mx-auto" style={{ fontSize: 17, lineHeight: 1.5 }}>
-            Empezá gratis. Sin tarjeta. Sin instalar nada. En 3 minutos tu familia
-            está organizada.
+            Empieza gratis. Sin tarjeta. Sin instalar nada. En 3 minutos
+            Nanny ya está escuchando al chat familiar.
           </p>
           <div className="mt-9">
             <Link
