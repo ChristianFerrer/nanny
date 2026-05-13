@@ -124,10 +124,10 @@ function ChatMockup() {
       {/* header */}
       <div className="px-4 pb-3 flex items-center gap-3 border-b border-black/5">
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center"
+          className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center"
           style={{ background: '#7C3AED' }}
         >
-          <Sparkles size={16} className="text-white" />
+          <Image src="/icon-192.png" alt="Nanny" width={36} height={36} />
         </div>
         <div>
           <div className="text-[13px] font-semibold text-gray-900">Nanny</div>
@@ -137,49 +137,63 @@ function ChatMockup() {
 
       {/* messages */}
       <div className="flex-1 px-3 py-4 space-y-3 overflow-hidden">
-        {/* msg 1 — parent */}
+        {/* msg 1 — Mamá */}
         <div className="flex justify-end">
-          <div
-            className="text-[13px] text-white px-3 py-2"
-            style={{
-              background: '#7C3AED',
-              borderRadius: '18px 18px 4px 18px',
-              maxWidth: '78%',
-            }}
-          >
-            Mañana lleva Pau al pediatra a las 10 y tiene fútbol los miércoles a las 18
-          </div>
-        </div>
-
-        {/* nanny confirmation card */}
-        <div className="flex justify-start">
-          <div
-            className="text-[12px] text-gray-900 px-3 py-3"
-            style={{
-              background: '#fff',
-              border: '1px solid rgba(124, 58, 237, 0.18)',
-              borderRadius: 16,
-              maxWidth: '92%',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            }}
-          >
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mb-2">
-              <CalendarDays size={11} /> Evento
-            </div>
-            <div className="font-semibold text-[13px] mb-0.5">Pediatra Pau</div>
-            <div className="text-gray-500 text-[11px] mb-2">Mañana · 10:00 · Asignado a papá</div>
-            <div
-              className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mt-3 mb-2 pt-2"
-              style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}
+          <div className="flex flex-col items-end gap-1 max-w-[82%]">
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider px-2"
+              style={{ color: '#DB2777' }}
             >
-              <RadioTower size={11} /> Rutina semanal
+              Mamá
+            </span>
+            <div
+              className="text-[13px] text-white px-3 py-2"
+              style={{
+                background: '#7C3AED',
+                borderRadius: '18px 18px 4px 18px',
+              }}
+            >
+              Mañana lleva Pau al pediatra a las 10 y tiene fútbol los miércoles a las 18
             </div>
-            <div className="font-semibold text-[13px] mb-0.5">Fútbol Pau</div>
-            <div className="text-gray-500 text-[11px]">Miércoles · 18:00</div>
           </div>
         </div>
 
-        {/* nanny reply */}
+        {/* Nanny — confirmation card (con label) */}
+        <div className="flex justify-start">
+          <div className="flex flex-col items-start gap-1 max-w-[92%]">
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider px-2"
+              style={{ color: '#7C3AED' }}
+            >
+              Nanny
+            </span>
+            <div
+              className="text-[12px] text-gray-900 px-3 py-3"
+              style={{
+                background: '#fff',
+                border: '1px solid rgba(124, 58, 237, 0.18)',
+                borderRadius: 16,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mb-2">
+                <CalendarDays size={11} /> Evento
+              </div>
+              <div className="font-semibold text-[13px] mb-0.5">Pediatra Pau</div>
+              <div className="text-gray-500 text-[11px] mb-2">Mañana · 10:00 · Asignado a papá</div>
+              <div
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#7C3AED] mt-3 mb-2 pt-2"
+                style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}
+              >
+                <RadioTower size={11} /> Rutina semanal
+              </div>
+              <div className="font-semibold text-[13px] mb-0.5">Fútbol Pau</div>
+              <div className="text-gray-500 text-[11px]">Miércoles · 18:00</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nanny reply (continuación — sin label, igual que WhatsApp) */}
         <div className="flex justify-start">
           <div
             className="text-[13px] text-gray-900 px-3 py-2"
