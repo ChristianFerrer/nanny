@@ -311,7 +311,7 @@ export const EXTRACTOR_TOOLS: ToolDef[] = [
     function: {
       name: 'ask_for_missing_info',
       description:
-        'Indica que detectaste algo accionable pero falta info crítica para crearlo. El sistema mantendrá los datos parciales como pending_detection y los completará cuando el padre responda. Reemplaza por completo el patrón "emitir confirmation incompleta y rezar". Usalo cuando: faltan fecha+hora de un evento, falta nombre+frecuencia de una medicación, falta hijo claro de una rutina, etc. NO lo uses para tareas (las tareas se crean inmediatamente con status=pending y assigned_to=null si falta dueño).',
+        'Indica que detectaste algo accionable pero falta info crítica para crearlo. El sistema mantendrá los datos parciales como pending_detection y los completará cuando el padre responda. Reemplaza por completo el patrón "emitir confirmation incompleta y rezar". Usalo cuando: faltan fecha+hora de un evento, falta nombre+frecuencia de una medicación, falta hijo claro de una rutina, o falta assigned_to en un evento con presencia física obligatoria (doctor/school/activity/birthday) sin contexto inferible. NO lo uses para tareas (las tareas se crean inmediatamente con status=pending y assigned_to=null si falta dueño), ni para rutinas (no tienen assigned_to), ni para medicación (no aplica).',
       parameters: {
         type: 'object',
         properties: {
