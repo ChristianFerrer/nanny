@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings, Repeat } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getRoutines, getRoutineExceptions, addRoutine, addRoutineException, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -886,6 +886,7 @@ export default function ChatPage() {
                       active: true,
                     });
                     setRoutines(prev => [...prev, newRoutine]);
+                    (data as unknown as Record<string, unknown>)._routineChildId = childMatch.id;
                     showToast(`Rutina agregada: ${newRoutine.name}`, `/hijo/${childMatch.id}`);
                   }
                 } else if (type === 'routine_exception') {
@@ -966,6 +967,7 @@ export default function ChatPage() {
               const medMsgId = (data as unknown as Record<string, unknown>)._medMsgId as string | undefined;
               const createdEventId = (data as unknown as Record<string, unknown>)._createdEventId as string | undefined;
               const createdTaskId = (data as unknown as Record<string, unknown>)._createdTaskId as string | undefined;
+              const routineChildId = (data as unknown as Record<string, unknown>)._routineChildId as string | undefined;
               const nannyMsg = await addMessage({
                 family_id: familyId, sender_id: null, sender_type: 'nanny',
                 content: data.reply, message_type: 'text',
@@ -977,6 +979,7 @@ export default function ChatPage() {
                   ...((data as unknown as { is_proactive?: boolean }).is_proactive ? { proactive: true } : {}),
                   ...(createdEventId ? { eventId: createdEventId } : {}),
                   ...(createdTaskId ? { taskId: createdTaskId } : {}),
+                  ...(routineChildId ? { routineChildId } : {}),
                 },
               });
               if (medMsgId) {
@@ -1427,6 +1430,7 @@ export default function ChatPage() {
       LOGISTICS_TRANSPORT: { icon: <Car size={16} />, label: 'Transporte', color: 'text-green-600', borderColor: 'border-green-200' },
       SCHEDULE_CHANGE: { icon: <Clock size={16} />, label: 'Cambio de horario', color: 'text-amber-600', borderColor: 'border-amber-200' },
       HEALTH_LOG: { icon: <Thermometer size={16} />, label: 'Síntoma registrado', color: 'text-amber-600', borderColor: 'border-amber-200' },
+      ROUTINE: { icon: <Repeat size={16} />, label: 'Rutina creada', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
       // Legacy intents (backward compatibility)
       EVENT: { icon: <CalendarDays size={16} />, label: 'Evento registrado', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
       TASK: { icon: <CheckSquare size={16} />, label: 'Tarea registrada', color: 'text-[var(--nanny-purple)]', borderColor: 'border-[var(--nanny-purple-light)]' },
@@ -1450,13 +1454,17 @@ export default function ChatPage() {
       MEDICATION: '/agenda',
       LOGISTICS_PICKUP: '/agenda', LOGISTICS_TRANSPORT: '/agenda',
       SCHEDULE_CHANGE: '/agenda', HEALTH_LOG: '/hijo',
+      ROUTINE: '/hijo',
       EVENT: '/agenda', TASK: '/tareas',
     };
+
+    const routineChildId = metadata?.routineChildId as string | undefined;
 
     let navTarget: string | null = null;
     const isEventIntent = intent.startsWith('EVENT') || intent === 'MILESTONE' || intent === 'LOGISTICS_PICKUP' || intent === 'LOGISTICS_TRANSPORT' || intent === 'SCHEDULE_CHANGE';
     const isTaskIntent = intent.startsWith('TASK') || intent === 'SUPPLY_LOW';
-    if (isEventIntent && eventId) navTarget = `/evento/${eventId}`;
+    if (intent === 'ROUTINE' && routineChildId) navTarget = `/hijo/${routineChildId}`;
+    else if (isEventIntent && eventId) navTarget = `/evento/${eventId}`;
     else if (isTaskIntent && taskId) navTarget = `/tarea/${taskId}`;
     else navTarget = intentFallback[intent] ?? null;
 
@@ -1473,6 +1481,7 @@ export default function ChatPage() {
       LOGISTICS_TRANSPORT: 'Ver agenda',
       SCHEDULE_CHANGE: 'Ver agenda',
       HEALTH_LOG: 'Ver perfil',
+      ROUTINE: 'Ver rutinas',
       EVENT: 'Ver evento',
       TASK: 'Ver tarea',
     };

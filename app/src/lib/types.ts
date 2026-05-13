@@ -241,6 +241,7 @@ export type NannyIntent =
   | 'MILESTONE'           // Fechas importantes: cumpleaños, graduaciones
   | 'SUPPLY_LOW'          // Suministros bajos: "quedan pocos pañales"
   | 'HEALTH_LOG'          // Síntomas sin tratamiento
+  | 'ROUTINE'             // Rutina semanal recurrente creada
   | 'CHAT'                // Conversación casual
   | 'INFO'                // Información general
   | 'IGNORE';             // No requiere intervención

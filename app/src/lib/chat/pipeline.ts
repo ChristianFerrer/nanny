@@ -292,11 +292,25 @@ function synthesizeReceipt(r: ChatResponse): string {
 }
 
 function receiptForConfirmation(c: { type: string; data: Record<string, unknown> }): string {
-  const title = (c.data.title as string) || (c.data.medication_name as string) || 'item';
-  if (c.type === 'task') return `Tarea creada: ${title}.`;
-  if (c.type === 'event') return `Evento creado: ${title}.`;
-  if (c.type === 'medication') return `Tratamiento registrado: ${title}.`;
-  return `Anotado: ${title}.`;
+  if (c.type === 'task') return `Tarea creada: ${(c.data.title as string) || 'item'}.`;
+  if (c.type === 'event') return `Evento creado: ${(c.data.title as string) || 'item'}.`;
+  if (c.type === 'medication') return `Tratamiento registrado: ${(c.data.medication_name as string) || 'tratamiento'}.`;
+  if (c.type === 'routine') {
+    const name = (c.data.name as string) || 'Rutina';
+    const childName = (c.data.child_name as string) || '';
+    const days = Array.isArray(c.data.days_of_week) ? c.data.days_of_week as number[] : [];
+    const dayNames = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const daysLabel = days.length === 5 && days.every(d => d >= 1 && d <= 5)
+      ? 'lun a vie'
+      : days.map(d => dayNames[d]).filter(Boolean).join(', ');
+    const timeStart = (c.data.time_start as string | undefined) || '';
+    const timeEnd = c.data.time_end as string | undefined;
+    const timeLabel = timeEnd ? `${timeStart}–${timeEnd}` : timeStart;
+    const parts = [name, childName ? `de ${childName}` : '', daysLabel, timeLabel].filter(Boolean);
+    return `Rutina registrada: ${parts.join(' ')}.`;
+  }
+  if (c.type === 'routine_exception') return 'Día cancelado.';
+  return `Anotado.`;
 }
 
 /**
@@ -373,7 +387,7 @@ async function runExtraction(
       ];
       rawResponse.confirmation = routineConf;
       rawResponse.additional_confirmations = existingConfs;
-      rawResponse.intent = 'EVENT_SCHOOL'; // El badge usa intent; school encaja para guarde/cole
+      // intent='ROUTINE' lo seta el bloque de abajo (común a LLM y detector).
       rawResponse.next_action = 'confirm_routine';
       rawResponse.pending_detection = null;
       // Receipt explícito reemplazando el "Anotado" genérico
@@ -387,6 +401,14 @@ async function runExtraction(
         : detected.time_start;
       rawResponse.reply = `Rutina registrada: ${detected.name} de ${detected.child_name}, ${daysLabel} ${timeLabel}.`;
     }
+  }
+
+  // Si la confirmation principal es una rutina (sea del LLM o del detector),
+  // normalizamos el intent a 'ROUTINE' para que el badge del cliente muestre el
+  // card correcto ("Rutina creada") y navegue al perfil del hijo, en vez de
+  // mostrar el badge genérico EVENT_ACTIVITY que dice "Actividad / Ver evento".
+  if (rawResponse.confirmation?.type === 'routine') {
+    rawResponse.intent = 'ROUTINE';
   }
 
   return postProcessResponse({
