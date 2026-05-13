@@ -27,6 +27,24 @@ interface OnboardingExtracted {
 }
 const CHILD_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
 
+/**
+ * Mapea códigos de error del SSE del chat a mensajes amigables para el
+ * usuario. NUNCA mostramos el error.message crudo (puede contener tokens,
+ * org IDs, stack traces).
+ */
+function errorCodeToFriendlyMessage(code: string, _rawMessage?: string): string {
+  switch (code) {
+    case 'OPENAI_QUOTA':
+      return 'Nanny está saturada de mensajes. Probá de nuevo en unos segundos.';
+    case 'OPENAI_KEY':
+      return 'Hubo un problema con la configuración del servicio.';
+    case 'HTTP':
+      return 'Sin conexión con Nanny. Intentalo de nuevo.';
+    default:
+      return 'Ups, Nanny tuvo un problema. Intentalo de nuevo.';
+  }
+}
+
 // --- Swipeable message wrapper for reply gesture ---
 function SwipeableMessage({ onSwipe, children: kids }: { onSwipe: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -995,24 +1013,18 @@ export default function ChatPage() {
           },
           onError: async (code, message) => {
             console.error('[chat sse] error', code, message);
-            const errorMsg = await addMessage({
-              family_id: familyId, sender_id: null, sender_type: 'nanny',
-              content: `Error:${message || 'Ups, tuve un problema. Intenta de nuevo.'}`,
-              message_type: 'text', metadata: { errorCode: code },
-            });
-            setMessages(prev => [...prev, errorMsg]);
+            // NO persistir errores como mensajes de Nanny — quedan en el
+            // historial para siempre y muestran texto técnico crudo al
+            // usuario. Mostramos toast efímero con copy amigable según code.
+            const userMsg = errorCodeToFriendlyMessage(code, message);
+            showToast(userMsg, '/chat');
             setNannyThinking(false);
           },
         },
       );
     } catch (err) {
       console.error('[chat sse] stream failed:', err);
-      const errorMsg = await addMessage({
-        family_id: familyId, sender_id: null, sender_type: 'nanny',
-        content: 'Error:Ups, tuve un problema. Intenta de nuevo.',
-        message_type: 'text', metadata: {},
-      });
-      setMessages(prev => [...prev, errorMsg]);
+      showToast('Sin conexión con Nanny. Intentalo de nuevo.', '/chat');
       setNannyThinking(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
