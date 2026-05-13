@@ -1,13 +1,17 @@
 /**
+/**
  * Pipeline de Nanny: orquesta classify → extract → postprocess.
  *
- * Flujo:
- * 1. Classifier (mini): ¿Es accionable? ¿Qué tipo? ¿Para Nanny? ¿Puede aportar valor?
- * 2a. Si es saludo/pregunta directa/concern/proactive → Responder (mini)
- * 2b. Si es accionable → Extractor (mini o gpt-4o según complejidad)
+ * Flujo HÍBRIDO (mayo 2026):
+ * 1. Classifier (gpt-4o-mini): ¿Es accionable? ¿Qué tipo? ¿Para Nanny? ¿Puede aportar valor?
+ * 2a. Si es saludo/pregunta directa/concern/proactive → Responder (gpt-4o-mini)
+ * 2b. Si es accionable → Extractor (gpt-4o, siempre)
  * 3. Post-proceso: fix assigned_to, validar FPs
  *
- * Costo ~2 llamadas a mini por mensaje accionable (~$0.14/mes/familia)
+ * El extractor usa el modelo grande porque es el cerebro: function calling,
+ * inferencia contextual, múltiples tools en paralelo, comprensión de respuestas
+ * cortas con pending activo. Mini fallaba sistemáticamente en estos casos.
+ * Costo estimado: ~$0.55/familia/mes (vs ~$0.14 con mini-only).
  */
 
 import OpenAI from 'openai';
@@ -364,7 +368,15 @@ async function runExtraction(
   senderRole: 'mama' | 'papa',
   currentDate: string,
 ): Promise<ChatResponse> {
-  const model = classification.complexity === 'complex' ? 'gpt-4o' : 'gpt-4o-mini';
+  // Pipeline híbrido: classifier y responder siguen en gpt-4o-mini (tareas
+  // simples, baratas, mini las hace OK), pero el EXTRACTOR siempre usa gpt-4o.
+  // El extractor es el cerebro: detecta múltiples tools en paralelo, infiere
+  // assigned_to del contexto histórico, decide entre create_X y
+  // ask_for_missing_info, captura rutinas complejas. Mini fallaba sistemáticamente
+  // en estos casos y nos forzaba a meter redes de seguridad determinísticas
+  // (routine-detector regex, fallback de "respuesta corta con pending", etc.).
+  // Costo estimado: +$0.40/familia/mes (de ~$0.14 a ~$0.55).
+  const model = 'gpt-4o';
 
   const extracted = await extractData(openai, {
     message: input.message,

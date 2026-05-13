@@ -152,7 +152,7 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 - **Next.js 15** (App Router) + TypeScript
 - **Supabase** (PostgreSQL + Auth con email/password)
-- **OpenAI** `gpt-4o-mini` para el chat AI
+- **OpenAI** chat pipeline híbrido: `gpt-4o-mini` para classifier + responder (tareas simples, baratas), `gpt-4o` para extractor (function calling, inferencia contextual, detección de múltiples tools). Costo estimado: ~$0.55/familia/mes.
 - **Tailwind CSS 4** (mobile-first, max 430px)
 - **Playwright MCP** disponible para automatización de browser (config en `.mcp.json`)
 - Deploy en **Vercel** (Hobby plan, `maxDuration=60s`)
