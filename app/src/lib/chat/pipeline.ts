@@ -149,6 +149,21 @@ export async function* processChatPipelineStream(input: ChatInput): AsyncGenerat
     childrenNames,
   });
 
+  // LOG DIAGNÓSTICO: visible en Vercel logs para diagnosticar por qué Nanny
+  // queda muda en casos manuales. Captura input + decisión del classifier.
+  console.log('[pipeline] classifier', {
+    message: input.message.slice(0, 80),
+    intent: classification.intent,
+    is_actionable: classification.is_actionable,
+    is_direct_to_nanny: classification.is_direct_to_nanny,
+    should_respond: classification.should_respond,
+    silent_action: classification.silent_action,
+    references_previous: classification.references_previous,
+    complexity: classification.complexity,
+    detected_items_count: classification.detected_items_count,
+    hasPending: !!input.pendingDetection,
+  });
+
   if (classification.intent === 'CORRECTION') {
     persistCorrectionIfGeneral(openai, input.message, input.senderName, senderRole)
       .catch(err => console.warn('[pipeline] correction distill error:', err));
@@ -463,6 +478,17 @@ async function runExtraction(
   if (rawResponse.confirmation?.type === 'routine') {
     rawResponse.intent = 'ROUTINE';
   }
+
+  // LOG DIAGNÓSTICO: salida cruda del extractor antes del postprocess.
+  console.log('[pipeline] extractor', {
+    reply_preview: (rawResponse.reply || '').slice(0, 80),
+    reply_empty: !rawResponse.reply.trim(),
+    next_action: rawResponse.next_action,
+    confirmation_type: rawResponse.confirmation?.type || null,
+    additional_count: (rawResponse.additional_confirmations || []).length,
+    has_pending: !!rawResponse.pending_detection,
+    pending_missing: rawResponse.pending_detection?.missing || null,
+  });
 
   return postProcessResponse({
     response: rawResponse,
