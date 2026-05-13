@@ -1600,43 +1600,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Pending detection — banner sticky prominente debajo del header */}
-      {pendingDetection && (
-        <div className="shrink-0 mx-3 mt-2 mb-1 animate-slide-up">
-          <div className="bg-[var(--warning-soft)] border border-[#FFD9A8] rounded-xl p-3.5 flex items-start gap-3 shadow-xs">
-            <div className="w-9 h-9 rounded-xl bg-[#FF9500]/15 flex items-center justify-center shrink-0">
-              <AlertTriangle size={18} className="text-[#B86600]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-subhead text-[#7A4500] font-semibold">{pendingDetection.summary}</p>
-              {pendingDetection.missing.length > 0 && (
-                <p className="text-footnote text-[#9A5400] mt-0.5">
-                  Falta: {pendingDetection.missing.join(', ')}
-                </p>
-              )}
-              {pendingDetection.missing.length > 0 && (
-                <button
-                  onClick={() => {
-                    setInput(`${pendingDetection.missing[0]}: `);
-                    focusWithoutScroll();
-                  }}
-                  className="mt-2.5 inline-flex items-center gap-1 text-subhead font-semibold text-[#B86600] hover:text-[#7A4500]"
-                >
-                  Responder ahora →
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setPendingDetection(null)}
-              aria-label="Descartar"
-              className="w-7 h-7 rounded-full hover:bg-[#FF9500]/15 flex items-center justify-center text-[#B86600] shrink-0 focus-ring"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Push notification prompt */}
       {pushStatus === 'prompt' && (
         <div className="mx-3 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-tint)] rounded-xl px-4 py-3 border border-[var(--nanny-purple-soft)] animate-slide-up">

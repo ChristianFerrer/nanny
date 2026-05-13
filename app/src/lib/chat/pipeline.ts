@@ -237,11 +237,12 @@ async function runResponse(
   // receipt mínimo, no silencio total).
   if (classification.is_actionable) {
     const r = await runExtraction(openai, input, classification, senderRole, currentDate);
-    // Safety net: si el extractor devolvió reply vacío pero hay confirmation,
-    // sintetizamos un receipt mínimo. Nunca prometemos respuesta y mostramos
-    // nada — eso rompería la confianza del cliente sobre will_respond.
+    // Safety net: si el extractor devolvió reply vacío pero hay confirmation o
+    // pending_detection, sintetizamos el texto. La pregunta DEBE aparecer como
+    // mensaje del chat — nunca como popup ni banner. El chat es el único canal
+    // de input/output con los padres (regla de producto).
     if (!r.reply.trim()) {
-      r.reply = synthesizeReceipt(r);
+      r.reply = synthesizeReceipt(r) || synthesizeQuestion(r.pending_detection);
       r.should_respond = r.reply.length > 0;
     }
     return { ...r, is_proactive: responseType === 'proactive' };
@@ -311,6 +312,26 @@ function receiptForConfirmation(c: { type: string; data: Record<string, unknown>
   }
   if (c.type === 'routine_exception') return 'Día cancelado.';
   return `Anotado.`;
+}
+
+/**
+ * Sintetiza la pregunta cuando el extractor invocó ask_for_missing_info pero no
+ * generó texto. La pregunta debe ser CORTA y aparecer en el chat — nunca como
+ * popup. Prioridad: asignación > horario > fecha > ubicación.
+ */
+function synthesizeQuestion(pending: ChatResponse['pending_detection']): string {
+  if (!pending) return '';
+  const missing = pending.missing.map(x => x.toLowerCase());
+  const has = (k: string) => missing.some(m => m.includes(k));
+  if (has('assigned') || has('quien') || has('responsable') || has('dueño')) {
+    return '¿Quién lo lleva?';
+  }
+  if (has('time') || has('hora')) return '¿A qué hora?';
+  if (has('date') || has('fecha') || has('day') || has('dia')) return '¿Qué día?';
+  if (has('location') || has('lugar') || has('ubicación')) return '¿Dónde es?';
+  if (has('name') || has('nombre')) return '¿Cómo se llama?';
+  if (has('frequency') || has('frecuencia')) return '¿Cada cuánto?';
+  return pending.summary || 'Necesito un dato más para registrarlo.';
 }
 
 /**
