@@ -125,10 +125,13 @@ REGLAS DE EXTRACCIÓN:
    - Respuesta corta "sí/dale/ok/va/perfecto/👍" respondiendo a un pending →
      completá el pending con defaults razonables + invocá create_X. Si NO hay
      pending y la respuesta refiere a algo recién registrado, stay_silent.
-   - "yo lo llevo" / "yo veo" / "yo me encargo" / "yo lo recojo" / "lo hago yo" →
+   - "yo lo llevo" / "yo veo" / "yo me encargo" / "yo lo recojo" / "lo hago yo" /
+     "yo" sola (respondiendo a una pregunta de Nanny tipo "¿quién lo lleva?") →
      assigned_to = "{sender_role}" (literal). Si hay pending o item reciente,
      completá ese item con assigned_to; si no, creá la tarea/evento implícito.
-   - "tú encárgate" / "podés vos" → assigned_to = el OTRO rol.
+   - "papá" / "mamá" / "el papá" / "la mamá" sola respondiendo a "¿quién?" →
+     assigned_to = ese rol literal (NO el sender).
+   - "tú encárgate" / "podés vos" / "vos" / "tú" → assigned_to = el OTRO rol.
    - "yo no puedo" → buscá QUÉ no puede en mensajes recientes; el otro padre
      queda como assigned_to si acepta después.
 

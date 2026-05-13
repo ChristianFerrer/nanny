@@ -150,6 +150,26 @@ export async function* processChatPipelineStream(input: ChatInput): AsyncGenerat
       .catch(err => console.warn('[pipeline] correction distill error:', err));
   }
 
+  // Red de seguridad: si hay pending_detection activa y el classifier marcó
+  // el mensaje como NO accionable, lo forzamos a procesar igual cuando es una
+  // respuesta corta (≤25 chars). Esto cubre casos donde gpt-4o-mini se confunde
+  // con respuestas telegráficas tipo "yo", "no puedo", "a las 5", "papá" — que
+  // claramente son completion del pending pero que el classifier no asocia.
+  // El extractor decide si realmente completa el pending o lo abandona.
+  if (
+    input.pendingDetection &&
+    !classification.is_actionable &&
+    input.message.trim().length <= 25
+  ) {
+    console.warn('[pipeline] forzando is_actionable=true por pending activo y respuesta corta', {
+      message: input.message,
+      pendingType: (input.pendingDetection as { type?: string }).type,
+    });
+    classification.is_actionable = true;
+    classification.references_previous = true;
+    classification.silent_action = false; // queremos que Nanny CONFIRME la acción
+  }
+
   // ═══════════════════════════════════════
   // DECISIÓN TEMPRANA: ¿Va a haber respuesta?
   // ═══════════════════════════════════════
