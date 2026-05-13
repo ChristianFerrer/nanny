@@ -1,26 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-// POST /api/reset-user — Deletes all data for a given email (for testing only)
+/**
+ * POST /api/reset-user — Borra TODOS los datos del usuario autenticado.
+ *
+ * Auth: requiere cookies de Supabase (usuario logueado). Borra solo SU
+ * familia, sus hijos, sus mensajes, sus rutinas y eventos. Después
+ * elimina el usuario de auth. Equivalente a "empezar de cero con el
+ * mismo email".
+ *
+ * NO acepta un email como parameter — eso era un agujero: cualquiera
+ * con el email podía wipear esa cuenta. Ahora la fuente de verdad es
+ * la sesión.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { email } = await req.json();
-    if (!email) {
-      return NextResponse.json({ error: 'Email required' }, { status: 400 });
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() { return req.cookies.getAll(); },
+        setAll() {},
+      },
+    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const admin = getSupabaseAdmin();
-
-    // Find auth user by email
-    const { data: { users }, error: listError } = await admin.auth.admin.listUsers();
-    if (listError) {
-      return NextResponse.json({ error: listError.message }, { status: 500 });
-    }
-
-    const user = users.find(u => u.email === email);
-    if (!user) {
-      return NextResponse.json({ error: 'User not found', email }, { status: 404 });
-    }
 
     // Find parent record to get family_id
     const { data: parent } = await admin
@@ -28,21 +41,24 @@ export async function POST(req: NextRequest) {
       .select('family_id')
       .eq('auth_user_id', user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const deleted: string[] = [];
 
     if (parent?.family_id) {
       const fid = parent.family_id;
 
-      // Delete in order (respect foreign keys)
+      // Orden importa: hijos antes de padres, hijas antes de padres (FK).
+      // Routines y routine_exceptions cascade vía child_id ON DELETE CASCADE.
+      // Medication_intakes cascade vía medication_id.
       const tables = [
         'intervention_feedback',
         'messages',
-        'routines',
+        'notifications_sent',
+        'medications',
         'events',
         'tasks',
-        'children',
+        'children', // cascade → routines, routine_exceptions
         'parents',
       ];
 
@@ -56,7 +72,7 @@ export async function POST(req: NextRequest) {
       if (!famError) deleted.push('families');
     }
 
-    // Delete auth user
+    // Delete auth user al final
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
 
     return NextResponse.json({
@@ -67,6 +83,7 @@ export async function POST(req: NextRequest) {
       authUserDeleted: !deleteUserError,
     });
   } catch (err) {
+    console.error('[reset-user] error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

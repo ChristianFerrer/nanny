@@ -388,38 +388,9 @@ function LoginContent() {
           </form>
         )}
 
-        {isDev && email && mode !== 'forgot' && (
-          <div className="mt-10 pt-5" style={{ borderTop: '1px solid var(--separator)' }}>
-            <p className="text-caption-2 text-center mb-2" style={{ color: 'var(--text-quaternary)' }}>
-              Solo desarrollo
-            </p>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!confirm(`¿Borrar TODOS los datos de ${email}?`)) return;
-                try {
-                  const res = await fetch('/api/reset-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email }),
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    await getSupabase().auth.signOut();
-                    alert('Datos borrados. Puedes registrarte de nuevo.');
-                  } else {
-                    alert(data.error || 'Error al borrar');
-                  }
-                } catch {
-                  alert('Error de conexión');
-                }
-              }}
-              className="btn btn-secondary btn-sm btn-block"
-            >
-              Reiniciar datos de {email}
-            </button>
-          </div>
-        )}
+        {/* El botón "Reiniciar datos" se movió a /perfil → Avanzado, ahora
+            requiere usuario autenticado (no se puede wipear desde login con
+            solo escribir el email, eso era un agujero de seguridad). */}
       </div>
     </div>
   );

@@ -48,6 +48,26 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch('/api/reset-user', { method: 'POST' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Reset failed');
+      const supabase = getSupabase();
+      await supabase.auth.signOut();
+      resetFamilyCache();
+      clearCachedChat();
+      window.location.href = '/login';
+    } catch (err) {
+      alert(`No se pudieron borrar los datos: ${err instanceof Error ? err.message : 'error desconocido'}`);
+      setResetting(false);
+      setConfirmReset(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -233,6 +253,20 @@ export default function PerfilPage() {
             >
               Re-analizar el chat ahora
             </button>
+
+            <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--separator)' }}>
+              <p className="text-caption text-[var(--text-tertiary)] mb-2">
+                Borrar todos los datos de esta familia (hijos, mensajes, eventos, rutinas, tareas). Esta acción no se puede deshacer.
+              </p>
+              <button
+                onClick={() => setConfirmReset(true)}
+                disabled={resetting}
+                className="btn btn-sm btn-block"
+                style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}
+              >
+                {resetting ? 'Borrando…' : 'Reiniciar mis datos'}
+              </button>
+            </div>
           </div>
         </details>
 
@@ -280,6 +314,45 @@ export default function PerfilPage() {
                 className="btn btn-destructive flex-1"
               >
                 {loggingOut ? 'Saliendo…' : 'Cerrar sesión'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Confirm reset (borrar todo) — separado del logout, doble peligro */}
+      {confirmReset && (
+        <>
+          <div className="sheet-backdrop" onClick={() => !resetting && setConfirmReset(false)} />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[62] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="reset-title"
+          >
+            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+              <AlertTriangle size={20} className="text-[var(--danger)]" />
+            </div>
+            <h3 id="reset-title" className="text-headline text-center text-[var(--text-primary)]">
+              ¿Borrar TODOS los datos?
+            </h3>
+            <p className="text-footnote text-center text-[var(--text-tertiary)] mt-1">
+              Se eliminarán los hijos, eventos, tareas, rutinas, mensajes y tu cuenta. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="btn btn-secondary flex-1"
+                disabled={resetting}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetting}
+                className="btn btn-destructive flex-1"
+              >
+                {resetting ? 'Borrando…' : 'Sí, borrar todo'}
               </button>
             </div>
           </div>
