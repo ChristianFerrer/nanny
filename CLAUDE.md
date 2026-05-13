@@ -220,6 +220,7 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | Ruta | Descripción |
 |------|-------------|
 | `/` | Landing / redirect |
+| `/landing` | **Landing pública de marketing** (hero + features + screenshots + CTA). Para compartir con clientes / inversores. Override del constraint mobile de 430px solo en esta ruta vía hook `useEscapeMobileLayout`. |
 | `/login` | Auth email/password |
 | `/onboarding` | Setup inicial de familia |
 

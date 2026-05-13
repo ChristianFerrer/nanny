@@ -29,7 +29,7 @@ const AGENDA_ROUTES = ['/agenda', '/hoy', '/semana']; // /hoy y /semana redirige
 // header — eso era inconsistente y forzaba al chat a tener affordances de
 // "manipular" la app. Ahora la barra es la nav, y el header del chat queda
 // limpio (solo ⚙ settings).
-const HIDE_ON = new Set(['/login', '/onboarding', '/']);
+const HIDE_ON = new Set(['/login', '/onboarding', '/', '/landing']);
 
 export default function BottomNav() {
   const pathname = usePathname();
