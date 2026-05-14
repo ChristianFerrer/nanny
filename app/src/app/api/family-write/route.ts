@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-const ALLOWED_TABLES = ['families', 'parents', 'children', 'events', 'tasks', 'messages', 'routines', 'routine_exceptions', 'intervention_feedback', 'medications', 'medication_intakes'];
+const ALLOWED_TABLES = [
+  'families', 'parents', 'children', 'events', 'tasks', 'messages',
+  'routines', 'routine_exceptions', 'intervention_feedback',
+  'medications', 'medication_intakes',
+  // AGENT REWRITE — Sprint 0 (nuevas tablas)
+  'family_patterns', 'family_preferences', 'family_learning_queue',
+  'support_contacts', 'whatsapp_conversations',
+];
 
 // Tablas que NO tienen columna family_id (heredan acceso vía FK a otra tabla):
 //   routines.child_id → children.family_id
