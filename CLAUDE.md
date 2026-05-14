@@ -289,6 +289,10 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/cron/morning-brief` | Cron (cron-job.org cada 1 hora): brief matutino por familia, filtra por TZ local (envía a las 8am locales) |
 | `/api/cron/nightly-catchup` | Cron (cron-job.org cada 1 hora): nightly catchup automático a las 4am locales — encuentra items que Nanny no capturó durante el día |
 | `/api/cron/upcoming-reminders` | Cron (cron-job.org cada 10 min): push proactivo antes de eventos (30 min) y tomas de medicación (15 min). Usa tabla `notifications_sent` para idempotencia. |
+| `/api/cron/nanny-wake` | **AGENT-REWRITE Sprint 0 (skeleton).** Decision Agent trigger. Implementación real en Sprint 1. |
+| `/api/cron/memory-updater` | **AGENT-REWRITE Sprint 0 (skeleton).** Memory engine daily updater. Implementación real en Sprint 2. |
+| `/api/whatsapp/inbound` | **AGENT-REWRITE Sprint 0 (skeleton).** Webhook entrante de Meta. GET implementado para verification challenge, POST pendiente Sprint 4b. |
+| `/api/whatsapp/send` | **AGENT-REWRITE Sprint 0 (skeleton).** Envío de mensajes a contactos de apoyo. Implementación real en Sprint 4b. |
 
 ---
 
@@ -486,6 +490,11 @@ Helpers disponibles:
 | `20260427_tasks_parent.sql` | Columna `parent_task_id` en `tasks` (self-reference) para agrupar sub-actividades bajo tarea paraguas |
 | `20260427_routine_exceptions.sql` | Tabla `routine_exceptions`: overrides puntuales de rutinas (cancelar un día / cambiar horario para una fecha específica) |
 | `20260505_notifications_sent.sql` | Tabla `notifications_sent`: registra push proactivos enviados (UNIQUE por entity_type+entity_id). Usada por el cron `upcoming-reminders` para idempotencia. |
+| `20260514_family_patterns.sql` | Tabla `family_patterns`: memoria semántica de patrones detectados con `confidence` (0-1). Alimenta al decision agent. **AGENT-REWRITE Sprint 0.** |
+| `20260514_family_preferences.sql` | Tabla `family_preferences`: preferencias y sensibilidades explícitas (correcciones, "no me hables del cumple", aliases, etc.). Prioridad sobre patrones inferidos. **AGENT-REWRITE Sprint 0.** |
+| `20260514_family_learning_queue.sql` | Tabla `family_learning_queue`: cola de preguntas que Nanny quiere hacer para aprender de la familia. Max 1 por día. **AGENT-REWRITE Sprint 0.** |
+| `20260514_support_contacts.sql` | Tabla `support_contacts`: red de apoyo de la familia (abuela, niñera, etc.). Vincula a teléfonos WhatsApp. Estado de consentimiento. **AGENT-REWRITE Sprint 0.** |
+| `20260514_whatsapp_conversations.sql` | Tabla `whatsapp_conversations`: log de mensajes Nanny ↔ contactos vía Meta API. Incluye `intent` y `parsed_response` para integración con decision agent. **AGENT-REWRITE Sprint 0.** |
 
 ---
 

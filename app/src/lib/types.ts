@@ -271,3 +271,149 @@ export interface NannyResponse {
     data: Record<string, unknown>;
   };
 }
+
+// ────────────────────────────────────────────────────────────
+// AGENT REWRITE — nuevas entidades (Sprint 0)
+// Ver AGENT-REWRITE-PLAN.md y NANNY-VISION.md
+// ────────────────────────────────────────────────────────────
+
+// 5.2 Patrones semánticos de la familia
+export type PatternType =
+  | 'parent_responsibility'   // "Christian suele llevar a Pau al pediatra"
+  | 'child_preference'         // "Pau no quiere ir al dentista"
+  | 'recurring_event'          // "Los miércoles hay fútbol"
+  | 'time_window'              // "Mañana mejor después de las 10"
+  | 'other';
+
+export interface FamilyPattern {
+  id: string;
+  family_id: string;
+  pattern_type: PatternType;
+  description: string;
+  confidence: number; // 0-1
+  source_message_ids: string[];
+  last_observed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 5.3 Preferencias explícitas
+export type PreferenceType =
+  | 'topic_avoid'              // "No me hables del cumple"
+  | 'time_window'              // "Avisame a las 8am no a las 7"
+  | 'name_alias'               // "A Pau decile Pauli"
+  | 'notification_preference'  // "Push o WhatsApp"
+  | 'parent_role_assignment'   // "Lo médico siempre yo"
+  | 'other';
+
+export type PreferenceSource = 'explicit' | 'correction' | 'inferred';
+
+export interface FamilyPreference {
+  id: string;
+  family_id: string;
+  preference_type: PreferenceType;
+  content: string;
+  applies_to_child_id: string | null;
+  applies_to_parent_id: string | null;
+  source: PreferenceSource;
+  active: boolean;
+  set_at: string;
+  last_applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 5.5 Learning queue
+export type LearningQueueStatus = 'pending' | 'asked' | 'resolved' | 'cancelled';
+export type LearningQueueUrgency = 'low' | 'medium' | 'high';
+
+export interface LearningQueueItem {
+  id: string;
+  family_id: string;
+  topic: string; // ej: "pediatra_name", "usual_pickup_pattern"
+  urgency: LearningQueueUrgency;
+  context_required: Record<string, unknown>;
+  question_text: string | null;
+  status: LearningQueueStatus;
+  asked_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+// 7. Red de apoyo
+export type SupportRelationship =
+  | 'abuela_materna'
+  | 'abuela_paterna'
+  | 'abuelo_materno'
+  | 'abuelo_paterno'
+  | 'tia'
+  | 'tio'
+  | 'ninera'
+  | 'pediatra'
+  | 'otro';
+
+export type ConsentStatus = 'pending' | 'active' | 'rejected' | 'paused';
+
+export interface SupportContact {
+  id: string;
+  family_id: string;
+  name: string;
+  relationship: SupportRelationship;
+  phone_whatsapp: string; // E.164
+  applies_to_child_ids: string[];
+  availability_notes: string | null;
+  notes: string | null;
+  consent_status: ConsentStatus;
+  consent_message_sent_at: string | null;
+  consent_response_at: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// 7.2 Conversaciones WhatsApp
+export type WhatsAppDirection = 'outbound' | 'inbound';
+
+export type WhatsAppIntent =
+  | 'consent_request'
+  | 'consent_accept'
+  | 'consent_reject'
+  | 'logistics_request'
+  | 'logistics_confirm'
+  | 'logistics_decline'
+  | 'clarification'
+  | 'other';
+
+export interface WhatsAppParsedResponse {
+  confirmed?: boolean;
+  alternative?: string;
+  wait_until?: string; // ISO timestamp
+  needs_clarification?: boolean;
+  free_text?: string;
+}
+
+export interface WhatsAppConversation {
+  id: string;
+  family_id: string;
+  contact_id: string;
+  direction: WhatsAppDirection;
+  message_text: string;
+  intent: WhatsAppIntent | null;
+  parsed_response: WhatsAppParsedResponse | null;
+  related_event_id: string | null;
+  meta_message_id: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  replied_in_chat: boolean;
+  created_at: string;
+}
+
+// Decision agent output (Sprint 1)
+export interface DecisionAgentOutput {
+  intervene: boolean;
+  message: string | null;
+  delivery: 'chat' | 'whatsapp_contact' | 'push' | null;
+  delivery_target_contact_id: string | null; // si delivery=whatsapp_contact
+  priority: 'low' | 'medium' | 'high' | null;
+  reason: string; // audit trail interno (no se muestra al usuario)
+}
