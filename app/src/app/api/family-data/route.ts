@@ -39,7 +39,25 @@ export async function GET(req: NextRequest) {
 
     const parentInfo = await getParentForUser(userId);
     if (!parentInfo) {
-      return NextResponse.json({ error: 'No family found' }, { status: 404 });
+      // Usuario autenticado pero todavía sin parent (onboarding pendiente o
+      // post-reset). Devolvemos 200 con payload vacío en vez de 404 — los
+      // pollers (BottomNav badges, realtime) no spammean errores en consola
+      // mientras el usuario completa el onboarding. El cliente detecta
+      // familyId=null y se comporta acorde.
+      const tablesParam = req.nextUrl.searchParams.get('tables')?.split(',') || [];
+      const empty: Record<string, unknown> = { familyId: null, currentParentId: null };
+      for (const t of tablesParam) {
+        if (t === 'family') empty.family = null;
+        else if (t === 'parents') empty.parents = [];
+        else if (t === 'children') empty.children = [];
+        else if (t === 'events') empty.events = [];
+        else if (t === 'tasks') empty.tasks = [];
+        else if (t === 'messages') empty.messages = [];
+        else if (t === 'medications') empty.medications = [];
+        else if (t === 'routines') empty.routines = [];
+        else if (t === 'routine_exceptions') empty.routineExceptions = [];
+      }
+      return NextResponse.json(empty);
     }
     const { family_id: familyId, parent_id: currentParentId } = parentInfo;
 

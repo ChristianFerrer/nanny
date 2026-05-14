@@ -57,6 +57,27 @@ async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown
   }
 
   const res = await fetch(`/api/family-data?tables=${tables.join(',')}`);
+
+  // 404 = no hay parent registrado todavía (usuario en onboarding o
+  // recién reseteado). NO es un error: devolvemos objeto vacío con shape
+  // esperado para que callers como BottomNav y polling sigan funcionando
+  // sin spammear la consola con 404s.
+  if (res.status === 404) {
+    const empty: Record<string, unknown> = { familyId: null, currentParentId: null };
+    for (const t of tables) {
+      if (t === 'family') empty.family = null;
+      else if (t === 'parents') empty.parents = [];
+      else if (t === 'children') empty.children = [];
+      else if (t === 'events') empty.events = [];
+      else if (t === 'tasks') empty.tasks = [];
+      else if (t === 'messages') empty.messages = [];
+      else if (t === 'medications') empty.medications = [];
+      else if (t === 'routines') empty.routines = [];
+      else if (t === 'routine_exceptions') empty.routineExceptions = [];
+    }
+    return empty;
+  }
+
   if (!res.ok) throw new Error('Failed to load family data');
   const data = await res.json();
   if (data.familyId) _currentFamilyId = data.familyId;
