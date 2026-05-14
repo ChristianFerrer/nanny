@@ -19,10 +19,11 @@
 |---|---|---|
 | `CLAUDE.md` (este) | Siempre (automático) | Contexto base + índice |
 | `NANNY-VISION.md` | **SIEMPRE si tocás pipeline AI o features de Nanny "como asistente"** | Documento de visión: quién es Nanny, cómo actúa, decisiones vinculantes. Es el ancla de producto. |
+| `AGENT-REWRITE-PLAN.md` | **SIEMPRE si trabajás en el rediseño actual (6 sprints)** | Plan operativo activo. Sprints definidos, prompts de arranque, tracking. |
 | `NANNY.md` | Si necesitás contexto de producto / user stories | Documento de producto, estable |
 | `REDESIGN-PLAN.md` | Si trabajás en UI/UX o querés ver el plan de rediseño | Plan del rediseño Apple-inspired (cerrado, archivo histórico) |
-| `RELIABILITY-PLAN.md` | Si trabajás en uno de los 5 sprints de confiabilidad/sync (push reminders, realtime, function calling) | Plan vivo de confiabilidad post-rutinas |
-| `CHAT-REFACTOR-PLAN.md` | Si vas a refactorizar el chat | Plan vivo de refactor del chat (pendiente) |
+| `RELIABILITY-PLAN.md` | Si necesitás contexto del trabajo previo a este rediseño | Plan de confiabilidad (cerrado, archivo histórico — sus aprendizajes están integrados en `AGENT-REWRITE-PLAN.md`) |
+| `CHAT-REFACTOR-PLAN.md` | **Obsoleto** — superseded por `AGENT-REWRITE-PLAN.md` | Histórico, no usar |
 | `app/README.md` | Onboarding rápido al stack | README de Next.js del app |
 
 ---
@@ -72,6 +73,18 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 ---
 
 ## 2. Trabajos en curso (resumen)
+
+### 🚨 Trabajo activo principal — Rediseño "Nanny como Asistente Real"
+
+**Plan operativo:** `AGENT-REWRITE-PLAN.md` (6 sprints, ~4-6 semanas).
+
+**Visión de producto:** `NANNY-VISION.md` (decisiones vinculantes, no cambian sin discusión).
+
+**Sprint actual:** Sprint 0 — Foundation. Branch `claude/agent-rewrite-sprint-0`. Migraciones SQL + types + skeleton de endpoints. Sin cambio de comportamiento.
+
+**Próximos sprints:** Sprint 1 (Decision Agent) → 2 (Memory Engine) → 3 (Cutover) → 4 (WhatsApp) → 5 (Pricing) → 6 (Launch).
+
+**Si esta sesión muere o querés arrancar nueva:** ver `AGENT-REWRITE-PLAN.md` Anexo B (Recuperación de sesión). Tiene prompts copy-paste para reanudar.
 
 ### Rediseño Apple-inspired — ✅ Cerrado
 

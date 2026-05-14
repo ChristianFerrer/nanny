@@ -1,5 +1,15 @@
 # Plan de Refactor del Chat — Sesión Dedicada
 
+> ⚠️ **OBSOLETO — superseded por `AGENT-REWRITE-PLAN.md`** (14 mayo 2026).
+>
+> Este plan proponía refactor del chat para extraer componentes y hooks. Con el rediseño "Nanny como Asistente Real" iniciado en mayo 2026, el chat va a sufrir cambios mucho más profundos (paradigma reactivo → agente con criterio temporal). Los problemas que este plan resolvía (1900 líneas, 32 useStates) se resuelven naturalmente como parte del rediseño.
+>
+> **No usar este plan.** Para trabajo en el pipeline AI o el cliente del chat, ver `AGENT-REWRITE-PLAN.md`.
+>
+> Se mantiene este archivo como histórico.
+>
+> ---
+
 > **Documento autocontenido para una sesión de Claude Code dedicada al refactor de `app/src/app/chat/page.tsx`.** Si arrancás esta sesión sin contexto previo, lee este archivo de principio a fin antes de tocar código.
 
 ---
