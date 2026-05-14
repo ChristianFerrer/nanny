@@ -18,6 +18,7 @@
 | Archivo | Cuándo cargar | Rol |
 |---|---|---|
 | `CLAUDE.md` (este) | Siempre (automático) | Contexto base + índice |
+| `NANNY-VISION.md` | **SIEMPRE si tocás pipeline AI o features de Nanny "como asistente"** | Documento de visión: quién es Nanny, cómo actúa, decisiones vinculantes. Es el ancla de producto. |
 | `NANNY.md` | Si necesitás contexto de producto / user stories | Documento de producto, estable |
 | `REDESIGN-PLAN.md` | Si trabajás en UI/UX o querés ver el plan de rediseño | Plan del rediseño Apple-inspired (cerrado, archivo histórico) |
 | `RELIABILITY-PLAN.md` | Si trabajás en uno de los 5 sprints de confiabilidad/sync (push reminders, realtime, function calling) | Plan vivo de confiabilidad post-rutinas |
