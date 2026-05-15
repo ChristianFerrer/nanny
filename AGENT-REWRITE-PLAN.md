@@ -260,8 +260,8 @@ Cada sprint:
 
 | Sprint | Status | Branch | Commit clave | PR | Notas |
 |---|---|---|---|---|---|
-| 0 — Foundation | ⏳ En ejecución | `claude/agent-rewrite-sprint-0` | — | — | Iniciado 14/5/26 |
-| 1 — Decision Agent | ⏳ | — | — | — | — |
+| 0 — Foundation | ✅ Mergeado | `claude/continue-previous-session-OleqU` | `986d8f8` | #3 | 14/5/26 |
+| 1 — Decision Agent | 🔍 En review | `claude/nanny-sprint1-decision-agent-0XltZ` | `c179c22` | (pendiente) | Sonnet 4.6 + prompt caching, 4 momentos ±15min, dedup 4h, feature flag por familia |
 | 2 — Memory Engine | ⏳ | — | — | — | — |
 | 3 — Listening + Cutover | ⏳ | — | — | — | — |
 | 4a — Meta + UI contactos | ⏳ | — | — | — | — |
@@ -273,6 +273,7 @@ Cada sprint:
 ### Bitácora de sesiones
 
 - **2026-05-14** — Sesión inicial. Creado este plan. Sprint 0 ejecutándose en branch `claude/agent-rewrite-sprint-0`.
+- **2026-05-15** — Sprint 1 implementado. Branch `claude/nanny-sprint1-decision-agent-0XltZ`. Falta aplicar migración `20260515_decision_agent_log.sql` en Supabase, setear `ANTHROPIC_API_KEY` (ya activa) + `USE_NEW_PIPELINE_FAMILY_IDS=<uuid familia Christian>` en Vercel, configurar cron-job.org cada 15 min apuntando a `/api/cron/nanny-wake`, y observar 4 despertares reales antes de mergear.
 
 ---
 

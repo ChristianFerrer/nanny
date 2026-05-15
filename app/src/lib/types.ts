@@ -417,3 +417,24 @@ export interface DecisionAgentOutput {
   priority: 'low' | 'medium' | 'high' | null;
   reason: string; // audit trail interno (no se muestra al usuario)
 }
+
+// Trigger semántico que disparó al decision agent
+export type DecisionAgentTriggerType = 'scheduled' | 'message' | 'manual';
+
+// Momentos fijos del día (NANNY-VISION §6.1). Solo aplica cuando
+// trigger_type='scheduled'.
+export type DecisionAgentMoment = 'morning' | 'midday' | 'afternoon' | 'evening';
+
+export interface DecisionAgentLog {
+  id: string;
+  family_id: string;
+  trigger_type: DecisionAgentTriggerType;
+  trigger_moment: DecisionAgentMoment | null;
+  trigger_message_id: string | null;
+  context_summary: Record<string, unknown>;
+  decision: DecisionAgentOutput;
+  model_response: Record<string, unknown> | null;
+  cost_usd: number;
+  latency_ms: number | null;
+  created_at: string;
+}

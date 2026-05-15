@@ -14,6 +14,7 @@
     "test:eval:diagnose": "tsx src/lib/eval/run-eval.ts --diagnose --save"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.0",
     "date-fns": "^4.1.0",

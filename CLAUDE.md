@@ -57,6 +57,7 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 | `Nanny-MorningBrief` | `https://nanny-xi.vercel.app/api/cron/morning-brief` | `0 * * * *` (cada hora) | Itera familias y dispara brief solo a las que están en su 8am local. Una corrida horaria cubre todas las TZ. Endpoint: `app/src/app/api/cron/morning-brief/route.ts`. |
 | `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. Endpoint: `app/src/app/api/cron/nightly-catchup/route.ts`. |
 | `Nanny-UpcomingReminders` | `https://nanny-xi.vercel.app/api/cron/upcoming-reminders` | `*/10 * * * *` (cada 10 min) | Push proactivo antes de eventos (ventana de 30 min) y tomas de medicación (15 min). Idempotente vía tabla `notifications_sent`. Endpoint: `app/src/app/api/cron/upcoming-reminders/route.ts`. |
+| `Nanny-Wake` | `https://nanny-xi.vercel.app/api/cron/nanny-wake` | `*/15 * * * *` (cada 15 min) | **AGENT-REWRITE Sprint 1.** Despertador del decision agent. Itera familias y dispara en 4 momentos locales (07:00 / 12:30 / 17:00 / 21:00) con ±15min tolerancia. Dedup 4h por (familia, momento). Filtra por `USE_NEW_PIPELINE_FAMILY_IDS` durante cutover progresivo. Endpoint: `app/src/app/api/cron/nanny-wake/route.ts`. |
 
 **Auth:** los endpoints aceptan tres formas (cualquiera funciona):
 1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).
@@ -80,7 +81,9 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 
 **Visión de producto:** `NANNY-VISION.md` (decisiones vinculantes, no cambian sin discusión).
 
-**Sprint actual:** Sprint 0 — Foundation. Branch `claude/agent-rewrite-sprint-0`. Migraciones SQL + types + skeleton de endpoints. Sin cambio de comportamiento.
+**Sprint actual:** Sprint 1 — Decision Agent. Branch `claude/nanny-sprint1-decision-agent-0XltZ`. Implementado: lib/agent (system prompt + context builder + Claude client con prompt caching + orquestador), cron `/api/cron/nanny-wake` (4 momentos, dedup 4h, filtro por env), feature flag `USE_NEW_PIPELINE_FAMILY_IDS` en `/api/chat`, migración `decision_agent_log`. Pendiente: aplicar migración en prod, setear env vars, configurar cron-job.org, observar 4 despertares antes de mergear.
+
+**Sprint 0:** ✅ Mergeado (PR #3, commit `986d8f8`). 5 migraciones nuevas + types + endpoints skeleton.
 
 **Próximos sprints:** Sprint 1 (Decision Agent) → 2 (Memory Engine) → 3 (Cutover) → 4 (WhatsApp) → 5 (Pricing) → 6 (Launch).
 
@@ -199,6 +202,8 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY` — usada por el decision agent (Sonnet 4.6). Configurar en los 3 environments (prod, preview, dev). **AGENT-REWRITE Sprint 1.**
+- `USE_NEW_PIPELINE_FAMILY_IDS` — comma-separated UUIDs de familias que usan el decision agent (cron nanny-wake + event-triggered en /api/chat). Vacío o no seteada = todas las familias usan el pipeline viejo. **AGENT-REWRITE Sprint 1.**
 - `CRON_SECRET` (opcional, para autenticar cron de Vercel)
 
 ---
@@ -289,7 +294,7 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/cron/morning-brief` | Cron (cron-job.org cada 1 hora): brief matutino por familia, filtra por TZ local (envía a las 8am locales) |
 | `/api/cron/nightly-catchup` | Cron (cron-job.org cada 1 hora): nightly catchup automático a las 4am locales — encuentra items que Nanny no capturó durante el día |
 | `/api/cron/upcoming-reminders` | Cron (cron-job.org cada 10 min): push proactivo antes de eventos (30 min) y tomas de medicación (15 min). Usa tabla `notifications_sent` para idempotencia. |
-| `/api/cron/nanny-wake` | **AGENT-REWRITE Sprint 0 (skeleton).** Decision Agent trigger. Implementación real en Sprint 1. |
+| `/api/cron/nanny-wake` | **AGENT-REWRITE Sprint 1.** Despertador del decision agent. Itera familias activas, calcula minutos locales y matchea contra MOMENTS (07:00 / 12:30 / 17:00 / 21:00 ±15min). Dedup 4h por (familia, momento) vía `decision_agent_log`. Filtro por `USE_NEW_PIPELINE_FAMILY_IDS`. Cron cada 15 min en cron-job.org. |
 | `/api/cron/memory-updater` | **AGENT-REWRITE Sprint 0 (skeleton).** Memory engine daily updater. Implementación real en Sprint 2. |
 | `/api/whatsapp/inbound` | **AGENT-REWRITE Sprint 0 (skeleton).** Webhook entrante de Meta. GET implementado para verification challenge, POST pendiente Sprint 4b. |
 | `/api/whatsapp/send` | **AGENT-REWRITE Sprint 0 (skeleton).** Envío de mensajes a contactos de apoyo. Implementación real en Sprint 4b. |
@@ -495,6 +500,7 @@ Helpers disponibles:
 | `20260514_family_learning_queue.sql` | Tabla `family_learning_queue`: cola de preguntas que Nanny quiere hacer para aprender de la familia. Max 1 por día. **AGENT-REWRITE Sprint 0.** |
 | `20260514_support_contacts.sql` | Tabla `support_contacts`: red de apoyo de la familia (abuela, niñera, etc.). Vincula a teléfonos WhatsApp. Estado de consentimiento. **AGENT-REWRITE Sprint 0.** |
 | `20260514_whatsapp_conversations.sql` | Tabla `whatsapp_conversations`: log de mensajes Nanny ↔ contactos vía Meta API. Incluye `intent` y `parsed_response` para integración con decision agent. **AGENT-REWRITE Sprint 0.** |
+| `20260515_decision_agent_log.sql` | Tabla `decision_agent_log`: trace de cada despertar del decision agent (trigger scheduled/message/manual, decision JSONB, cost_usd, latency_ms). RLS read-only por familia. **AGENT-REWRITE Sprint 1.** |
 
 ---
 
