@@ -10,26 +10,82 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import type {
-  Child,
-  FamilyEvent,
-  FamilyPattern,
-  FamilyPreference,
-  LearningQueueItem,
-  Medication,
-  Message,
-  Parent,
-  SupportContact,
-  Task,
-} from '@/lib/types';
+import type { Message } from '@/lib/types';
+
+// Shapes locales (no usamos los tipos canónicos de lib/types.ts directamente
+// porque FamilyEvent está desactualizado — no tiene `assigned_to` aunque la
+// DB sí). Cuando se actualice el tipo canónico podemos migrar a Pick<>.
+
+export interface AgentParent {
+  id: string;
+  name: string;
+  role: 'mama' | 'papa';
+}
+export interface AgentChild {
+  id: string;
+  name: string;
+  birth_date: string | null;
+  allergies: string[];
+  medical_notes: string | null;
+  personality_notes: string | null;
+}
+export interface AgentSupportContact {
+  id: string;
+  name: string;
+  relationship: string;
+  consent_status: string;
+}
+export interface AgentEvent {
+  id: string;
+  title: string;
+  date_start: string;
+  date_end: string | null;
+  location: string | null;
+  assigned_to: string | null;
+  child_id: string | null;
+  status: string;
+}
+export interface AgentTask {
+  id: string;
+  title: string;
+  due_date: string | null;
+  assigned_to: string | null;
+  priority: string;
+  child_id: string | null;
+  status: string;
+}
+export interface AgentMedication {
+  id: string;
+  medication_name: string;
+  child_name: string;
+  schedule_times: string[] | null;
+  frequency: string | null;
+  end_date: string | null;
+}
+export interface AgentPattern {
+  pattern_type: string;
+  description: string;
+  confidence: number;
+}
+export interface AgentPreference {
+  preference_type: string;
+  content: string;
+  source: string;
+}
+export interface AgentLearningItem {
+  topic: string;
+  urgency: string;
+  question_text: string | null;
+  context_required: Record<string, unknown>;
+}
 
 export interface FamilyProfileBlock {
   family_id: string;
   family_name: string;
   timezone: string;
-  parents: Pick<Parent, 'id' | 'name' | 'role'>[];
-  children: Pick<Child, 'id' | 'name' | 'birth_date' | 'allergies' | 'medical_notes' | 'personality_notes'>[];
-  support_contacts: Pick<SupportContact, 'id' | 'name' | 'relationship' | 'consent_status'>[];
+  parents: AgentParent[];
+  children: AgentChild[];
+  support_contacts: AgentSupportContact[];
 }
 
 export interface MomentContextBlock {
@@ -43,15 +99,15 @@ export interface MomentContextBlock {
     triggering_message_preview: string | null;
   };
   // Agenda 48h adelante
-  upcoming_events: Pick<FamilyEvent, 'id' | 'title' | 'date_start' | 'date_end' | 'location' | 'assigned_to' | 'child_id' | 'status'>[];
-  pending_tasks: Pick<Task, 'id' | 'title' | 'due_date' | 'assigned_to' | 'priority' | 'child_id' | 'status'>[];
-  active_medications: Pick<Medication, 'id' | 'medication_name' | 'child_name' | 'schedule_times' | 'frequency' | 'end_date'>[];
+  upcoming_events: AgentEvent[];
+  pending_tasks: AgentTask[];
+  active_medications: AgentMedication[];
   // Conversación últimas 24h
   recent_messages: { sender: string; role: 'parent' | 'nanny'; text: string; at: string }[];
   // Memoria semántica (Sprint 2)
-  patterns: Pick<FamilyPattern, 'pattern_type' | 'description' | 'confidence'>[];
-  preferences: Pick<FamilyPreference, 'preference_type' | 'content' | 'source'>[];
-  learning_queue: Pick<LearningQueueItem, 'topic' | 'urgency' | 'question_text' | 'context_required'>[];
+  patterns: AgentPattern[];
+  preferences: AgentPreference[];
+  learning_queue: AgentLearningItem[];
   // Memoria emocional efímera (NANNY-VISION §5.4) — placeholder hasta Sprint 3
   emotional_signal_last_48h: string | null;
 }
