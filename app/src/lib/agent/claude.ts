@@ -154,6 +154,8 @@ export function parseDecisionOutput(raw: string): DecisionAgentOutput {
       delivery_target_contact_id: null,
       priority: null,
       reason: `parse_error: no se pudo extraer JSON del modelo (${(err as Error).message})`,
+      captured_preference: null,
+      captured_learning_item: null,
     };
   }
 }
@@ -188,8 +190,12 @@ function normalizeOutput(p: unknown): DecisionAgentOutput {
     ? obj.reason.trim()
     : (intervene ? 'sin razón explícita' : 'silencio sin razón explícita');
 
+  const captured_preference = normalizePreference(obj.captured_preference);
+  const captured_learning_item = normalizeLearningItem(obj.captured_learning_item);
+
   // Coherencia mínima: si intervene=true pero no hay message ni delivery,
-  // bajamos a intervene=false con reason explicativo.
+  // bajamos a intervene=false con reason explicativo (pero conservamos las
+  // capturas — pueden ser válidas aunque la intervención sea inválida).
   if (intervene && (!message || !delivery)) {
     return {
       intervene: false,
@@ -198,9 +204,68 @@ function normalizeOutput(p: unknown): DecisionAgentOutput {
       delivery_target_contact_id: null,
       priority: null,
       reason: `coercion: intervene=true pero ${!message ? 'message' : 'delivery'} faltante. original_reason=${reason}`,
+      captured_preference,
+      captured_learning_item,
     };
   }
-  return { intervene, message, delivery, delivery_target_contact_id: contactId, priority, reason };
+  return {
+    intervene,
+    message,
+    delivery,
+    delivery_target_contact_id: contactId,
+    priority,
+    reason,
+    captured_preference,
+    captured_learning_item,
+  };
+}
+
+const PREFERENCE_TYPES = new Set([
+  'topic_avoid', 'time_window', 'name_alias',
+  'notification_preference', 'parent_role_assignment', 'other',
+]);
+const PREFERENCE_SOURCES = new Set(['explicit', 'correction', 'inferred']);
+const URGENCIES = new Set(['low', 'medium', 'high']);
+
+function normalizePreference(p: unknown): DecisionAgentOutput['captured_preference'] {
+  if (!p || typeof p !== 'object') return null;
+  const o = p as Record<string, unknown>;
+  const typeStr = typeof o.preference_type === 'string' ? o.preference_type : '';
+  const contentStr = typeof o.content === 'string' ? o.content.trim() : '';
+  const sourceStr = typeof o.source === 'string' ? o.source : '';
+  if (!PREFERENCE_TYPES.has(typeStr)) return null;
+  if (contentStr.length === 0) return null;
+  if (!PREFERENCE_SOURCES.has(sourceStr)) return null;
+  return {
+    preference_type: typeStr as DecisionAgentOutput['captured_preference'] extends infer T
+      ? T extends { preference_type: infer P } ? P : never : never,
+    content: contentStr,
+    applies_to_child_id: typeof o.applies_to_child_id === 'string' && o.applies_to_child_id.length > 0
+      ? o.applies_to_child_id : null,
+    applies_to_parent_id: typeof o.applies_to_parent_id === 'string' && o.applies_to_parent_id.length > 0
+      ? o.applies_to_parent_id : null,
+    source: sourceStr as DecisionAgentOutput['captured_preference'] extends infer T
+      ? T extends { source: infer S } ? S : never : never,
+  };
+}
+
+function normalizeLearningItem(p: unknown): DecisionAgentOutput['captured_learning_item'] {
+  if (!p || typeof p !== 'object') return null;
+  const o = p as Record<string, unknown>;
+  const topic = typeof o.topic === 'string' ? o.topic.trim() : '';
+  const urgency = typeof o.urgency === 'string' ? o.urgency : '';
+  if (topic.length === 0) return null;
+  if (!URGENCIES.has(urgency)) return null;
+  return {
+    topic,
+    urgency: urgency as DecisionAgentOutput['captured_learning_item'] extends infer T
+      ? T extends { urgency: infer U } ? U : never : never,
+    question_text: typeof o.question_text === 'string' && o.question_text.trim().length > 0
+      ? o.question_text.trim() : null,
+    context_required: (o.context_required && typeof o.context_required === 'object')
+      ? o.context_required as Record<string, unknown>
+      : {},
+  };
 }
 
 function computeCost(u: ClaudeUsage): number {

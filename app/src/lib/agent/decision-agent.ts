@@ -100,6 +100,8 @@ export async function runDecisionAgent(
         delivery_target_contact_id: null,
         priority: null,
         reason: `anthropic_error: ${msg}`,
+        captured_preference: null,
+        captured_learning_item: null,
       },
       raw: null,
     });
@@ -112,6 +114,8 @@ export async function runDecisionAgent(
         delivery_target_contact_id: null,
         priority: null,
         reason: `anthropic_error: ${msg}`,
+        captured_preference: null,
+        captured_learning_item: null,
       },
       context: ctx,
       cost_usd: 0,
@@ -130,6 +134,17 @@ export async function runDecisionAgent(
     ctx,
     decision,
     raw: claude,
+  });
+
+  // ──────────────────────────────────────────
+  // 3.5. Captura inline (Sprint 2): preferences + learning queue.
+  //      Independiente de intervene — Nanny puede callar y aprender.
+  // ──────────────────────────────────────────
+  await persistCapturedPreference(input.familyId, decision, log_id).catch(err => {
+    console.warn('[decision-agent] preference capture error', err);
+  });
+  await persistCapturedLearningItem(input.familyId, decision, log_id).catch(err => {
+    console.warn('[decision-agent] learning item capture error', err);
   });
 
   // ──────────────────────────────────────────
@@ -193,6 +208,123 @@ async function persistLog(args: {
     console.error('[decision-agent] log insert exception', err);
     return null;
   }
+}
+
+/**
+ * Sprint 2: persiste una preference capturada inline por el modelo.
+ *
+ * Dedup: si ya existe una preference activa del mismo tipo y misma scope
+ * (applies_to_*), se hace update del content/source en vez de insert
+ * duplicado. Las correcciones (source='correction') siempre suben prioridad
+ * y nunca se sobrescriben con una más débil.
+ */
+async function persistCapturedPreference(
+  familyId: string,
+  decision: DecisionAgentOutput,
+  logId: string | null,
+): Promise<void> {
+  const p = decision.captured_preference;
+  if (!p) return;
+  const admin = getSupabaseAdmin();
+
+  // Buscamos preference existente con misma firma
+  const { data: existing } = await admin
+    .from('family_preferences')
+    .select('id, source')
+    .eq('family_id', familyId)
+    .eq('preference_type', p.preference_type)
+    .eq('active', true)
+    .filter('applies_to_child_id', p.applies_to_child_id ? 'eq' : 'is', p.applies_to_child_id ?? null)
+    .filter('applies_to_parent_id', p.applies_to_parent_id ? 'eq' : 'is', p.applies_to_parent_id ?? null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    // Si la existente es 'correction' y la nueva no, no degradamos.
+    if (existing.source === 'correction' && p.source !== 'correction') return;
+    await admin
+      .from('family_preferences')
+      .update({
+        content: p.content,
+        source: p.source,
+        last_applied_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    console.log('[decision-agent] preference updated', { familyId, type: p.preference_type, source: p.source, logId });
+    return;
+  }
+
+  const { error } = await admin.from('family_preferences').insert({
+    family_id: familyId,
+    preference_type: p.preference_type,
+    content: p.content,
+    applies_to_child_id: p.applies_to_child_id,
+    applies_to_parent_id: p.applies_to_parent_id,
+    source: p.source,
+    active: true,
+  });
+  if (error) {
+    console.error('[decision-agent] preference insert error', error);
+    return;
+  }
+  console.log('[decision-agent] preference captured', { familyId, type: p.preference_type, source: p.source, logId });
+}
+
+/**
+ * Sprint 2: persiste un learning item capturado inline por el modelo.
+ *
+ * Dedup: si ya existe un item pendiente con el mismo topic, hacemos update
+ * de urgency/question_text/context_required en lugar de duplicar. Eso evita
+ * que cada despertar empuje el mismo "pediatra_name" otra vez.
+ */
+async function persistCapturedLearningItem(
+  familyId: string,
+  decision: DecisionAgentOutput,
+  logId: string | null,
+): Promise<void> {
+  const item = decision.captured_learning_item;
+  if (!item) return;
+  const admin = getSupabaseAdmin();
+
+  const { data: existing } = await admin
+    .from('family_learning_queue')
+    .select('id, urgency')
+    .eq('family_id', familyId)
+    .eq('topic', item.topic)
+    .eq('status', 'pending')
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    // Subimos urgency si el nuevo es más alto
+    const order: Record<string, number> = { low: 0, medium: 1, high: 2 };
+    const shouldBump = (order[item.urgency] ?? 0) > (order[existing.urgency as string] ?? 0);
+    await admin
+      .from('family_learning_queue')
+      .update({
+        urgency: shouldBump ? item.urgency : existing.urgency,
+        question_text: item.question_text,
+        context_required: item.context_required,
+      })
+      .eq('id', existing.id);
+    console.log('[decision-agent] learning item updated', { familyId, topic: item.topic, logId });
+    return;
+  }
+
+  const { error } = await admin.from('family_learning_queue').insert({
+    family_id: familyId,
+    topic: item.topic,
+    urgency: item.urgency,
+    question_text: item.question_text,
+    context_required: item.context_required,
+    status: 'pending',
+  });
+  if (error) {
+    console.error('[decision-agent] learning item insert error', error);
+    return;
+  }
+  console.log('[decision-agent] learning item captured', { familyId, topic: item.topic, logId });
 }
 
 /**

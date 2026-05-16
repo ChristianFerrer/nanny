@@ -261,8 +261,8 @@ Cada sprint:
 | Sprint | Status | Branch | Commit clave | PR | Notas |
 |---|---|---|---|---|---|
 | 0 — Foundation | ✅ Mergeado | `claude/continue-previous-session-OleqU` | `986d8f8` | #3 | 14/5/26 |
-| 1 — Decision Agent | 🔍 En review | `claude/nanny-sprint1-decision-agent-0XltZ` | `c179c22` | (pendiente) | Sonnet 4.6 + prompt caching, 4 momentos ±15min, dedup 4h, feature flag por familia |
-| 2 — Memory Engine | ⏳ | — | — | — | — |
+| 1 — Decision Agent | ✅ Mergeado | `claude/nanny-sprint1-decision-agent-0XltZ` | `2a0a488` | #4 | Sonnet 4.6 + prompt caching, 4 momentos ±15min, dedup 4h, feature flag por familia |
+| 2 — Memory Engine | 🔍 En review | `claude/agent-rewrite-sprint-2` | (pendiente push) | (pendiente PR) | Memory updater diario + captura inline en decision agent + decay 14d + soft-delete vía confidence |
 | 3 — Listening + Cutover | ⏳ | — | — | — | — |
 | 4a — Meta + UI contactos | ⏳ | — | — | — | — |
 | 4b — WhatsApp integración | ⏳ | — | — | — | — |
@@ -273,7 +273,8 @@ Cada sprint:
 ### Bitácora de sesiones
 
 - **2026-05-14** — Sesión inicial. Creado este plan. Sprint 0 ejecutándose en branch `claude/agent-rewrite-sprint-0`.
-- **2026-05-15** — Sprint 1 implementado. Branch `claude/nanny-sprint1-decision-agent-0XltZ`. Falta aplicar migración `20260515_decision_agent_log.sql` en Supabase, setear `ANTHROPIC_API_KEY` (ya activa) + `USE_NEW_PIPELINE_FAMILY_IDS=<uuid familia Christian>` en Vercel, configurar cron-job.org cada 15 min apuntando a `/api/cron/nanny-wake`, y observar 4 despertares reales antes de mergear.
+- **2026-05-15** — Sprint 1 implementado y mergeado a `claude/continue-previous-session-OleqU` (PR #4, commit `2a0a488`). Migración aplicada, env vars seteadas, cron-job.org `Nanny-Wake` activo. Primer despertar real validado: trigger_moment=evening, intervene=false con razón coherente, cost_usd=0.015, latency 2.5s. Cache hit rate pendiente de medición tras el 2do despertar.
+- **2026-05-16** — Sprint 2 implementado en `claude/agent-rewrite-sprint-2`. Memory updater diario + captura inline en decision agent. Sin migraciones nuevas (las 3 tablas de Sprint 0 cubren todo). Pendiente: configurar cron-job.org `Nanny-MemoryUpdater` con `0 3 * * *`, observar 3-7 días de operaciones reales contra mi familia.
 
 ---
 
