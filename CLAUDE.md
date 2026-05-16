@@ -58,6 +58,7 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 | `Nanny-NightlyCatchup` | `https://nanny-xi.vercel.app/api/cron/nightly-catchup` | `0 * * * *` (cada hora) | Itera familias y dispara catchup automático a las 4am local. Encuentra items que Nanny no capturó durante el día y los agrega silenciosamente con `[auto-catchup]` en description. Endpoint: `app/src/app/api/cron/nightly-catchup/route.ts`. |
 | `Nanny-UpcomingReminders` | `https://nanny-xi.vercel.app/api/cron/upcoming-reminders` | `*/10 * * * *` (cada 10 min) | Push proactivo antes de eventos (ventana de 30 min) y tomas de medicación (15 min). Idempotente vía tabla `notifications_sent`. Endpoint: `app/src/app/api/cron/upcoming-reminders/route.ts`. |
 | `Nanny-Wake` | `https://nanny-xi.vercel.app/api/cron/nanny-wake` | `*/15 * * * *` (cada 15 min) | **AGENT-REWRITE Sprint 1.** Despertador del decision agent. Itera familias y dispara en 4 momentos locales (07:00 / 12:30 / 17:00 / 21:00) con ±15min tolerancia. Dedup 4h por (familia, momento). Filtra por `USE_NEW_PIPELINE_FAMILY_IDS` durante cutover progresivo. Endpoint: `app/src/app/api/cron/nanny-wake/route.ts`. |
+| `Nanny-MemoryUpdater` | `https://nanny-xi.vercel.app/api/cron/memory-updater` | `0 3 * * *` (03:00 UTC diario) | **AGENT-REWRITE Sprint 2.** Memory engine. Por familia elegible: lee actividad 24h + patrones existentes, invoca Claude Sonnet 4.6 con prompt caching, aplica operaciones (create/confirm/contradict/decay sobre `family_patterns`, enqueue sobre `family_learning_queue`). Decay automático 14d sin reconfirmación. Endpoint: `app/src/app/api/cron/memory-updater/route.ts`. |
 
 **Auth:** los endpoints aceptan tres formas (cualquiera funciona):
 1. `?secret=<CRON_SECRET>` en query string (lo más simple para cron-job.org).
@@ -81,7 +82,9 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 
 **Visión de producto:** `NANNY-VISION.md` (decisiones vinculantes, no cambian sin discusión).
 
-**Sprint actual:** Sprint 1 — Decision Agent. Branch `claude/nanny-sprint1-decision-agent-0XltZ`. Implementado: lib/agent (system prompt + context builder + Claude client con prompt caching + orquestador), cron `/api/cron/nanny-wake` (4 momentos, dedup 4h, filtro por env), feature flag `USE_NEW_PIPELINE_FAMILY_IDS` en `/api/chat`, migración `decision_agent_log`. Pendiente: aplicar migración en prod, setear env vars, configurar cron-job.org, observar 4 despertares antes de mergear.
+**Sprint actual:** Sprint 2 — Memory Engine. Branch `claude/agent-rewrite-sprint-2`. Implementado: `lib/agent/memory-updater.ts` (orquestador del cron diario con prompt caching), `lib/agent/memory-system-prompt.ts` (instrucciones de extracción de patrones — conservador antes que ambicioso, decay 14d, soft-delete), `/api/cron/memory-updater` (filtra por USE_NEW_PIPELINE_FAMILY_IDS, agregado de costo y operaciones), captura inline en decision agent (`captured_preference` + `captured_learning_item` en el JSON de salida) con dedup por type+scope+topic. Pendiente: configurar cron-job.org `0 3 * * *`, observar 3-7 días de operaciones para validar criterio de salida (≥3 patrones detectados, ≥1 corrección capturada).
+
+**Sprint 1:** ✅ Mergeado (PR #4, commit `2a0a488`). Decision agent + cron nanny-wake + feature flag en /api/chat + migración decision_agent_log.
 
 **Sprint 0:** ✅ Mergeado (PR #3, commit `986d8f8`). 5 migraciones nuevas + types + endpoints skeleton.
 
@@ -295,7 +298,7 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 | `/api/cron/nightly-catchup` | Cron (cron-job.org cada 1 hora): nightly catchup automático a las 4am locales — encuentra items que Nanny no capturó durante el día |
 | `/api/cron/upcoming-reminders` | Cron (cron-job.org cada 10 min): push proactivo antes de eventos (30 min) y tomas de medicación (15 min). Usa tabla `notifications_sent` para idempotencia. |
 | `/api/cron/nanny-wake` | **AGENT-REWRITE Sprint 1.** Despertador del decision agent. Itera familias activas, calcula minutos locales y matchea contra MOMENTS (07:00 / 12:30 / 17:00 / 21:00 ±15min). Dedup 4h por (familia, momento) vía `decision_agent_log`. Filtro por `USE_NEW_PIPELINE_FAMILY_IDS`. Cron cada 15 min en cron-job.org. |
-| `/api/cron/memory-updater` | **AGENT-REWRITE Sprint 0 (skeleton).** Memory engine daily updater. Implementación real en Sprint 2. |
+| `/api/cron/memory-updater` | **AGENT-REWRITE Sprint 2.** Por familia elegible (USE_NEW_PIPELINE_FAMILY_IDS): lee actividad 24h + patrones, invoca Claude Sonnet 4.6, aplica operaciones sobre `family_patterns` (create/confirm/contradict/decay) y `family_learning_queue` (enqueue). Soft-delete vía confidence < 0.3. Cron diario 03:00 UTC. |
 | `/api/whatsapp/inbound` | **AGENT-REWRITE Sprint 0 (skeleton).** Webhook entrante de Meta. GET implementado para verification challenge, POST pendiente Sprint 4b. |
 | `/api/whatsapp/send` | **AGENT-REWRITE Sprint 0 (skeleton).** Envío de mensajes a contactos de apoyo. Implementación real en Sprint 4b. |
 

@@ -408,7 +408,7 @@ export interface WhatsAppConversation {
   created_at: string;
 }
 
-// Decision agent output (Sprint 1)
+// Decision agent output (Sprint 1 + Sprint 2 extensions)
 export interface DecisionAgentOutput {
   intervene: boolean;
   message: string | null;
@@ -416,6 +416,24 @@ export interface DecisionAgentOutput {
   delivery_target_contact_id: string | null; // si delivery=whatsapp_contact
   priority: 'low' | 'medium' | 'high' | null;
   reason: string; // audit trail interno (no se muestra al usuario)
+
+  // Sprint 2 — captura inline de memoria semántica.
+  // El modelo llena estos campos cuando detecta una corrección explícita
+  // (preference) o una pieza de información que conviene aprender más
+  // adelante (learning queue). NO necesita estar relacionado con intervene.
+  captured_preference: {
+    preference_type: PreferenceType;
+    content: string;
+    applies_to_child_id: string | null;
+    applies_to_parent_id: string | null;
+    source: PreferenceSource;
+  } | null;
+  captured_learning_item: {
+    topic: string;
+    urgency: LearningQueueUrgency;
+    question_text: string | null;
+    context_required: Record<string, unknown>;
+  } | null;
 }
 
 // Trigger semántico que disparó al decision agent
