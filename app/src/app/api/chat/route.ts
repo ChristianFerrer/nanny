@@ -171,26 +171,12 @@ async function runNewPipeline(args: {
     return;
   }
 
-  // Persistir el mensaje (decision agent decidió chat/push; ambos van al chat).
-  const text = result.decision.message!;
-  await getSupabaseAdmin().from('messages').insert({
-    family_id: input.familyId,
-    sender_id: null,
-    sender_type: 'nanny',
-    content: text,
-    message_type: 'text',
-    metadata: {
-      intent: 'DECISION_AGENT',
-      proactive: false,
-      priority: result.decision.priority,
-      decision_log_id: result.log_id,
-      delivery: result.decision.delivery,
-      reason: result.decision.reason,
-    },
-  });
-
   // Devolver al cliente un ChatResponse compatible con la UI actual.
+  // El cliente persiste el mensaje de Nanny en la tabla `messages` al
+  // recibirlo (mismo flujo que el pipeline viejo). NO insertamos desde el
+  // servidor para evitar duplicación.
   // confirmation/pending_detection van null — no hay capture en Sprint 1.
+  const text = result.decision.message!;
   const response: ChatResponse = {
     should_respond: true,
     reply: text,
