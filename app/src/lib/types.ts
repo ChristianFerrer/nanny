@@ -434,6 +434,12 @@ export interface DecisionAgentOutput {
     question_text: string | null;
     context_required: Record<string, unknown>;
   } | null;
+
+  // Sprint 2 — Si el mensaje del padre responde / cierra un item de la
+  // learning queue, llenás este campo con el `topic` exacto del item
+  // resuelto. El sistema marca ese item como status='resolved'.
+  // null si nada de la cola se cerró este turno.
+  resolves_learning_topic: string | null;
 }
 
 // Trigger semántico que disparó al decision agent

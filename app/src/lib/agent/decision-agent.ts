@@ -102,6 +102,7 @@ export async function runDecisionAgent(
         reason: `anthropic_error: ${msg}`,
         captured_preference: null,
         captured_learning_item: null,
+        resolves_learning_topic: null,
       },
       raw: null,
     });
@@ -116,6 +117,7 @@ export async function runDecisionAgent(
         reason: `anthropic_error: ${msg}`,
         captured_preference: null,
         captured_learning_item: null,
+        resolves_learning_topic: null,
       },
       context: ctx,
       cost_usd: 0,
@@ -145,6 +147,9 @@ export async function runDecisionAgent(
   });
   await persistCapturedLearningItem(input.familyId, decision, log_id).catch(err => {
     console.warn('[decision-agent] learning item capture error', err);
+  });
+  await resolveLearningQueueItem(input.familyId, decision, log_id).catch(err => {
+    console.warn('[decision-agent] learning queue resolve error', err);
   });
 
   // ──────────────────────────────────────────
@@ -325,6 +330,35 @@ async function persistCapturedLearningItem(
     return;
   }
   console.log('[decision-agent] learning item captured', { familyId, topic: item.topic, logId });
+}
+
+/**
+ * Sprint 2: marca un item de family_learning_queue como resuelto si el
+ * modelo detectó que el mensaje del padre lo cierra. Solo afecta items
+ * con status='pending' del mismo topic, para no resucitar ni duplicar.
+ */
+async function resolveLearningQueueItem(
+  familyId: string,
+  decision: DecisionAgentOutput,
+  logId: string | null,
+): Promise<void> {
+  const topic = decision.resolves_learning_topic;
+  if (!topic) return;
+  const admin = getSupabaseAdmin();
+  const { error } = await admin
+    .from('family_learning_queue')
+    .update({
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('family_id', familyId)
+    .eq('topic', topic)
+    .eq('status', 'pending');
+  if (error) {
+    console.error('[decision-agent] learning queue resolve error', error);
+    return;
+  }
+  console.log('[decision-agent] learning queue resolved', { familyId, topic, logId });
 }
 
 /**

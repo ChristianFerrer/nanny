@@ -156,6 +156,7 @@ export function parseDecisionOutput(raw: string): DecisionAgentOutput {
       reason: `parse_error: no se pudo extraer JSON del modelo (${(err as Error).message})`,
       captured_preference: null,
       captured_learning_item: null,
+      resolves_learning_topic: null,
     };
   }
 }
@@ -192,6 +193,9 @@ function normalizeOutput(p: unknown): DecisionAgentOutput {
 
   const captured_preference = normalizePreference(obj.captured_preference);
   const captured_learning_item = normalizeLearningItem(obj.captured_learning_item);
+  const resolves_learning_topic = typeof obj.resolves_learning_topic === 'string' && obj.resolves_learning_topic.trim().length > 0
+    ? obj.resolves_learning_topic.trim()
+    : null;
 
   // Coherencia mínima: si intervene=true pero no hay message ni delivery,
   // bajamos a intervene=false con reason explicativo (pero conservamos las
@@ -206,6 +210,7 @@ function normalizeOutput(p: unknown): DecisionAgentOutput {
       reason: `coercion: intervene=true pero ${!message ? 'message' : 'delivery'} faltante. original_reason=${reason}`,
       captured_preference,
       captured_learning_item,
+      resolves_learning_topic,
     };
   }
   return {
@@ -217,6 +222,7 @@ function normalizeOutput(p: unknown): DecisionAgentOutput {
     reason,
     captured_preference,
     captured_learning_item,
+    resolves_learning_topic,
   };
 }
 
