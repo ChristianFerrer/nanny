@@ -307,8 +307,8 @@ Cada sprint:
 |---|---|---|---|---|---|
 | 0 — Foundation | ✅ Mergeado | `claude/continue-previous-session-OleqU` | `986d8f8` | #3 | 14/5/26 |
 | 1 — Decision Agent | ✅ Mergeado | `claude/nanny-sprint1-decision-agent-0XltZ` | `2a0a488` | #4 | Sonnet 4.6 + prompt caching, 4 momentos ±15min, dedup 4h, feature flag por familia |
-| 2 — Memory Engine | 🔍 En review | `claude/agent-rewrite-sprint-2` | (pendiente push) | (pendiente PR) | Memory updater diario + captura inline en decision agent + decay 14d + soft-delete vía confidence |
-| 3 — Listening + Cutover | ⏳ | — | — | — | — |
+| 2 — Memory Engine | ✅ Mergeado | `claude/agent-rewrite-sprint-2` | `8c0a589` | #5 | Memory updater diario + captura inline en decision agent + decay 14d + soft-delete vía confidence |
+| 3 — Listening + Cutover | 🚧 Fase A | `claude/agent-rewrite-sprint-3` | (en branch) | (pendiente PR) | Listener Haiku 4.5 con 4 tools + integración en /api/chat (corre antes del decision agent). Fase B: observación + eval comparativa + retirar viejo pipeline. |
 | 4a — Meta + UI contactos | ⏳ | — | — | — | — |
 | 4b — WhatsApp integración | ⏳ | — | — | — | — |
 | 4c — Decision agent + WhatsApp | ⏳ | — | — | — | — |
@@ -321,6 +321,7 @@ Cada sprint:
 - **2026-05-14** — Sesión inicial. Creado este plan. Sprint 0 ejecutándose en branch `claude/agent-rewrite-sprint-0`.
 - **2026-05-15** — Sprint 1 implementado y mergeado a `claude/continue-previous-session-OleqU` (PR #4, commit `2a0a488`). Migración aplicada, env vars seteadas, cron-job.org `Nanny-Wake` activo. Primer despertar real validado: trigger_moment=evening, intervene=false con razón coherente, cost_usd=0.015, latency 2.5s. Cache hit rate pendiente de medición tras el 2do despertar.
 - **2026-05-16** — Sprint 2 implementado en `claude/agent-rewrite-sprint-2`. Memory updater diario + captura inline en decision agent. Sin migraciones nuevas (las 3 tablas de Sprint 0 cubren todo). Pendiente: configurar cron-job.org `Nanny-MemoryUpdater` con `0 3 * * *`, observar 3-7 días de operaciones reales contra mi familia.
+- **2026-05-17** — Sprint 3 Fase A en `claude/agent-rewrite-sprint-3`. Listener `lib/chat/listener.ts` (Claude Haiku 4.5, 4 tools: events/tasks/medication/routines, prompt caching, persistencia directa a Supabase). Integrado en `/api/chat/route.ts` corriendo antes del decision agent en `runNewPipeline` (best-effort: si falla, agent sigue). Sin retirar el viejo pipeline todavía — convive bajo el flag `USE_NEW_PIPELINE_FAMILY_IDS`. Pendiente Fase B: observación 3-7 días, eval comparativa, medir % de mensajes con respuesta (target 15-25%), y recién ahí retirar classifier/extractor/responder/routine-detector regex.
 
 ---
 

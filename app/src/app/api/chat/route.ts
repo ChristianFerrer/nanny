@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { processChatPipelineStream } from '@/lib/chat/pipeline';
 import type { ChatInput } from '@/lib/chat/processChat';
 import { runDecisionAgent } from '@/lib/agent/decision-agent';
+import { runListener } from '@/lib/chat/listener';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import type { ChatResponse } from '@/lib/chat/processChat';
 
@@ -26,11 +27,13 @@ export const maxDuration = 60;
  *  - Recibe `response` → apaga los puntitos y, si `should_respond=true`,
  *    persiste el mensaje de Nanny.
  *
- * AGENT-REWRITE Sprint 1 — feature flag USE_NEW_PIPELINE_FAMILY_IDS:
- * Si la familia está en la lista, en lugar del pipeline reactivo viejo se
- * invoca el decision agent event-triggered. El decision agent decide solo
- * si responder; NO captura datos estructurados (eso es Sprint 3). El
- * formato SSE se mantiene para no romper el cliente.
+ * AGENT-REWRITE Sprints 1+3 — feature flag USE_NEW_PIPELINE_FAMILY_IDS:
+ * Si la familia está en la lista:
+ *   1. Listener (Claude Haiku 4.5) captura silenciosamente eventos/tareas/
+ *      medicación/rutinas y los persiste en Supabase. Sin reply en chat.
+ *   2. Decision agent (Claude Sonnet 4.6) ve los items recién creados en su
+ *      contexto de agenda 48h y decide si responder en chat.
+ * El formato SSE se mantiene para no romper el cliente.
  */
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -121,13 +124,19 @@ function isNewPipelineFamily(familyId: string | undefined): boolean {
 }
 
 /**
- * Pipeline nuevo (Sprint 1): invoca al decision agent event-triggered.
+ * Pipeline nuevo (Sprints 1+3): listener silencioso + decision agent.
  *
  * El mensaje del padre ya está persistido por el cliente antes de llamar a
- * `/api/chat`. Acá solo decidimos si Nanny responde o no, vía decision agent.
- * NO capturamos datos estructurados (eventos, tareas, meds) — eso queda
- * para Sprint 3 (listening pipeline). Mientras tanto, USE_NEW_PIPELINE
- * solo debería estar prendido para la familia de testing.
+ * `/api/chat`. Orden:
+ *  1. Listener (Haiku) captura items estructurados y los persiste.
+ *  2. Decision agent (Sonnet) ve esos items en su contexto y decide si
+ *     responder. Si el listener capturó algo, el agent puede acusar
+ *     ("Anotado, pediatra viernes 10h."). Si nada, decide igual si tiene
+ *     algo que decir (memoria, learning queue, contexto).
+ *
+ * Si el listener falla, NO bloqueamos el decision agent — el agent sigue
+ * funcionando, solo que sin ver los items recién creados. La captura puede
+ * recuperarse en el próximo despertar scheduled o vía nightly-catchup.
  */
 async function runNewPipeline(args: {
   input: ChatInput;
@@ -146,10 +155,23 @@ async function runNewPipeline(args: {
   // tomamos el último mensaje del sender en los últimos 30s con el mismo content.
   const triggeringId = messageId || await findLatestMatchingMessageId(input);
 
-  // ── Emitimos will_respond=true después de evaluar.
-  // El decision agent decide TODO en una sola llamada (no hay clasificador
-  // separado), así que no podemos avisar antes — corremos y al final
-  // emitimos will_respond + response juntos.
+  // ── Paso 1: Listener silencioso. Best-effort: errores se loguean pero
+  // no bloquean al decision agent.
+  try {
+    await runListener({
+      familyId: input.familyId,
+      message: input.message,
+      senderRole: input.senderRole,
+      senderName: input.senderName,
+      messageId: triggeringId,
+    });
+  } catch (err) {
+    console.error('[chat sse] listener error (continuing to decision agent):', err);
+  }
+
+  // ── Paso 2: Decision agent. El decision agent decide TODO en una sola
+  // llamada (no hay clasificador separado), así que no podemos avisar antes
+  // — corremos y al final emitimos will_respond + response juntos.
   const result = await runDecisionAgent({
     familyId: input.familyId,
     trigger_type: 'message',

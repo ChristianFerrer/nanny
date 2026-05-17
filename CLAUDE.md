@@ -82,7 +82,13 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 
 **Visión de producto:** `NANNY-VISION.md` (decisiones vinculantes, no cambian sin discusión).
 
-**Sprint actual:** Sprint 2 — Memory Engine. Branch `claude/agent-rewrite-sprint-2`. Implementado: `lib/agent/memory-updater.ts` (orquestador del cron diario con prompt caching), `lib/agent/memory-system-prompt.ts` (instrucciones de extracción de patrones — conservador antes que ambicioso, decay 14d, soft-delete), `/api/cron/memory-updater` (filtra por USE_NEW_PIPELINE_FAMILY_IDS, agregado de costo y operaciones), captura inline en decision agent (`captured_preference` + `captured_learning_item` en el JSON de salida) con dedup por type+scope+topic. Pendiente: configurar cron-job.org `0 3 * * *`, observar 3-7 días de operaciones para validar criterio de salida (≥3 patrones detectados, ≥1 corrección capturada).
+**Sprint actual:** Sprint 3 — Listening Pipeline + Cutover. Branch `claude/agent-rewrite-sprint-3`.
+
+**Fase A (en desarrollo):** listener silencioso implementado en `lib/chat/listener.ts` — Claude Haiku 4.5 con 4 tools (`create_event`, `create_task`, `create_medication`, `create_routine`), prompt caching sobre system+tools, persistencia directa a Supabase via service role. Integrado en `/api/chat/route.ts` corriendo ANTES del decision agent en `runNewPipeline` (listener captura, agent ve los items recién creados en su contexto y decide si responder). Best-effort: si el listener falla, el agent sigue funcionando. Costo objetivo: Haiku $0.001/msg + Sonnet $0.005/msg ≈ $8/familia/mes a 100 msgs/día.
+
+**Fase B (pendiente):** observación 3-7 días en familia de testing, eval comparativa contra el viejo pipeline, % de mensajes con respuesta entre 15-25% (target visión). Si Fase A valida, retirar progresivamente classifier/extractor/responder/routine-detector regex (el viejo pipeline queda como fallback para familias fuera de `USE_NEW_PIPELINE_FAMILY_IDS`).
+
+**Sprint 2:** ✅ Mergeado. Memory Engine — `lib/agent/memory-updater.ts` (orquestador cron diario con prompt caching), `lib/agent/memory-system-prompt.ts`, `/api/cron/memory-updater`, captura inline en decision agent con dedup por type+scope+topic.
 
 **Sprint 1:** ✅ Mergeado (PR #4, commit `2a0a488`). Decision agent + cron nanny-wake + feature flag en /api/chat + migración decision_agent_log.
 
@@ -305,6 +311,15 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 ---
 
 ## 8. Pipeline de Chat AI (`app/src/lib/chat/`)
+
+**Sprint 3 (en curso):** convive el pipeline nuevo (listener + decision agent) con el viejo (classifier/extractor/responder). El switch lo hace `/api/chat/route.ts` mirando `USE_NEW_PIPELINE_FAMILY_IDS`. Cuando el cutover esté validado se retira el viejo.
+
+### Pipeline nuevo (Sprints 1+3 — Anthropic)
+
+1. `listener.ts` — **captura silenciosa.** Claude Haiku 4.5 con 4 tools (`create_event`, `create_task`, `create_medication`, `create_routine`). NO genera reply textual: solo extrae items estructurados y los persiste a Supabase via service role. Prompt caching sobre system+tools (estables) → cache breakpoint; mensaje + contexto familiar (volátil) → input fresh. Best-effort: si falla, no bloquea al decision agent. Costo ~$0.001/msg, latencia ~1s. Regla de oro: ante la duda, no captura.
+2. `lib/agent/decision-agent.ts` — Claude Sonnet 4.6 con prompt caching. Decide si Nanny tiene algo que decir (acuse, recordatorio, pregunta de learning queue). Ve los items que recién creó el listener en su contexto de agenda 48h. Costo ~$0.005/msg, latencia ~3s.
+
+### Pipeline viejo (OpenAI — legacy, sigue activo para familias fuera del flag)
 
 1. `processChat.ts` — orquestador público + `ChatInput` interface; el `SYSTEM_PROMPT` exportado es legacy (solo eval offline)
 2. `classifier.ts` — clasifica intención + flags del mensaje (incluye `silent_action`)
