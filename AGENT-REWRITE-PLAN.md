@@ -38,6 +38,7 @@
 | 4 | Red de apoyo + WhatsApp | 3 (4a, 4b, 4c) | 1-2 semanas | Alto (Meta) | `claude/agent-rewrite-sprint-4a/4b/4c` |
 | 5 | Pricing + Stripe | 1 | 3-4 días | Bajo | `claude/agent-rewrite-sprint-5` |
 | 6 | Polish + Launch | 1 | 3-4 días | Bajo | `claude/agent-rewrite-sprint-6` |
+| 7 | Aprendizaje colectivo (post-launch) | 2-3 | 1-2 semanas | Alto | `claude/agent-rewrite-sprint-7` |
 
 Cada sprint:
 - Nace de la rama de producción actual (`claude/continue-previous-session-OleqU`)
@@ -256,6 +257,50 @@ Cada sprint:
 
 ---
 
+## 8b. Sprint 7 — Aprendizaje colectivo (post-launch)
+
+**Objetivo:** que Nanny aprenda no solo de cada familia individualmente sino del agregado anonimizado de TODAS las familias. Que las correcciones de un padre puedan beneficiar a otras familias cuando hay suficiente consenso estadístico.
+
+**Por qué post-launch y no antes:**
+- Con <50 familias activas, agregar señales sesga horriblemente — una familia atípica contamina el global.
+- El riesgo es asimétrico: una regla global mala afecta a TODOS al mismo tiempo. Necesita infra de rollback + A/B testing entre cohortes que no tiene sentido construir antes de tener volumen.
+- El payoff llega cuando ya hay producto vendible (post Sprint 6).
+
+**Capas posibles, de menor a mayor riesgo:**
+
+**Capa A — Agregación de correcciones con threshold de voting**
+- Hoy `correction-rules.ts` destila correcciones por familia hacia `prompt_rules_state` (que ya es singleton global — basta UNA familia para mover la regla).
+- Agregar mecanismo: una regla solo se promueve a global cuando N familias la corrigieron en la misma dirección.
+- Implementación: nueva tabla `pending_global_rules` con votes acumulados; cron diario que promueve al pasar threshold.
+- Riesgo: medio. Reversible. No toca el pipeline core.
+
+**Capa B — Patrones agregados anónimos**
+- Job nightly mira `family_patterns` y `family_preferences` de todas las familias.
+- Detecta patrones recurrentes (ej: "60% de familias quieren aviso 30 min antes, no 15") y los promueve a defaults globales.
+- Implementación: vista materializada `aggregate_patterns` + job de promoción.
+- Riesgo: medio-alto. Requiere garantías de anonimización (PII scrubbing en el agregado).
+
+**Capa C — Auto-tuning del prompt vía eval continuo con datos reales**
+- Extender el autopilot existente para que:
+  - Use conversaciones reales (anonimizadas) como casos de eval, no solo las 10 sintéticas.
+  - Aprenda qué ajustes mejoran score sin regresiones.
+  - Aplique automáticamente los que pasan un threshold de mejora.
+- Implementación: pipeline de anonimización + extender `autopilot-worker.ts` + gates de seguridad estrictos (rollback automático si eval baja).
+- Riesgo: alto. Necesita infra robusta de monitoreo y rollback.
+
+**Pre-requisitos antes de arrancar Sprint 7:**
+1. ≥50 familias activas con uso real (>2 semanas)
+2. Eval ≥80% sostenida sobre los 7 escenarios actuales
+3. Plan legal claro: consentimiento explícito en TOS sobre uso agregado anonimizado para mejorar el servicio
+4. Infra de A/B testing por cohortes
+
+**Criterio de salida:**
+- Capa A entregada y validada con datos reales (al menos 1 regla promovida)
+- Métricas cuantitativas: eval score sostenido o mejorado tras promoción
+- Decisión de seguir o no con Capa B/C según resultado
+
+---
+
 ## 9. Tracking
 
 | Sprint | Status | Branch | Commit clave | PR | Notas |
@@ -269,6 +314,7 @@ Cada sprint:
 | 4c — Decision agent + WhatsApp | ⏳ | — | — | — | — |
 | 5 — Pricing + Stripe | ⏳ | — | — | — | — |
 | 6 — Polish + Launch | ⏳ | — | — | — | — |
+| 7 — Aprendizaje colectivo | ⏳ Post-launch | — | — | — | Pre-req: ≥50 familias activas + eval ≥80%. Capa A (voting de correcciones) → B (patrones agregados) → C (auto-tuning con datos reales) |
 
 ### Bitácora de sesiones
 
