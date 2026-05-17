@@ -11,7 +11,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:eval": "tsx src/lib/eval/run-eval.ts",
     "test:eval:save": "tsx src/lib/eval/run-eval.ts --save",
-    "test:eval:diagnose": "tsx src/lib/eval/run-eval.ts --diagnose --save"
+    "test:eval:diagnose": "tsx src/lib/eval/run-eval.ts --diagnose --save",
+    "test:agent-eval": "tsx src/lib/agent-eval/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
