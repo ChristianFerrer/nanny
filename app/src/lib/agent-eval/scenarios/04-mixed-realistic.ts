@@ -52,10 +52,10 @@ export const scenario: Scenario = {
     {
       sender_name: 'Delia',
       text: 'ah y dile a Christian que yo no puedo ir',
-      expected_intervene: false,
+      expected_intervene: true,
       expected_capture: { type: 'none' },
       expected_resolves_topic: null,
-      notes: 'Mensaje dirigido al OTRO padre, no a Nanny → silencio',
+      notes: 'Instrucción dirigida a Nanny ("dile a Christian") → acuse o comunicación delegada',
     },
     {
       sender_name: 'Christian',
