@@ -3,20 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Fraunces, Archivo } from 'next/font/google';
 import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Settings, Repeat } from 'lucide-react';
 import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
 import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
-
-// Editorial type pairing — scoped to esta pantalla (no toca el Inter global).
-const display = Fraunces({ subsets: ['latin'], style: ['normal', 'italic'], variable: '--ed-display', display: 'swap' });
-const grotesque = Archivo({ subsets: ['latin'], variable: '--ed-grotesque', display: 'swap' });
-
-const TYPE_LABEL: Record<string, string> = {
-  doctor: 'Médico', school: 'Escuela', birthday: 'Cumpleaños',
-  activity: 'Actividad', travel: 'Viaje', other: 'Evento',
-};
 
 export default function AgendaPage() {
   const router = useRouter();
@@ -94,152 +84,151 @@ export default function AgendaPage() {
 
   const monthYear = startOfWeek.toLocaleDateString('es', { month: 'long', year: 'numeric' });
 
-  const rootClass = `agenda-ed ${display.variable} ${grotesque.variable}`;
+  // ¿El día tiene algo? (para el punto bajo el número, estilo iOS Calendar)
+  const dayHasItems = (day: Date) => {
+    const ds = day.toDateString();
+    if (events.some(e => new Date(e.date_start).toDateString() === ds)) return true;
+    if (tasks.some(t => t.due_date && new Date(t.due_date).toDateString() === ds)) return true;
+    const dow = day.getDay();
+    return routines.some(r => r.active && r.days_of_week.includes(dow));
+  };
 
   if (loading) {
     return (
-      <div className={`${rootClass} min-h-dvh`}>
-        <EditorialStyle />
-        <div className="ed-masthead">
-          <div className="ed-rule-thick" />
-          <div className="ed-masthead-row">
-            <span className="ed-skel ed-skel-title" />
-            <span className="ed-skel ed-skel-dot" />
+      <div className="min-h-dvh bg-white">
+        <div className="px-4 pt-header pb-4 border-b border-[var(--separator)]">
+          <div className="flex items-center justify-between mb-4">
+            <div className="skeleton h-8 w-28 rounded-lg" />
+            <div className="skeleton size-9 rounded-full" />
           </div>
-          <div className="ed-rule" />
-          <div className="ed-weekstrip">
+          <div className="flex justify-between gap-1">
             {Array.from({ length: 7 }).map((_, i) => (
-              <span key={i} className="ed-skel ed-skel-day" />
+              <div key={i} className="skeleton h-14 w-10 rounded-full" />
             ))}
           </div>
-          <div className="ed-rule" />
         </div>
-        <div className="ed-body">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <span key={i} className="ed-skel ed-skel-entry" />
-          ))}
+        <div className="p-4 space-y-4">
+          <div className="skeleton h-5 w-24 rounded" />
+          <div className="skeleton h-12 w-full rounded-xl" />
+          <div className="skeleton h-12 w-full rounded-xl" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`${rootClass} min-h-dvh page-enter`}>
-      <EditorialStyle />
-
-      {/* Masthead — periódico: regla gruesa, título serif, dateline */}
-      <header className="ed-masthead">
-        <div className="ed-rule-thick" />
-        <div className="ed-masthead-row">
-          <h1 className="ed-title">Agenda</h1>
-          <div className="ed-actions">
+    <div className="min-h-dvh bg-white page-enter">
+      {/* Header — iOS Calendar: mes prominente, semana navegable, strip de días */}
+      <header className="glass px-4 pt-header pb-2 sticky top-0 z-[var(--z-sticky)]">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Agenda</h1>
+          <div className="flex items-center gap-2">
             {weekOffset !== 0 && (
               <button
                 onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
                 aria-label="Ir a hoy"
-                className="ed-btn-today focus-ring"
+                className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
               >
                 Hoy
               </button>
             )}
-            <Link href="/perfil" aria-label="Configuración" className="ed-icon-btn focus-ring">
-              <Settings size={20} />
+            <Link
+              href="/perfil"
+              aria-label="Configuración"
+              className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            >
+              <Settings size={24} />
             </Link>
           </div>
         </div>
 
-        <div className="ed-dateline">
-          <button onClick={() => setWeekOffset(w => w - 1)} aria-label="Semana anterior" className="ed-icon-btn focus-ring">
-            <ChevronLeft size={18} />
+        {/* Navegación de mes/semana */}
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setWeekOffset(w => w - 1)}
+            aria-label="Semana anterior"
+            className="size-9 rounded-full flex items-center justify-center text-[var(--nanny-purple)] hover:bg-[var(--gray-100)] focus-ring"
+          >
+            <ChevronLeft size={22} />
           </button>
-          <div className="ed-dateline-center">
-            <p className="ed-monthyear">{monthYear}</p>
+          <div className="text-center">
+            <p className="text-headline text-[var(--text-primary)] capitalize font-semibold tabular-nums">{monthYear}</p>
             {weekOffset !== 0 ? (
-              <p className="ed-dateline-sub tabular-nums">
+              <p className="text-caption text-[var(--text-tertiary)] tabular-nums">
                 Hoy · {today.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}
               </p>
             ) : (
               <button
                 onClick={() => setSelectedDayIdx(prev => prev === null ? todayInitialIdx : null)}
-                className="ed-toggle"
+                className="text-caption text-[var(--nanny-purple)] font-medium"
               >
                 {selectedDayIdx === null ? 'Vista de día' : 'Toda la semana'}
               </button>
             )}
           </div>
-          <button onClick={() => setWeekOffset(w => w + 1)} aria-label="Semana siguiente" className="ed-icon-btn focus-ring">
-            <ChevronRight size={18} />
+          <button
+            onClick={() => setWeekOffset(w => w + 1)}
+            aria-label="Semana siguiente"
+            className="size-9 rounded-full flex items-center justify-center text-[var(--nanny-purple)] hover:bg-[var(--gray-100)] focus-ring"
+          >
+            <ChevronRight size={22} />
           </button>
         </div>
 
-        <div className="ed-rule" />
-
-        {/* Week strip — columnas editoriales: día abreviado + numeral grande */}
-        <div role="radiogroup" aria-label="Día de la semana" className="ed-weekstrip">
+        {/* Week strip — iOS Calendar: letra del día + número, seleccionado = círculo lleno */}
+        <div role="radiogroup" aria-label="Día de la semana" className="flex justify-between">
           {days.map((day, i) => {
             const isToday = day.toDateString() === today.toDateString();
             const isSelected = selectedDayIdx === i;
             const dayEvents = events.filter(e => new Date(e.date_start).toDateString() === day.toDateString());
             const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === day.toDateString());
-            const dayLabel = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'][i];
-
-            const dayMeds = medications.filter(m => {
-              if (m.status !== 'active') return false;
-              const start = new Date(m.start_date);
-              const end = m.end_date ? new Date(m.end_date) : new Date(8.64e15);
-              const dMid = new Date(day); dMid.setHours(0, 0, 0, 0);
-              return dMid >= start && dMid <= end;
-            });
-            const hourBuckets = Array.from({ length: 24 }, (_, h) => {
-              const hasEvent = dayEvents.some(e => new Date(e.date_start).getHours() === h);
-              if (hasEvent) return 'event';
-              const hasMed = dayMeds.some(m => (m.schedule_times || []).some(t => parseInt(t.split(':')[0], 10) === h));
-              if (hasMed) return 'med';
-              const hasTask = dayTasks.some(t => t.due_date && new Date(t.due_date).getHours() === h);
-              if (hasTask) return 'task';
-              return null;
-            });
-            const segments = Array.from({ length: 6 }, (_, s): 'event' | 'med' | 'task' | null => {
-              const slice = hourBuckets.slice(s * 4, s * 4 + 4);
-              if (slice.includes('event')) return 'event';
-              if (slice.includes('med')) return 'med';
-              if (slice.includes('task')) return 'task';
-              return null;
-            });
+            const dayMeds = medications.filter(m => m.status === 'active');
+            const dayLabel = ['L', 'M', 'M', 'J', 'V', 'S', 'D'][i];
+            const hasItems = dayHasItems(day);
 
             return (
               <button
                 key={i}
                 role="radio"
                 aria-checked={isSelected}
-                aria-label={`${dayLabel} ${day.getDate()}, ${dayEvents.length} eventos, ${dayTasks.length} tareas, ${dayMeds.length} tratamientos`}
+                aria-label={`${['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][i]} ${day.getDate()}, ${dayEvents.length} eventos, ${dayTasks.length} tareas, ${dayMeds.length} tratamientos`}
                 onClick={() => setSelectedDayIdx(i)}
-                className={`ed-day focus-ring${isSelected ? ' is-selected' : ''}${isToday ? ' is-today' : ''}`}
+                className="flex-1 flex flex-col items-center gap-1 py-1 focus-ring rounded-xl"
               >
-                <span className="ed-day-label">{dayLabel}</span>
-                <span className="ed-day-num tabular-nums">{day.getDate()}</span>
-                <span className="ed-day-ticks" aria-hidden="true">
-                  {segments.map((kind, idx) => (
-                    <span key={idx} className={`ed-tick${kind ? ` ed-tick-${kind}` : ''}`} />
-                  ))}
+                <span className={`text-caption-2 font-medium ${isSelected ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-tertiary)]'}`}>
+                  {dayLabel}
                 </span>
-                {dayTasks.length > 0 && (
-                  <span className="ed-day-tasks tabular-nums">{dayTasks.length}</span>
-                )}
+                <span
+                  className={`size-9 rounded-full flex items-center justify-center text-callout font-semibold tabular-nums transition-colors ${
+                    isSelected
+                      ? 'bg-[var(--nanny-purple)] text-white'
+                      : isToday
+                        ? 'text-[var(--nanny-purple)]'
+                        : 'text-[var(--text-primary)]'
+                  }`}
+                >
+                  {day.getDate()}
+                </span>
+                <span
+                  className={`size-1 rounded-full ${
+                    hasItems
+                      ? isSelected ? 'bg-[var(--nanny-purple)]' : 'bg-[var(--nanny-purple)]'
+                      : 'bg-transparent'
+                  }`}
+                  aria-hidden="true"
+                />
               </button>
             );
           })}
         </div>
-
-        <div className="ed-rule" />
       </header>
 
-      {/* Day-by-day — itinerario editorial */}
-      <div className="ed-body">
+      {/* Lista tipo agenda — un bloque por día */}
+      <div className="px-4 py-4 space-y-5 pb-24">
         {days
           .map((day, i) => ({ day, i }))
           .filter(({ i }) => selectedDayIdx === null || selectedDayIdx === i)
-          .map(({ day, i }, renderIdx) => {
+          .map(({ day, i }) => {
           const dayEvents = events.filter(e => {
             const ed = new Date(e.date_start);
             return ed.toDateString() === day.toDateString();
@@ -269,84 +258,114 @@ export default function AgendaPage() {
           else label = day.toLocaleDateString('es', { weekday: 'long' });
 
           return (
-            <section
-              key={i}
-              className={`ed-section${isPast && selectedDayIdx === null ? ' is-past' : ''}${isToday ? ' is-today' : ''}`}
-              style={{ animationDelay: `${renderIdx * 70}ms` }}
-            >
-              <div className="ed-section-head">
-                <span className="ed-section-num tabular-nums">{day.getDate()}</span>
-                <span className="ed-section-label">{label}</span>
-                <span className="ed-section-rule" />
+            <section key={i} className={isPast && selectedDayIdx === null ? 'opacity-50' : ''}>
+              {/* Encabezado de día — estilo iOS Calendar */}
+              <div className="flex items-baseline gap-2 mb-2 px-1">
+                <h2 className={`text-headline font-semibold capitalize ${isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-primary)]'}`}>
+                  {label}
+                </h2>
+                <span className={`text-subhead font-medium tabular-nums ${isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-tertiary)]'}`}>
+                  {day.toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+                </span>
               </div>
 
               {hasNothing ? (
-                <Link href="/chat" className="ed-free focus-ring">
-                  <span className="ed-free-line">Día libre</span>
-                  <span className="ed-free-cta">Decile a Nanny qué agendar →</span>
+                <Link
+                  href="/chat"
+                  className="block rounded-2xl bg-[var(--gray-50)] px-4 py-3.5 hover:bg-[var(--gray-100)] transition-colors focus-ring"
+                >
+                  <p className="text-subhead text-[var(--text-tertiary)]">Día libre</p>
+                  <p className="text-caption text-[var(--nanny-purple)] font-medium mt-0.5 text-pretty">Decile a Nanny qué agendar →</p>
                 </Link>
               ) : (
-                <div className="ed-entries">
-                  {dayEvents.map(event => {
+                <div className="rounded-2xl bg-white border border-[var(--border-subtle)] overflow-hidden shadow-xs">
+                  {dayEvents.map((event, idx) => {
                     const child = getChild(event.child_id);
                     const time = new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+                    const isLast = idx === dayEvents.length - 1 && dayRoutines.length === 0 && dayTasks.length === 0;
                     return (
-                      <div key={event.id} className="ed-entry ed-entry-event" onClick={() => router.push(`/evento/${event.id}`)}>
-                        <span className="ed-entry-time tabular-nums">{time}</span>
-                        <span className="ed-entry-mark" aria-hidden="true" />
-                        <div className="ed-entry-body">
-                          <p className="ed-entry-title">{event.title}</p>
-                          <div className="ed-entry-meta">
-                            <span className="ed-tag">{TYPE_LABEL[event.event_type] || 'Evento'}</span>
-                            {event.location && (
-                              <span className="ed-loc"><MapPin size={11} /> {event.location}</span>
-                            )}
-                          </div>
-                        </div>
-                        {child && <span className="ed-who" style={{ background: child.color || undefined }}>{child.name.charAt(0)}</span>}
-                      </div>
+                      <button
+                        key={event.id}
+                        onClick={() => router.push(`/evento/${event.id}`)}
+                        className={`w-full flex items-stretch gap-3 px-3 py-2.5 text-left active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
+                      >
+                        <span className="w-12 shrink-0 text-right pt-0.5 text-footnote font-medium text-[var(--text-secondary)] tabular-nums">{time}</span>
+                        <span className="w-[3px] shrink-0 rounded-full bg-[var(--nanny-purple)]" />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{event.title}</span>
+                          {event.location && (
+                            <span className="flex items-center gap-1 mt-0.5 text-caption text-[var(--text-tertiary)] truncate">
+                              <MapPin size={11} /> {event.location}
+                            </span>
+                          )}
+                        </span>
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 self-center" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
+                      </button>
                     );
                   })}
 
-                  {dayRoutines.map(({ routine, exception }) => {
+                  {dayRoutines.map(({ routine, exception }, idx) => {
                     const child = getChild(routine.child_id);
                     const start = exception?.time_start_override || routine.time_start;
                     const end = exception?.time_end_override || routine.time_end;
-                    const timeLabel = start && end ? `${start.slice(0, 5)}–${end.slice(0, 5)}` : start ? start.slice(0, 5) : '';
+                    const timeLabel = start ? start.slice(0, 5) : '';
+                    const isLast = idx === dayRoutines.length - 1 && dayTasks.length === 0;
                     return (
-                      <div key={routine.id} className="ed-entry ed-entry-routine" onClick={() => child && router.push(`/hijo/${child.id}`)}>
-                        <span className="ed-entry-time tabular-nums">{timeLabel || '—'}</span>
-                        <span className="ed-entry-mark" aria-hidden="true"><Repeat size={11} /></span>
-                        <div className="ed-entry-body">
-                          <p className="ed-entry-title is-routine">{routine.name}</p>
-                          <div className="ed-entry-meta">
-                            <span className="ed-tag is-routine">Rutina</span>
-                          </div>
-                        </div>
-                        {child && <span className="ed-who" style={{ background: child.color || undefined }}>{child.name.charAt(0)}</span>}
-                      </div>
+                      <button
+                        key={routine.id}
+                        onClick={() => child && router.push(`/hijo/${child.id}`)}
+                        className={`w-full flex items-stretch gap-3 px-3 py-2.5 text-left active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
+                      >
+                        <span className="w-12 shrink-0 text-right pt-0.5 text-footnote font-medium text-[var(--text-tertiary)] tabular-nums">{timeLabel || '—'}</span>
+                        <span className="w-5 shrink-0 flex justify-center pt-0.5">
+                          <Repeat size={14} className="text-[var(--nanny-purple)]" />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-callout font-medium text-[var(--text-secondary)] leading-snug truncate">{routine.name}</span>
+                          <span className="text-caption text-[var(--text-tertiary)]">Rutina{end ? ` · hasta ${end.slice(0, 5)}` : ''}</span>
+                        </span>
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 self-center" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
+                      </button>
                     );
                   })}
 
-                  {dayTasks.map(task => {
+                  {dayTasks.map((task, idx) => {
                     const child = getChild(task.child_id);
+                    const isLast = idx === dayTasks.length - 1;
                     return (
-                      <div key={task.id} className="ed-entry ed-entry-task" onClick={() => router.push(`/tarea/${task.id}`)}>
+                      <div
+                        key={task.id}
+                        onClick={() => router.push(`/tarea/${task.id}`)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
+                      >
                         <button
                           onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
                           aria-label="Completar tarea"
-                          className="ed-check focus-ring"
+                          className="shrink-0 text-[var(--text-quaternary)] hover:text-[var(--nanny-purple)] transition-colors focus-ring rounded-full"
                         >
-                          <Circle size={17} />
+                          <Circle size={20} />
                         </button>
-                        <div className="ed-entry-body">
-                          <p className="ed-entry-title">{task.title}</p>
-                          <div className="ed-entry-meta">
-                            <span className={`ed-tag is-pri-${task.priority}`}>{task.priority}</span>
-                            {task.assigned_to && <span className="ed-loc">asignado</span>}
-                          </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{task.title}</p>
+                          {task.priority !== 'normal' && (
+                            <span className={`text-caption font-medium ${task.priority === 'urgent' || task.priority === 'high' ? 'text-[var(--danger)]' : 'text-[var(--text-tertiary)]'}`}>
+                              {task.priority}
+                            </span>
+                          )}
                         </div>
-                        {child && <span className="ed-who" style={{ background: child.color || undefined }}>{child.name.charAt(0)}</span>}
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -357,218 +376,15 @@ export default function AgendaPage() {
         })}
       </div>
 
-      {/* FAB → chat. Editorial: bermellón con sombra dura. */}
-      <Link href="/chat" aria-label="Decirle a Nanny" className="ed-fab focus-ring" style={{ bottom: 'calc(var(--nav-h) + 12px)' }}>
-        <Plus size={24} />
+      {/* FAB → chat */}
+      <Link
+        href="/chat"
+        aria-label="Decirle a Nanny"
+        className="fixed right-4 z-[var(--z-raised)] size-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
+        style={{ bottom: 'calc(var(--nav-h) + 12px)' }}
+      >
+        <Plus size={24} className="text-white" />
       </Link>
     </div>
-  );
-}
-
-function EditorialStyle() {
-  return (
-    <style>{`
-      .agenda-ed {
-        --paper: #F4EEE3;
-        --ink: #1B1A16;
-        --ink-soft: #6F675A;
-        --ink-faint: rgba(27,26,22,0.14);
-        --accent: #D33A24;
-        --accent-deep: #A52A18;
-        background-color: var(--paper);
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-        color: var(--ink);
-        font-family: var(--ed-grotesque), system-ui, sans-serif;
-        font-feature-settings: 'ss01';
-        letter-spacing: -0.005em;
-      }
-      .agenda-ed .focus-ring:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-      .agenda-ed button { cursor: pointer; }
-
-      /* ── Masthead ── */
-      .agenda-ed .ed-masthead {
-        position: sticky; top: 0; z-index: var(--z-sticky);
-        background-color: var(--paper);
-        padding: max(env(safe-area-inset-top, 0px), 8px) 18px 0;
-      }
-      .agenda-ed .ed-rule-thick { height: 4px; background: var(--ink); }
-      .agenda-ed .ed-rule { height: 1px; background: var(--ink-faint); }
-      .agenda-ed .ed-masthead-row {
-        display: flex; align-items: flex-end; justify-content: space-between;
-        padding: 8px 0 10px;
-      }
-      .agenda-ed .ed-title {
-        font-family: var(--ed-display), Georgia, serif;
-        font-weight: 900; font-size: 40px; line-height: 0.92;
-        letter-spacing: -0.02em; font-optical-sizing: auto;
-      }
-      .agenda-ed .ed-actions { display: flex; align-items: center; gap: 8px; }
-      .agenda-ed .ed-btn-today {
-        height: 34px; padding: 0 14px; border: 1.5px solid var(--ink);
-        background: var(--accent); color: var(--paper);
-        font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
-        box-shadow: 2px 2px 0 var(--ink); transition: transform 120ms, box-shadow 120ms;
-      }
-      .agenda-ed .ed-btn-today:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--ink); }
-      .agenda-ed .ed-icon-btn {
-        width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-        color: var(--ink); border-radius: 50%; transition: background 120ms;
-      }
-      .agenda-ed .ed-icon-btn:hover { background: rgba(27,26,22,0.06); }
-
-      .agenda-ed .ed-dateline {
-        display: flex; align-items: center; justify-content: space-between; padding: 4px 0 10px;
-      }
-      .agenda-ed .ed-dateline-center { text-align: center; }
-      .agenda-ed .ed-monthyear {
-        font-family: var(--ed-display), Georgia, serif; font-style: italic; font-weight: 500;
-        font-size: 19px; line-height: 1; text-transform: capitalize; letter-spacing: 0;
-      }
-      .agenda-ed .ed-dateline-sub { font-size: 11px; color: var(--ink-soft); margin-top: 3px; text-transform: capitalize; }
-      .agenda-ed .ed-toggle {
-        font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
-        color: var(--accent-deep); margin-top: 4px; border-bottom: 1px solid var(--accent);
-        padding-bottom: 1px;
-      }
-
-      /* ── Week strip ── */
-      .agenda-ed .ed-weekstrip { display: flex; gap: 0; padding: 8px 0; }
-      .agenda-ed .ed-day {
-        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-        padding: 6px 2px 7px; position: relative; color: var(--ink-soft);
-        border-radius: 3px;
-      }
-      .agenda-ed .ed-day-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
-      .agenda-ed .ed-day-num {
-        font-family: var(--ed-display), Georgia, serif; font-weight: 600; font-size: 22px;
-        line-height: 1; color: var(--ink); font-optical-sizing: auto;
-      }
-      .agenda-ed .ed-day.is-today .ed-day-num { color: var(--accent-deep); }
-      .agenda-ed .ed-day.is-today::after {
-        content: ''; position: absolute; bottom: 2px; width: 16px; height: 2px; background: var(--accent);
-      }
-      .agenda-ed .ed-day.is-selected {
-        background: var(--ink); color: var(--paper);
-      }
-      .agenda-ed .ed-day.is-selected .ed-day-num,
-      .agenda-ed .ed-day.is-selected .ed-day-label { color: var(--paper); }
-      .agenda-ed .ed-day.is-selected.is-today::after { background: var(--accent); }
-      .agenda-ed .ed-day-ticks { display: flex; gap: 1.5px; width: 100%; padding: 0 3px; margin-top: 1px; }
-      .agenda-ed .ed-tick { flex: 1; height: 3px; background: var(--ink-faint); }
-      .agenda-ed .ed-tick-event { background: var(--accent); }
-      .agenda-ed .ed-tick-med { background: var(--ink); }
-      .agenda-ed .ed-tick-task { background: var(--ink-soft); }
-      .agenda-ed .ed-day.is-selected .ed-tick { background: rgba(244,238,227,0.3); }
-      .agenda-ed .ed-day.is-selected .ed-tick-event,
-      .agenda-ed .ed-day.is-selected .ed-tick-med,
-      .agenda-ed .ed-day.is-selected .ed-tick-task { background: var(--paper); }
-      .agenda-ed .ed-day-tasks {
-        font-size: 9px; font-weight: 800; color: var(--accent-deep); line-height: 1;
-        position: absolute; top: 4px; right: 4px;
-      }
-      .agenda-ed .ed-day.is-selected .ed-day-tasks { color: var(--paper); }
-
-      /* ── Body / sections ── */
-      .agenda-ed .ed-body { padding: 14px 18px 96px; }
-      .agenda-ed .ed-section { animation: edRise 520ms cubic-bezier(0.2,0.7,0.2,1) both; margin-bottom: 26px; }
-      .agenda-ed .ed-section.is-past { opacity: 0.45; }
-      @keyframes edRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-
-      .agenda-ed .ed-section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-      .agenda-ed .ed-section-num {
-        font-family: var(--ed-display), Georgia, serif; font-weight: 900; font-size: 34px;
-        line-height: 0.8; letter-spacing: -0.03em; font-optical-sizing: auto;
-      }
-      .agenda-ed .ed-section.is-today .ed-section-num { color: var(--accent); }
-      .agenda-ed .ed-section-label {
-        font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
-        color: var(--ink-soft); white-space: nowrap;
-      }
-      .agenda-ed .ed-section.is-today .ed-section-label { color: var(--accent-deep); }
-      .agenda-ed .ed-section-rule { flex: 1; height: 1px; background: var(--ink); align-self: center; }
-
-      /* ── Entries (itinerary) ── */
-      .agenda-ed .ed-entries { display: flex; flex-direction: column; }
-      .agenda-ed .ed-entry {
-        display: flex; align-items: flex-start; gap: 11px; padding: 12px 2px;
-        border-bottom: 1px solid var(--ink-faint); cursor: pointer;
-        transition: background 120ms, transform 120ms;
-      }
-      .agenda-ed .ed-entry:active { transform: translateX(2px); }
-      .agenda-ed .ed-entry:last-child { border-bottom: none; }
-      .agenda-ed .ed-entry-time {
-        font-family: var(--ed-display), Georgia, serif; font-weight: 600; font-size: 15px;
-        color: var(--accent-deep); min-width: 48px; padding-top: 1px; line-height: 1.2;
-        font-variant-numeric: tabular-nums; letter-spacing: 0;
-      }
-      .agenda-ed .ed-entry-routine .ed-entry-time { color: var(--ink-soft); font-style: italic; }
-      .agenda-ed .ed-entry-mark {
-        width: 16px; display: flex; justify-content: center; padding-top: 4px; color: var(--accent);
-        flex-shrink: 0;
-      }
-      .agenda-ed .ed-entry-event .ed-entry-mark::before {
-        content: ''; width: 7px; height: 7px; background: var(--accent); border-radius: 50%;
-      }
-      .agenda-ed .ed-entry-routine .ed-entry-mark { color: var(--ink-soft); }
-      .agenda-ed .ed-entry-body { flex: 1; min-width: 0; }
-      .agenda-ed .ed-entry-title {
-        font-size: 16px; font-weight: 600; line-height: 1.25; color: var(--ink);
-        letter-spacing: -0.01em;
-      }
-      .agenda-ed .ed-entry-title.is-routine { color: var(--ink-soft); font-weight: 500; }
-      .agenda-ed .ed-entry-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
-      .agenda-ed .ed-tag {
-        font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-        color: var(--ink-soft);
-      }
-      .agenda-ed .ed-tag.is-routine { color: var(--accent-deep); }
-      .agenda-ed .ed-tag.is-pri-high, .agenda-ed .ed-tag.is-pri-urgent { color: var(--accent); }
-      .agenda-ed .ed-loc {
-        display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--ink-soft);
-        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .agenda-ed .ed-check {
-        margin-top: 1px; color: var(--ink-soft); width: 24px; height: 24px; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center; border-radius: 50%;
-      }
-      .agenda-ed .ed-check:hover { color: var(--accent); }
-      .agenda-ed .ed-who {
-        width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 11px; font-weight: 800; color: var(--paper); background: var(--ink);
-        border: 1.5px solid var(--ink); margin-top: 1px;
-      }
-
-      /* ── Empty ── */
-      .agenda-ed .ed-free {
-        display: flex; flex-direction: column; gap: 4px; padding: 14px 2px;
-        border-bottom: 1px solid var(--ink-faint);
-      }
-      .agenda-ed .ed-free-line {
-        font-family: var(--ed-display), Georgia, serif; font-style: italic; font-size: 17px; color: var(--ink-soft);
-      }
-      .agenda-ed .ed-free-cta { font-size: 12px; font-weight: 700; color: var(--accent-deep); letter-spacing: 0.02em; }
-
-      /* ── FAB ── */
-      .agenda-ed .ed-fab {
-        position: fixed; right: 18px; z-index: var(--z-raised);
-        width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;
-        background: var(--accent); color: var(--paper);
-        border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
-        transition: transform 120ms, box-shadow 120ms;
-      }
-      .agenda-ed .ed-fab:active { transform: translate(4px,4px); box-shadow: 0 0 0 var(--ink); }
-
-      /* ── Skeleton ── */
-      .agenda-ed .ed-skel { display: block; background: var(--ink-faint); }
-      .agenda-ed .ed-skel-title { height: 36px; width: 150px; }
-      .agenda-ed .ed-skel-dot { height: 34px; width: 34px; border-radius: 50%; }
-      .agenda-ed .ed-skel-day { height: 52px; flex: 1; }
-      .agenda-ed .ed-skel-entry { height: 56px; width: 100%; margin-bottom: 12px; }
-
-      @media (prefers-reduced-motion: reduce) {
-        .agenda-ed .ed-section { animation: none; }
-      }
-    `}</style>
   );
 }
