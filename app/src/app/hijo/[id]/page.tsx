@@ -159,7 +159,7 @@ export default function HijoDetailPage() {
       </header>
 
       {/* Segmented control tabs (Apple-style) */}
-      <div className="sticky top-0 z-10 glass px-4 py-2.5">
+      <div className="sticky top-0 z-[var(--z-sticky)] glass px-4 py-2.5">
         <div
           role="tablist"
           aria-label="Secciones del perfil"

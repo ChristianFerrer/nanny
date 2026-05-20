@@ -553,6 +553,7 @@ Helpers disponibles:
 - Dark mode: auto vía `prefers-color-scheme`
 - Componentes UI reutilizables: `app/src/components/ui/` (Button, Input, Sheet, Card, ListRow, Skeleton). El `Sheet` solo se usa para confirms destructivos, no para edición
 - Animaciones: `.page-enter` al entrar a cada pantalla; respeta `prefers-reduced-motion`
+- Escala de z-index: una sola fuente de verdad en `globals.css` (`--z-sticky:10` headers/composer, `--z-raised:30` FAB, `--z-nav:50` bottom nav, `--z-toast:55`, `--z-overlay:60` backdrop, `--z-modal:61` sheet, `--z-dialog:62` confirm centrado). Usar siempre el token (`z-[var(--z-…)]` en Tailwind o `var(--z-…)` en CSS), nunca valores numéricos sueltos. Excepción: stacking contexts locales (ej. avatares solapados del chat) pueden usar z chico relativo a sus hermanos. `landing` queda fuera (override de layout mobile)
 - Edad de hijos: formato humano ("2 años y 11 meses" / "10 meses" / "1 año y 1 mes") via `app/src/lib/age.ts` `formatAge()` — usado en UI y en el contexto que recibe Nanny
 
 ### Documentación

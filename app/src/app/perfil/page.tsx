@@ -286,7 +286,7 @@ export default function PerfilPage() {
         <>
           <div className="sheet-backdrop" onClick={() => setConfirmLogout(false)} />
           <div
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[62] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[var(--z-dialog)] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="logout-title"
@@ -325,7 +325,7 @@ export default function PerfilPage() {
         <>
           <div className="sheet-backdrop" onClick={() => !resetting && setConfirmReset(false)} />
           <div
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[62] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[var(--z-dialog)] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="reset-title"

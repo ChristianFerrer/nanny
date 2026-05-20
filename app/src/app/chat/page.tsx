@@ -1534,7 +1534,7 @@ export default function ChatPage() {
       }}
     >
       {/* Header — glass Apple-style */}
-      <div className="glass px-4 py-3 shrink-0 z-10">
+      <div className="glass px-4 py-3 shrink-0 z-[var(--z-sticky)]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             {/* Participant avatars stacked */}
@@ -1637,7 +1637,7 @@ export default function ChatPage() {
       {/* Toast de confirmación */}
       {toast && (
         <div
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-slide-up"
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-[var(--z-toast)] animate-slide-up"
           style={{ maxWidth: '400px', width: '90%' }}
         >
           <button

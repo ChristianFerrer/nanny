@@ -125,7 +125,7 @@ export default function AgendaPage() {
   return (
     <div className="min-h-dvh bg-white page-enter">
       {/* Header — sticky, glass, Apple-style */}
-      <header className="glass px-4 pt-header pb-3 sticky top-0 z-10">
+      <header className="glass px-4 pt-header pb-3 sticky top-0 z-[var(--z-sticky)]">
         {/* Title + (botón Hoy condicional) + settings gear */}
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-large-title text-[var(--text-primary)] text-balance">Agenda</h1>
@@ -448,7 +448,7 @@ export default function AgendaPage() {
       <Link
         href="/chat"
         aria-label="Decirle a Nanny"
-        className="fixed right-4 z-30 size-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
+        className="fixed right-4 z-[var(--z-raised)] size-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
         style={{ bottom: 'calc(var(--nav-h) + 12px)' }}
       >
         <Plus size={24} className="text-white" />

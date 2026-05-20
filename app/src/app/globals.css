@@ -85,6 +85,15 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
+  /* ─── Layers (z-index scale) — ascendente, una sola fuente de verdad ─── */
+  --z-sticky: 10;    /* headers sticky, composer del chat */
+  --z-raised: 30;    /* FAB / controles flotantes sobre el contenido */
+  --z-nav: 50;       /* bottom nav */
+  --z-toast: 55;     /* toasts / banners transitorios (sobre el nav) */
+  --z-overlay: 60;   /* backdrop de sheet / modal */
+  --z-modal: 61;     /* contenido de sheet / modal */
+  --z-dialog: 62;    /* dialog de confirmación centrado (sobre el sheet) */
+
   /* ─── Legacy aliases (mantener compat con código existente) ─── */
   --nanny-purple-light: #A78BFA;
   --nanny-purple-bg: var(--nanny-purple-soft);
@@ -457,7 +466,7 @@ textarea { resize: none; }
   border-top: 1px solid var(--separator);
   padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 8px);
   padding-top: 8px;
-  z-index: 50;
+  z-index: var(--z-nav);
   transition: transform var(--duration-base) var(--ease-out),
               opacity var(--duration-base) var(--ease-out);
 }
@@ -563,7 +572,7 @@ body[data-keyboard="open"] .bottom-nav {
   background: rgba(0, 0, 0, 0.40);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 60;
+  z-index: var(--z-overlay);
   animation: fadeIn var(--duration-base) var(--ease-out);
 }
 
@@ -577,7 +586,7 @@ body[data-keyboard="open"] .bottom-nav {
   max-height: 90dvh;
   background: var(--bg-elevated);
   border-radius: 24px 24px 0 0;
-  z-index: 61;
+  z-index: var(--z-modal);
   overflow: hidden;
   display: flex;
   flex-direction: column;
