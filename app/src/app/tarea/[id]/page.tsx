@@ -198,13 +198,13 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
           </button>
         ) : (
           <div className="rounded-xl p-3" style={{ background: 'var(--danger-soft)' }}>
-            <p className="text-footnote text-[var(--text-primary)] mb-2 inline-flex items-center gap-1.5">
+            <p role="alert" className="text-footnote text-[var(--text-primary)] mb-2 inline-flex items-center gap-1.5">
               <AlertTriangle size={14} className="text-[var(--danger)]" />
               {isParent ? `Se borrarán ${childCount} sub-actividades junto con el grupo. ¿Confirmás?` : '¿Eliminar esta tarea?'}
             </p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmDelete(false)} className="btn btn-secondary btn-sm flex-1">Cancelar</button>
-              <button onClick={handleDelete} className="btn btn-destructive btn-sm flex-1">Eliminar</button>
+              <button autoFocus onClick={handleDelete} className="btn btn-destructive btn-sm flex-1">Eliminar</button>
             </div>
           </div>
         )}

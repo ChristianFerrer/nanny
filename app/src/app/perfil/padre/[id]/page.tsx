@@ -39,6 +39,25 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Navegación con flechas para el radiogroup de rol (sin librerías).
+  const onRoleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const options: ('mama' | 'papa')[] = ['mama', 'papa'];
+    const idx = options.indexOf(role);
+    let next = idx;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      next = (idx + 1) % options.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      next = (idx - 1 + options.length) % options.length;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    const nextRole = options[next];
+    setRole(nextRole);
+    const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    buttons[next]?.focus();
+  };
+
   const handleSave = async () => {
     if (!parent) return;
     setSaving(true);
@@ -102,8 +121,16 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
       <div className="px-5 mt-4 space-y-4">
         <div>
           <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Rol</label>
-          <div className="flex gap-2">
+          <div
+            role="radiogroup"
+            aria-label="Rol del padre/madre"
+            className="flex gap-2"
+            onKeyDown={onRoleKeyDown}
+          >
             <button
+              role="radio"
+              aria-checked={role === 'mama'}
+              tabIndex={role === 'mama' ? 0 : -1}
               onClick={() => setRole('mama')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-subhead font-semibold transition-colors ${
                 role === 'mama' ? 'bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)]' : 'bg-[var(--gray-100)] text-[var(--text-secondary)]'
@@ -112,6 +139,9 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
               Mamá
             </button>
             <button
+              role="radio"
+              aria-checked={role === 'papa'}
+              tabIndex={role === 'papa' ? 0 : -1}
               onClick={() => setRole('papa')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-subhead font-semibold transition-colors ${
                 role === 'papa' ? 'bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)]' : 'bg-[var(--gray-100)] text-[var(--text-secondary)]'

@@ -96,6 +96,24 @@ export default function HijoDetailPage() {
     { id: 'rutinas', label: 'Rutinas' },
   ];
 
+  // Navegación con flechas para el tablist (sin librerías).
+  const onTabsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const idx = tabs.findIndex(t => t.id === activeTab);
+    if (idx === -1) return;
+    let next = idx;
+    if (e.key === 'ArrowRight') {
+      next = (idx + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      next = (idx - 1 + tabs.length) % tabs.length;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setActiveTab(tabs[next].id);
+    const tabButtons = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    tabButtons[next]?.focus();
+  };
+
   return (
     <div className="min-h-dvh bg-white page-enter">
       {/* Header limpio Apple-style */}
@@ -142,12 +160,18 @@ export default function HijoDetailPage() {
 
       {/* Segmented control tabs (Apple-style) */}
       <div className="sticky top-0 z-10 glass px-4 py-2.5">
-        <div role="tablist" className="bg-[var(--gray-100)] p-1 rounded-xl flex gap-0.5">
+        <div
+          role="tablist"
+          aria-label="Secciones del perfil"
+          className="bg-[var(--gray-100)] p-1 rounded-xl flex gap-0.5"
+          onKeyDown={onTabsKeyDown}
+        >
           {tabs.map(tab => (
             <button
               key={tab.id}
               role="tab"
               aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-2 rounded-lg text-subhead font-semibold transition-all ${
                 activeTab === tab.id

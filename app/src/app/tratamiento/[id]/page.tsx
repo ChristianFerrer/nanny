@@ -27,6 +27,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [savingIntake, setSavingIntake] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const loadData = useCallback(async () => {
     const [detail, allChildren] = await Promise.all([
@@ -260,9 +261,22 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
             </button>
           )}
           {medication.status !== 'cancelled' && (
-            <button onClick={() => handleStatusChange('cancelled')} className="btn btn-block" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>
-              Cancelar tratamiento
-            </button>
+            !confirmCancel ? (
+              <button onClick={() => setConfirmCancel(true)} className="btn btn-block" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                Cancelar tratamiento
+              </button>
+            ) : (
+              <div className="rounded-xl p-3" style={{ background: 'var(--danger-soft)' }}>
+                <p role="alert" className="text-footnote text-[var(--text-primary)] mb-2 inline-flex items-center gap-1.5">
+                  <AlertCircle size={14} className="text-[var(--danger)]" />
+                  ¿Cancelar este tratamiento? No se puede deshacer.
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmCancel(false)} className="btn btn-secondary btn-sm flex-1">Volver</button>
+                  <button autoFocus onClick={() => handleStatusChange('cancelled')} className="btn btn-destructive btn-sm flex-1">Sí, cancelar</button>
+                </div>
+              </div>
+            )
           )}
           {medication.status !== 'active' && (
             <button onClick={() => handleStatusChange('active')} className="btn btn-secondary btn-block">

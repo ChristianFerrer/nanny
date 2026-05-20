@@ -54,6 +54,24 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
   };
 
+  // Navegación con flechas para el radiogroup de tipo (sin librerías).
+  const onTypeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const idx = TYPE_OPTIONS.findIndex(o => o.value === type);
+    if (idx === -1) return;
+    let next = idx;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      next = (idx + 1) % TYPE_OPTIONS.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      next = (idx - 1 + TYPE_OPTIONS.length) % TYPE_OPTIONS.length;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setType(TYPE_OPTIONS[next].value);
+    const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    buttons[next]?.focus();
+  };
+
   const handleSave = async () => {
     if (!child) return;
     setSaving(true);
@@ -122,11 +140,19 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
 
         <div>
           <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Tipo</label>
-          <div className="flex gap-2 flex-wrap">
+          <div
+            role="radiogroup"
+            aria-label="Tipo de rutina"
+            className="flex gap-2 flex-wrap"
+            onKeyDown={onTypeKeyDown}
+          >
             {TYPE_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
+                role="radio"
+                aria-checked={type === opt.value}
+                tabIndex={type === opt.value ? 0 : -1}
                 onClick={() => setType(opt.value)}
                 className="px-3 py-1.5 rounded-full text-footnote font-medium transition-colors focus-ring"
                 style={{
@@ -142,13 +168,14 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
 
         <div>
           <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Días</label>
-          <div className="flex gap-2">
+          <div role="group" aria-label="Días" className="flex gap-2">
             {DAY_LABELS.map(d => {
               const active = days.includes(d.value);
               return (
                 <button
                   key={d.value}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => toggleDay(d.value)}
                   className="size-10 rounded-full text-subhead font-semibold focus-ring transition-colors"
                   style={{
