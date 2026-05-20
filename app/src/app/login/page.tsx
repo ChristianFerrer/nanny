@@ -191,7 +191,7 @@ function LoginContent() {
             className="size-[72px] rounded-[18px] overflow-hidden mb-5"
             style={{
               background: 'var(--nanny-purple)',
-              boxShadow: '0 8px 24px rgba(124, 58, 237, 0.24), 0 2px 6px rgba(124, 58, 237, 0.16)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.10)',
             }}
           >
             <Image src="/icon-192.png" alt="Nanny" width={72} height={72} priority className="size-full object-cover" />
@@ -357,7 +357,7 @@ function LoginContent() {
                 style={{ background: 'var(--danger-soft)' }}
               >
                 <AlertCircle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
-                <p className="text-footnote" style={{ color: '#C62828' }}>{error}</p>
+                <p className="text-footnote" style={{ color: 'var(--danger)' }}>{error}</p>
               </div>
             )}
 

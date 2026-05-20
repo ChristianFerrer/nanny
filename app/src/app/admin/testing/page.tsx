@@ -465,7 +465,7 @@ export default function TestingDashboard() {
                 <SafeLink
                   href={`/admin/testing/${autopilotJob.eval_run_id}`}
                   locked={autopilotRunning}
-                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300"
+                  className="block text-center text-xs text-purple-400 hover:text-purple-300"
                 >
                   Ver detalle completo →
                 </SafeLink>

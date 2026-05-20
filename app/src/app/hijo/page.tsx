@@ -145,8 +145,8 @@ export default function HijosPage() {
 function Stat({ icon, label, active, tone }: { icon: React.ReactNode; label: string; active: boolean; tone: 'purple' | 'warning' | 'success' | 'neutral' }) {
   const styles = {
     purple: active ? 'bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
-    warning: active ? 'bg-[var(--warning-soft)] text-[#B86600]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
-    success: active ? 'bg-[var(--success-soft)] text-[#1F8F3F]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
+    warning: active ? 'bg-[var(--warning-soft)] text-[var(--warning)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
+    success: active ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
     neutral: 'bg-[var(--gray-100)] text-[var(--text-secondary)]',
   };
   return (

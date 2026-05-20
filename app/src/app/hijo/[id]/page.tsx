@@ -209,7 +209,7 @@ function IdentidadTab({ child }: { child: Child }) {
       </Card>
 
       {child.personality_notes && (
-        <Card title="Personalidad" icon={<Sparkles size={16} className="text-amber-500" />}>
+        <Card title="Personalidad" icon={<Sparkles size={16} className="text-[var(--nanny-purple)]" />}>
           <p className="text-subhead text-[var(--text-primary)] text-pretty">{child.personality_notes}</p>
         </Card>
       )}
@@ -293,12 +293,12 @@ function SaludTab({ child, medications }: { child: Child; medications: Medicatio
 function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks: Task[]; childId: string }) {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
-    doctor: { icon: <Stethoscope size={14} className="text-red-500" />, bg: 'bg-red-50' },
-    school: { icon: <GraduationCap size={14} className="text-blue-500" />, bg: 'bg-blue-50' },
-    birthday: { icon: <Cake size={14} className="text-pink-500" />, bg: 'bg-pink-50' },
-    activity: { icon: <Trophy size={14} className="text-green-500" />, bg: 'bg-green-50' },
-    travel: { icon: <Plane size={14} className="text-purple-500" />, bg: 'bg-purple-50' },
-    other: { icon: <MapPin size={14} className="text-gray-500" />, bg: 'bg-gray-50' },
+    doctor: { icon: <Stethoscope size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    school: { icon: <GraduationCap size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    birthday: { icon: <Cake size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    activity: { icon: <Trophy size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    travel: { icon: <Plane size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    other: { icon: <MapPin size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
   };
 
   const eventsToShow = showAllEvents ? events : events.slice(0, 5);
@@ -349,7 +349,7 @@ function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks
         )}
       </Card>
 
-      <Card title={`Tareas pendientes (${tasks.length})`} icon={<CheckSquare size={16} className="text-amber-500" />}>
+      <Card title={`Tareas pendientes (${tasks.length})`} icon={<CheckSquare size={16} className="text-[var(--nanny-purple)]" />}>
         {tasks.length === 0 ? (
           <p className="text-footnote text-[var(--text-tertiary)]">Sin tareas pendientes</p>
         ) : (
@@ -397,10 +397,10 @@ function RutinasTab({ routines, childId }: { routines: Routine[]; childId: strin
   };
 
   const sections = [
-    { key: 'morning' as const, title: 'Mañana', icon: <Sunrise size={16} className="text-amber-500" />, items: grouped.morning },
-    { key: 'afternoon' as const, title: 'Tarde', icon: <Sun size={16} className="text-orange-500" />, items: grouped.afternoon },
-    { key: 'night' as const, title: 'Noche', icon: <Moon size={16} className="text-indigo-500" />, items: grouped.night },
-    { key: 'untimed' as const, title: 'Sin horario', icon: <Clock size={16} className="text-gray-500" />, items: grouped.untimed },
+    { key: 'morning' as const, title: 'Mañana', icon: <Sunrise size={16} className="text-[var(--nanny-purple)]" />, items: grouped.morning },
+    { key: 'afternoon' as const, title: 'Tarde', icon: <Sun size={16} className="text-[var(--nanny-purple)]" />, items: grouped.afternoon },
+    { key: 'night' as const, title: 'Noche', icon: <Moon size={16} className="text-[var(--nanny-purple)]" />, items: grouped.night },
+    { key: 'untimed' as const, title: 'Sin horario', icon: <Clock size={16} className="text-[var(--nanny-purple)]" />, items: grouped.untimed },
   ];
 
   const formatDays = (dow: number[]): string => {

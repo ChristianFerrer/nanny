@@ -32,7 +32,7 @@ export default function OnboardingPage() {
           className="size-[88px] rounded-[22px] overflow-hidden mb-6"
           style={{
             background: 'var(--nanny-purple)',
-            boxShadow: '0 12px 32px rgba(124, 58, 237, 0.28), 0 4px 8px rgba(124, 58, 237, 0.18)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.16), 0 4px 8px rgba(0, 0, 0, 0.10)',
           }}
         >
           <Image src="/icon-192.png" alt="Nanny" width={88} height={88} priority className="size-full object-cover" />

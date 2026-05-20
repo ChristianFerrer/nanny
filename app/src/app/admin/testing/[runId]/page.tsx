@@ -251,7 +251,7 @@ function ConversationCard({ result }: { result: ConversationResult }) {
             <>
               <button
                 onClick={() => setShowMessages(!showMessages)}
-                className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
               >
                 {showMessages ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 {showMessages ? 'Ocultar' : 'Ver'} conversación mensaje por mensaje
@@ -262,7 +262,7 @@ function ConversationCard({ result }: { result: ConversationResult }) {
                   {result.messageResults.map((mr) => (
                     <div key={mr.messageIndex} className="bg-gray-900 rounded-lg p-2.5 text-xs">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-cyan-400">{mr.senderName}</span>
+                        <span className="font-semibold text-purple-400">{mr.senderName}</span>
                         <span className="text-gray-600 tabular-nums">#{mr.messageIndex}</span>
                         <span className="text-gray-600 tabular-nums">{mr.responseTimeMs}ms</span>
                       </div>
@@ -485,7 +485,7 @@ function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolea
             {/* Toggle para ver detalle */}
             <button
               onClick={() => setShowDetail(!showDetail)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+              className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
             >
               {showDetail ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               {showDetail ? 'Ocultar detalle' : 'Ver detalle del diagnóstico'}
@@ -599,7 +599,7 @@ export default function RunDetailPage() {
     return (
       <div className="min-h-dvh bg-gray-900 text-white flex items-center justify-center flex-col gap-3">
         <p className="text-red-400">Evaluación no encontrada</p>
-        <Link href="/admin/testing" className="text-cyan-400 text-sm hover:text-cyan-300">
+        <Link href="/admin/testing" className="text-purple-400 text-sm hover:text-purple-300">
           ← Volver al dashboard
         </Link>
       </div>

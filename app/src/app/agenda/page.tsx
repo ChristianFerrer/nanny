@@ -83,17 +83,17 @@ export default function AgendaPage() {
   const getChild = (id: string | null) => children.find(c => c.id === id);
 
   const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
-    doctor: { icon: <Stethoscope size={14} className="text-red-500" />, bg: 'bg-red-50' },
-    school: { icon: <GraduationCap size={14} className="text-blue-500" />, bg: 'bg-blue-50' },
-    birthday: { icon: <Cake size={14} className="text-pink-500" />, bg: 'bg-pink-50' },
-    activity: { icon: <Trophy size={14} className="text-green-500" />, bg: 'bg-green-50' },
-    travel: { icon: <Plane size={14} className="text-purple-500" />, bg: 'bg-purple-50' },
-    other: { icon: <MapPinAlt size={14} className="text-gray-500" />, bg: 'bg-gray-50' },
+    doctor: { icon: <Stethoscope size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    school: { icon: <GraduationCap size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    birthday: { icon: <Cake size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    activity: { icon: <Trophy size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    travel: { icon: <Plane size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    other: { icon: <MapPinAlt size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
   };
 
   const typeColor: Record<string, string> = {
-    doctor: 'border-l-red-400', school: 'border-l-blue-400', birthday: 'border-l-pink-400',
-    activity: 'border-l-green-400', travel: 'border-l-purple-400', other: 'border-l-gray-400',
+    doctor: 'border-l-[var(--nanny-purple)]', school: 'border-l-[var(--nanny-purple)]', birthday: 'border-l-[var(--nanny-purple)]',
+    activity: 'border-l-[var(--nanny-purple)]', travel: 'border-l-[var(--nanny-purple)]', other: 'border-l-[var(--nanny-purple)]',
   };
 
   const monthYear = startOfWeek.toLocaleDateString('es', { month: 'long', year: 'numeric' });
@@ -340,7 +340,7 @@ export default function AgendaPage() {
                     return (
                       <div
                         key={event.id}
-                        className={`bg-white rounded-xl p-3 border-l-4 ${typeColor[event.event_type] || 'border-l-gray-400'} shadow-sm cursor-pointer active:scale-[0.98] transition-transform`}
+                        className={`bg-white rounded-xl p-3 border-l-4 ${typeColor[event.event_type] || 'border-l-[var(--nanny-purple)]'} shadow-sm cursor-pointer active:scale-[0.98] transition-transform`}
                         onClick={() => router.push(`/evento/${event.id}`)}
                       >
                         <div className="flex items-start gap-2">
