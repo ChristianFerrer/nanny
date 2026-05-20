@@ -33,7 +33,7 @@ export default function HijosPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-32 mb-2" />
           <div className="skeleton h-4 w-48" />
@@ -47,24 +47,24 @@ export default function HijosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white page-enter">
+    <div className="min-h-dvh bg-white page-enter">
       <header className="px-5 pt-header pb-4 flex items-end justify-between">
         <div>
-          <h1 className="text-large-title text-[var(--text-primary)]">Hijos</h1>
+          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Hijos</h1>
           <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Perfiles y memoria de cada hijo</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/perfil/hijo/nuevo"
             aria-label="Agregar hijo"
-            className="w-10 h-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
+            className="size-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
           >
             <Plus size={20} />
           </Link>
           <Link
             href="/perfil"
             aria-label="Configuración"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <Settings size={24} />
           </Link>
@@ -74,11 +74,11 @@ export default function HijosPage() {
       <div className="px-4 space-y-3 pb-24">
         {children.length === 0 ? (
           <div className="card-flat text-center py-12 px-6">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-4">
+            <div className="size-14 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-4">
               <Users size={26} className="text-[var(--nanny-purple)]" />
             </div>
             <p className="text-headline text-[var(--text-primary)]">Aún no hay hijos</p>
-            <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-5">Agrega el perfil de tu primer hijo para que Nanny pueda ayudarte mejor</p>
+            <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-5 text-pretty">Agrega el perfil de tu primer hijo para que Nanny pueda ayudarte mejor</p>
             <Link href="/perfil?addChild=1" className="btn btn-primary">
               <Plus size={16} /> Agregar hijo
             </Link>
@@ -99,23 +99,23 @@ export default function HijosPage() {
               <div className="flex items-center gap-4">
                 <div className="relative shrink-0">
                   <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center text-title-3 font-semibold text-white shadow-sm"
+                    className="size-16 rounded-full flex items-center justify-center text-title-3 font-semibold text-white shadow-sm"
                     style={{ background: child.color || 'var(--nanny-purple)' }}
                   >
                     {child.name.charAt(0).toUpperCase()}
                   </div>
                   {hasUrgent && (
                     <span
-                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--danger)] border-2 border-white"
+                      className="absolute -top-0.5 -right-0.5 size-3.5 rounded-full bg-[var(--danger)] border-2 border-white"
                       aria-label="Requiere atención"
                     />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <h2 className="text-headline text-[var(--text-primary)] truncate">{child.name}</h2>
+                    <h2 className="text-headline text-[var(--text-primary)] truncate text-balance">{child.name}</h2>
                     {age !== null && (
-                      <span className="text-footnote text-[var(--text-tertiary)]">{age}</span>
+                      <span className="text-footnote text-[var(--text-tertiary)] tabular-nums">{age}</span>
                     )}
                   </div>
                   {child.school && (
@@ -150,7 +150,7 @@ function Stat({ icon, label, active, tone }: { icon: React.ReactNode; label: str
     neutral: 'bg-[var(--gray-100)] text-[var(--text-secondary)]',
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium ${styles[tone]}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium tabular-nums ${styles[tone]}`}>
       {icon} {label}
     </span>
   );

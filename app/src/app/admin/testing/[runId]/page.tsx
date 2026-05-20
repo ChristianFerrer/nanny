@@ -123,7 +123,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
       <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-8 text-right font-mono">{pct}%</span>
+      <span className="w-8 text-right font-mono tabular-nums">{pct}%</span>
     </div>
   );
 }
@@ -153,13 +153,13 @@ function ConversationCard({ result }: { result: ConversationResult }) {
             <p className="text-xs text-gray-500">
               {result.profileId}
               {totalIssues > 0 && (
-                <span className="text-orange-400 ml-2">{totalIssues} problema{totalIssues > 1 ? 's' : ''}</span>
+                <span className="text-orange-400 ml-2 tabular-nums">{totalIssues} problema{totalIssues > 1 ? 's' : ''}</span>
               )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-lg font-bold ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+          <span className={`text-lg font-bold tabular-nums ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
             {pct}%
           </span>
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -206,7 +206,7 @@ function ConversationCard({ result }: { result: ConversationResult }) {
                         <p className="font-medium">
                           {dm.expected?.intent || 'intent'} – {getDetectionLabel(dm)}
                         </p>
-                        <p className="text-gray-500">Score: {Math.round((dm.score || 0) * 100)}%</p>
+                        <p className="text-gray-500 tabular-nums">Score: {Math.round((dm.score || 0) * 100)}%</p>
                         {dm.incorrectFields && dm.incorrectFields.length > 0 && (
                           <div className="mt-1 text-red-400">
                             {dm.incorrectFields.map((f, j) => (
@@ -263,8 +263,8 @@ function ConversationCard({ result }: { result: ConversationResult }) {
                     <div key={mr.messageIndex} className="bg-gray-900 rounded-lg p-2.5 text-xs">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-cyan-400">{mr.senderName}</span>
-                        <span className="text-gray-600">#{mr.messageIndex}</span>
-                        <span className="text-gray-600">{mr.responseTimeMs}ms</span>
+                        <span className="text-gray-600 tabular-nums">#{mr.messageIndex}</span>
+                        <span className="text-gray-600 tabular-nums">{mr.responseTimeMs}ms</span>
                       </div>
                       <p className="text-gray-300 mb-2">&quot;{mr.messageText}&quot;</p>
 
@@ -448,7 +448,7 @@ function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolea
         <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 flex items-center gap-3">
           <Loader2 size={16} className="animate-spin text-purple-400" />
           <div>
-            <p className="text-sm font-medium text-purple-300">
+            <p className="text-sm font-medium text-purple-300 tabular-nums">
               Aplicando ajustes al prompt ({applyingIndex !== null ? applyingIndex + 1 : 0}/{totalAdjustments})
             </p>
             <p className="text-xs text-gray-500">
@@ -498,7 +498,7 @@ function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolea
               {/* Patrones de fallo */}
               {diagnosis.failurePatterns.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 mb-2">
+                  <h3 className="text-xs font-semibold text-gray-400 mb-2 text-balance tabular-nums">
                     Patrones de fallos ({diagnosis.failurePatterns.length})
                   </h3>
                   <div className="space-y-2">
@@ -509,7 +509,7 @@ function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolea
                             <p className="text-xs font-medium text-orange-400">{fp.category}</p>
                             <p className="text-xs text-gray-300 mt-1">{fp.description}</p>
                           </div>
-                          <span className="text-xs text-gray-500 shrink-0">{fp.failureCount} fallos</span>
+                          <span className="text-xs text-gray-500 shrink-0 tabular-nums">{fp.failureCount} fallos</span>
                         </div>
                         {fp.affectedConversations.length > 0 && (
                           <p className="text-[10px] text-gray-600 mt-1">
@@ -525,7 +525,7 @@ function DiagnosisPanel({ runId, hasIssues }: { runId: string; hasIssues: boolea
               {/* Ajustes aplicados */}
               {diagnosis.proposedAdjustments.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 mb-2">
+                  <h3 className="text-xs font-semibold text-gray-400 mb-2 text-balance tabular-nums">
                     Ajustes aplicados al prompt ({appliedCount}/{totalAdjustments})
                   </h3>
                   <div className="space-y-3">
@@ -589,7 +589,7 @@ export default function RunDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-dvh bg-gray-900 text-white flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-gray-400" />
       </div>
     );
@@ -597,7 +597,7 @@ export default function RunDetailPage() {
 
   if (!run) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center flex-col gap-3">
+      <div className="min-h-dvh bg-gray-900 text-white flex items-center justify-center flex-col gap-3">
         <p className="text-red-400">Evaluación no encontrada</p>
         <Link href="/admin/testing" className="text-cyan-400 text-sm hover:text-cyan-300">
           ← Volver al dashboard
@@ -623,14 +623,14 @@ export default function RunDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 max-w-2xl mx-auto">
+    <div className="min-h-dvh bg-gray-900 text-white p-4 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <Link href="/admin/testing" className="text-gray-400 hover:text-white">
+        <Link href="/admin/testing" className="text-gray-400 hover:text-white" aria-label="Volver">
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-lg font-bold">Evaluación</h1>
+          <h1 className="text-lg font-bold text-balance">Evaluación</h1>
           <p className="text-xs text-gray-500">
             {new Date(run.timestamp).toLocaleString('es')} · {run.prompt_version} · {run.model}
           </p>
@@ -639,7 +639,7 @@ export default function RunDetailPage() {
 
       {/* Overall score */}
       <div className="bg-gray-800 rounded-xl p-4 mb-4 text-center">
-        <p className={`text-4xl font-bold ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+        <p className={`text-4xl font-bold tabular-nums ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
           {pct}%
         </p>
         <p className="text-xs text-gray-500 mt-1">Score global</p>
@@ -677,7 +677,7 @@ export default function RunDetailPage() {
       <DiagnosisPanel runId={runId} hasIssues={hasIssues} />
 
       {/* Conversations */}
-      <h2 className="text-sm font-semibold text-gray-400 mb-2 mt-6">
+      <h2 className="text-sm font-semibold text-gray-400 mb-2 mt-6 text-balance tabular-nums">
         Conversaciones ({conversations.length})
       </h2>
       <div className="space-y-2 pb-8">

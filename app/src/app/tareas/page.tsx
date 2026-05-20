@@ -69,10 +69,10 @@ export default function TareasPage() {
   const sections = bucketize(items);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
       <header className="px-5 pt-header pb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-large-title text-[var(--text-primary)]">Tareas</h1>
+          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Tareas</h1>
           <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
             Pendientes con y sin fecha
           </p>
@@ -80,7 +80,7 @@ export default function TareasPage() {
         <Link
           href="/perfil"
           aria-label="Configuración"
-          className="w-10 h-10 mt-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+          className="size-10 mt-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
         >
           <Settings size={24} />
         </Link>
@@ -94,11 +94,11 @@ export default function TareasPage() {
           </div>
         ) : tasks.length === 0 ? (
           <div className="card text-center py-10 px-5">
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
+            <div className="size-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
               <Sparkles size={22} className="text-[var(--nanny-purple)]" />
             </div>
             <p className="text-subhead text-[var(--text-primary)]">Todo al día</p>
-            <p className="text-footnote text-[var(--text-tertiary)] mt-1">
+            <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">
               Cuéntale a Nanny en el chat lo que haga falta y se irá creando aquí.
             </p>
             <Link href="/chat" className="btn btn-tinted btn-sm mt-4 inline-flex">
@@ -133,8 +133,8 @@ export default function TareasPage() {
 function SectionLabel({ title, count, accent }: { title: string; count: number; accent?: string }) {
   if (count === 0) return null;
   return (
-    <h2 className="text-caption mb-2 px-1 uppercase tracking-wider" style={{ color: accent || 'var(--text-tertiary)' }}>
-      {title} <span className="text-[var(--text-quaternary)] font-normal">· {count}</span>
+    <h2 className="text-caption mb-2 px-1 uppercase tracking-wider text-balance" style={{ color: accent || 'var(--text-tertiary)' }}>
+      {title} <span className="text-[var(--text-quaternary)] font-normal tabular-nums">· {count}</span>
     </h2>
   );
 }

@@ -30,20 +30,21 @@ interface EvalRun {
 }
 
 /** Link que se bloquea cuando hay un proceso en ejecución */
-function SafeLink({ href, locked, className, children }: {
+function SafeLink({ href, locked, className, children, 'aria-label': ariaLabel }: {
   href: string;
   locked: boolean;
   className?: string;
   children: React.ReactNode;
+  'aria-label'?: string;
 }) {
   if (locked) {
     return (
-      <span className={`${className || ''} opacity-50 cursor-not-allowed`} title="Proceso en ejecución, espera a que termine">
+      <span className={`${className || ''} opacity-50 cursor-not-allowed`} title="Proceso en ejecución, espera a que termine" aria-label={ariaLabel}>
         {children}
       </span>
     );
   }
-  return <Link href={href} className={className}>{children}</Link>;
+  return <Link href={href} className={className} aria-label={ariaLabel}>{children}</Link>;
 }
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
@@ -55,7 +56,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
       <div className="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-10 text-right font-mono text-xs">{pct}%</span>
+      <span className="w-10 text-right font-mono text-xs tabular-nums">{pct}%</span>
     </div>
   );
 }
@@ -259,15 +260,15 @@ export default function TestingDashboard() {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 max-w-2xl mx-auto">
+    <div className="min-h-dvh bg-gray-900 text-white p-4 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <SafeLink href="/chat" locked={autopilotRunning} className="text-gray-400 hover:text-white">
+          <SafeLink href="/chat" locked={autopilotRunning} className="text-gray-400 hover:text-white" aria-label="Volver">
             <ArrowLeft size={20} />
           </SafeLink>
           <div>
-            <h1 className="text-xl font-bold">Testing Nanny</h1>
+            <h1 className="text-xl font-bold text-balance">Testing Nanny</h1>
             {serverVersion && <p className="text-[10px] text-gray-500">{serverVersion}</p>}
           </div>
         </div>
@@ -308,7 +309,7 @@ export default function TestingDashboard() {
       {showReplaceConfirm && (
         <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3 mb-4 text-sm text-yellow-200">
           <p className="font-medium mb-2">Ya hay un autopilot en ejecución</p>
-          <p className="text-xs text-yellow-300/80 mb-3">
+          <p className="text-xs text-yellow-300/80 mb-3 text-pretty">
             Podés cancelarlo y empezar uno nuevo, o esperar a que termine.
           </p>
           <div className="flex gap-2">
@@ -378,7 +379,7 @@ export default function TestingDashboard() {
           {autopilotJob.status === 'running' && (
             <div className="bg-purple-900/30 border border-purple-700 rounded-lg p-3 mb-4 text-xs text-purple-300">
               <p className="font-medium mb-1">Ejecutándose en el servidor</p>
-              <p className="text-purple-400/80">
+              <p className="text-purple-400/80 text-pretty">
                 Podés cerrar esta página o cambiar de app. El progreso se guarda automáticamente.
               </p>
             </div>
@@ -387,7 +388,7 @@ export default function TestingDashboard() {
           {/* Conversation scores (from DB) */}
           {autopilotJob.conversation_scores?.length > 0 && (
             <div className="mb-4">
-              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">
+              <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider tabular-nums">
                 {autopilotJob.phase === 'reeval' ? 'Re-evaluación' : 'Evaluación'}
                 {' '}({autopilotJob.current_conversation}/{autopilotJob.total_conversations})
               </p>
@@ -398,7 +399,7 @@ export default function TestingDashboard() {
                       {conv.score >= 0.9 ? '✅' : conv.score >= 0.6 ? '⚠️' : '❌'}
                     </span>
                     <span className="flex-1 truncate text-gray-300">{conv.name}</span>
-                    <span className={`font-mono shrink-0 ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <span className={`font-mono shrink-0 tabular-nums ${conv.score >= 0.8 ? 'text-green-400' : conv.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
                       {Math.round(conv.score * 100)}%
                     </span>
                   </div>
@@ -421,7 +422,7 @@ export default function TestingDashboard() {
               <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Diagnóstico</p>
               <p className="text-xs text-gray-300">{autopilotJob.diagnosis_summary}</p>
               {autopilotJob.adjustments_applied > 0 && (
-                <p className="text-[10px] text-purple-400 mt-1">{autopilotJob.adjustments_applied} ajustes aplicados</p>
+                <p className="text-[10px] text-purple-400 mt-1 tabular-nums">{autopilotJob.adjustments_applied} ajustes aplicados</p>
               )}
             </div>
           )}
@@ -435,7 +436,7 @@ export default function TestingDashboard() {
             }`}>
               <div className="flex items-center gap-2">
                 {autopilotJob.reeval_improved ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                <span>
+                <span className="tabular-nums">
                   {Math.round(autopilotJob.reeval_pre_score * 100)}% → {Math.round((autopilotJob.reeval_post_score ?? 0) * 100)}%
                   {autopilotJob.reeval_rolled_back && ' (rollback aplicado)'}
                 </span>
@@ -493,11 +494,11 @@ export default function TestingDashboard() {
             <div className="text-right">
               <p className="text-xs text-gray-400">{latest.prompt_version} · {latest.model}</p>
               <div className="flex items-center gap-1">
-                <span className="text-2xl font-bold">
+                <span className="text-2xl font-bold tabular-nums">
                   {Math.round(latest.aggregate_scores.overall * 100)}%
                 </span>
                 {trend !== null && trend !== 0 && (
-                  <span className={`text-xs flex items-center gap-0.5 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-xs flex items-center gap-0.5 tabular-nums ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {trend > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                     {trend > 0 ? '+' : ''}{Math.round(trend * 100)}%
                   </span>
@@ -514,15 +515,15 @@ export default function TestingDashboard() {
           </div>
 
           <div className="flex gap-3 text-xs">
-            <span className="text-green-400">✅ {latest.perfect_conversations} perfectas</span>
-            <span className="text-yellow-400">⚠️ {latest.partial_conversations} parciales</span>
-            <span className="text-red-400">❌ {latest.failed_conversations} fallidas</span>
+            <span className="text-green-400 tabular-nums">✅ {latest.perfect_conversations} perfectas</span>
+            <span className="text-yellow-400 tabular-nums">⚠️ {latest.partial_conversations} parciales</span>
+            <span className="text-red-400 tabular-nums">❌ {latest.failed_conversations} fallidas</span>
           </div>
         </div>
       )}
 
       {/* Run history */}
-      <h2 className="text-sm font-semibold text-gray-400 mb-2">Historial de evaluaciones</h2>
+      <h2 className="text-sm font-semibold text-gray-400 mb-2 text-balance">Historial de evaluaciones</h2>
       <div className="space-y-2">
         {runs.map((run, i) => {
           const pct = Math.round(run.aggregate_scores.overall * 100);
@@ -548,19 +549,19 @@ export default function TestingDashboard() {
                   <span className="text-xs text-gray-500">{run.prompt_version}</span>
                 </div>
                 <div className="flex gap-2 text-xs text-gray-500 mt-1">
-                  <span>✅{run.perfect_conversations}</span>
-                  <span>⚠️{run.partial_conversations}</span>
-                  <span>❌{run.failed_conversations}</span>
-                  <span>· {(run.total_time_ms / 1000).toFixed(0)}s</span>
+                  <span className="tabular-nums">✅{run.perfect_conversations}</span>
+                  <span className="tabular-nums">⚠️{run.partial_conversations}</span>
+                  <span className="tabular-nums">❌{run.failed_conversations}</span>
+                  <span className="tabular-nums">· {(run.total_time_ms / 1000).toFixed(0)}s</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-right">
-                  <span className={`text-lg font-bold ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`text-lg font-bold tabular-nums ${pct >= 80 ? 'text-green-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
                     {pct}%
                   </span>
                   {diff !== null && diff !== 0 && (
-                    <p className={`text-xs ${diff > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`text-xs tabular-nums ${diff > 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {diff > 0 ? '+' : ''}{diff}%
                     </p>
                   )}

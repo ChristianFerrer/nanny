@@ -55,7 +55,7 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter">
+      <div className="min-h-dvh bg-white pb-24 page-enter">
         <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-9 rounded-full mb-3" />
           <div className="skeleton h-7 w-48" />
@@ -70,11 +70,11 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
 
   if (notFound || !parent) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-header">
+      <div className="min-h-dvh bg-white pb-24 page-enter px-5 pt-header">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
         >
           <ArrowLeft size={26} />
         </button>
@@ -84,19 +84,19 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
       <header className="px-5 pt-header pb-3">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
         >
           <ArrowLeft size={26} />
         </button>
       </header>
 
       <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)]">Editar {role === 'mama' ? 'mamá' : 'papá'}</h1>
+        <h1 className="text-large-title text-balance text-[var(--text-primary)]">Editar {role === 'mama' ? 'mamá' : 'papá'}</h1>
       </div>
 
       <div className="px-5 mt-4 space-y-4">

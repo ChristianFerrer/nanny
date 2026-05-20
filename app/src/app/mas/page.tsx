@@ -20,10 +20,10 @@ const items: Item[] = [
 
 export default function MasPage() {
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
       <header className="px-5 pt-header pb-4">
-        <h1 className="text-large-title text-[var(--text-primary)]">Más</h1>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
+        <h1 className="text-large-title text-[var(--text-primary)] text-balance">Más</h1>
+        <p className="text-footnote text-[var(--text-tertiary)] mt-0.5 text-pretty">
           Vista semanal, red de apoyo, métricas y configuración
         </p>
       </header>
@@ -33,7 +33,7 @@ export default function MasPage() {
           {items.map(({ href, icon: Icon, title, subtitle, available }) => {
             const content = (
               <>
-                <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
+                <span className="size-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
                   <Icon size={18} className="text-[var(--nanny-purple)]" />
                 </span>
                 <div className="flex-1 min-w-0 text-left">

@@ -59,11 +59,11 @@ export default function HijoDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         <div className="px-4 pt-header pb-6">
-          <div className="skeleton h-8 w-8 rounded-full mb-4" />
+          <div className="skeleton size-8 rounded-full mb-4" />
           <div className="flex items-center gap-4">
-            <div className="skeleton w-20 h-20 rounded-full" />
+            <div className="skeleton size-20 rounded-full" />
             <div className="flex-1">
               <div className="skeleton h-7 w-32 mb-2" />
               <div className="skeleton h-4 w-20" />
@@ -80,7 +80,7 @@ export default function HijoDetailPage() {
 
   if (!child) {
     return (
-      <div className="flex flex-col items-center justify-center h-[80vh] text-[var(--text-tertiary)] px-6 text-center">
+      <div className="flex flex-col items-center justify-center h-[80dvh] text-[var(--text-tertiary)] px-6 text-center">
         <p className="text-headline mb-2">No encontramos este perfil</p>
         <button onClick={() => router.back()} className="btn btn-tinted btn-sm mt-2">Volver</button>
       </div>
@@ -97,14 +97,14 @@ export default function HijoDetailPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white page-enter">
+    <div className="min-h-dvh bg-white page-enter">
       {/* Header limpio Apple-style */}
       <header className="px-4 pt-header pb-5">
         <div className="flex items-center justify-between mb-5">
           <button
             onClick={() => router.back()}
             aria-label="Volver"
-            className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            className="size-10 -ml-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <ArrowLeft size={26} />
           </button>
@@ -118,13 +118,13 @@ export default function HijoDetailPage() {
         </div>
         <div className="flex items-center gap-4">
           <div
-            className="w-20 h-20 rounded-full flex items-center justify-center text-large-title font-semibold text-white shadow-sm shrink-0"
+            className="size-20 rounded-full flex items-center justify-center text-large-title font-semibold text-white shadow-sm shrink-0"
             style={{ background: child.color || 'var(--nanny-purple)' }}
           >
             {child.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h1 className="text-title-1 text-[var(--text-primary)] truncate">{child.name}</h1>
+            <h1 className="text-title-1 text-[var(--text-primary)] truncate text-balance">{child.name}</h1>
             {age !== null && <p className="text-subhead text-[var(--text-secondary)]">{age}</p>}
             {child.school && (
               <p className="text-footnote text-[var(--text-tertiary)] mt-0.5 inline-flex items-center gap-1 truncate">
@@ -186,7 +186,7 @@ function IdentidadTab({ child }: { child: Child }) {
 
       {child.personality_notes && (
         <Card title="Personalidad" icon={<Sparkles size={16} className="text-amber-500" />}>
-          <p className="text-subhead text-[var(--text-primary)]">{child.personality_notes}</p>
+          <p className="text-subhead text-[var(--text-primary)] text-pretty">{child.personality_notes}</p>
         </Card>
       )}
     </div>
@@ -214,7 +214,7 @@ function SaludTab({ child, medications }: { child: Child; medications: Medicatio
                   href={`/tratamiento/${m.id}`}
                   className="flex items-center gap-3 py-2 -mx-1 px-1 rounded-lg tap-highlight focus-ring"
                 >
-                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
+                  <span className="size-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
                     <Pill size={14} className="text-[var(--nanny-purple)]" />
                   </span>
                   <div className="flex-1 min-w-0">
@@ -223,7 +223,7 @@ function SaludTab({ child, medications }: { child: Child; medications: Medicatio
                       {m.frequency || ''}{m.schedule_times?.length ? ` · ${m.schedule_times.join(', ')}` : ''}
                     </p>
                   </div>
-                  <span className="text-caption-2 text-[var(--text-tertiary)] whitespace-nowrap">
+                  <span className="text-caption-2 text-[var(--text-tertiary)] whitespace-nowrap tabular-nums">
                     {daysLeft === 0 ? 'Último día' : `${daysLeft}d`}
                   </span>
                   <ChevronRight size={14} className="text-[var(--text-quaternary)]" />
@@ -258,7 +258,7 @@ function SaludTab({ child, medications }: { child: Child; medications: Medicatio
         {child.medical_notes && (
           <div className="mt-3">
             <p className="text-caption text-[var(--text-tertiary)] mb-1 uppercase tracking-wider">Notas médicas</p>
-            <p className="text-subhead text-[var(--text-primary)]">{child.medical_notes}</p>
+            <p className="text-subhead text-[var(--text-primary)] text-pretty">{child.medical_notes}</p>
           </div>
         )}
       </Card>
@@ -291,7 +291,7 @@ function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks
                 const ti = typeIcons[e.event_type] || typeIcons.other;
                 return (
                   <div key={e.id} className="flex items-center gap-3 py-1">
-                    <span className={`w-9 h-9 rounded-xl ${ti.bg} flex items-center justify-center shrink-0`}>{ti.icon}</span>
+                    <span className={`size-9 rounded-xl ${ti.bg} flex items-center justify-center shrink-0`}>{ti.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-subhead text-[var(--text-primary)] truncate">{e.title}</p>
                       <p className="text-footnote text-[var(--text-tertiary)]">
@@ -332,7 +332,7 @@ function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks
           <div className="space-y-2">
             {tasks.map(t => (
               <div key={t.id} className="flex items-center gap-3 py-1">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                <span className={`size-2 rounded-full shrink-0 ${
                   t.priority === 'high' || t.priority === 'urgent' ? 'bg-[var(--warning)]' : 'bg-[var(--info)]'
                 }`} />
                 <div className="flex-1 min-w-0">
@@ -421,11 +421,11 @@ function RutinasTab({ routines, childId }: { routines: Routine[]; childId: strin
 
       {routines.length === 0 && (
         <div className="card-flat text-center py-8 px-5">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
+          <div className="size-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
             <BookOpen size={22} className="text-[var(--nanny-purple)]" />
           </div>
           <p className="text-subhead text-[var(--text-primary)]">Sin rutinas todavía</p>
-          <p className="text-footnote text-[var(--text-tertiary)] mt-1">Agrega una desde el botón de arriba o decile a Nanny en el chat.</p>
+          <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">Agrega una desde el botón de arriba o decile a Nanny en el chat.</p>
         </div>
       )}
     </div>
@@ -435,7 +435,7 @@ function RutinasTab({ routines, childId }: { routines: Routine[]; childId: strin
 function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="card">
-      <h3 className="text-headline text-[var(--text-primary)] mb-3 flex items-center gap-2">{icon}{title}</h3>
+      <h3 className="text-headline text-[var(--text-primary)] mb-3 flex items-center gap-2 text-balance">{icon}{title}</h3>
       {children}
     </div>
   );

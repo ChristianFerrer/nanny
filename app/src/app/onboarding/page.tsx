@@ -29,19 +29,19 @@ export default function OnboardingPage() {
     <div className="min-h-[100dvh] flex flex-col px-6 pt-12 pb-8 animate-fade-in">
       <div className="flex flex-col items-center text-center mt-6">
         <div
-          className="w-[88px] h-[88px] rounded-[22px] overflow-hidden mb-6"
+          className="size-[88px] rounded-[22px] overflow-hidden mb-6"
           style={{
             background: 'var(--nanny-purple)',
             boxShadow: '0 12px 32px rgba(124, 58, 237, 0.28), 0 4px 8px rgba(124, 58, 237, 0.18)',
           }}
         >
-          <Image src="/icon-192.png" alt="Nanny" width={88} height={88} priority className="w-full h-full object-cover" />
+          <Image src="/icon-192.png" alt="Nanny" width={88} height={88} priority className="size-full object-cover" />
         </div>
-        <h1 className="text-large-title" style={{ color: 'var(--text-primary)' }}>
+        <h1 className="text-large-title text-balance" style={{ color: 'var(--text-primary)' }}>
           Hola, soy Nanny
         </h1>
         <p
-          className="text-callout mt-2 max-w-[300px]"
+          className="text-callout mt-2 max-w-[300px] text-pretty"
           style={{ color: 'var(--text-secondary)' }}
         >
           Te voy a ayudar a organizar la vida de tu familia
@@ -59,17 +59,17 @@ export default function OnboardingPage() {
             }}
           >
             <div
-              className="w-10 h-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
+              className="size-10 rounded-[12px] flex items-center justify-center flex-shrink-0"
               style={{ background: 'var(--nanny-purple-tint)' }}
             >
               <Icon size={20} style={{ color: 'var(--nanny-purple)' }} strokeWidth={2} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-headline" style={{ color: 'var(--text-primary)' }}>
+              <h3 className="text-headline text-balance" style={{ color: 'var(--text-primary)' }}>
                 {title}
               </h3>
               <p
-                className="text-footnote mt-0.5"
+                className="text-footnote mt-0.5 text-pretty"
                 style={{ color: 'var(--text-secondary)' }}
               >
                 {description}

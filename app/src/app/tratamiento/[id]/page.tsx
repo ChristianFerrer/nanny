@@ -122,7 +122,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter">
+      <div className="min-h-dvh bg-white pb-24 page-enter">
         <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-48 mb-2" />
           <div className="skeleton h-4 w-32" />
@@ -137,12 +137,12 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
   if (notFound || !medication) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-header">
+      <div className="min-h-dvh bg-white pb-24 page-enter px-5 pt-header">
         <Link href="/hoy" className="inline-flex items-center gap-1 text-footnote text-[var(--nanny-purple)] mb-4">
           <ArrowLeft size={14} /> Volver
         </Link>
         <p className="text-headline">Tratamiento no encontrado</p>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-1">Puede que haya sido eliminado.</p>
+        <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">Puede que haya sido eliminado.</p>
       </div>
     );
   }
@@ -160,12 +160,12 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
   const isCompleted = medication.status === 'completed' || allDone;
 
   return (
-    <div className="min-h-screen bg-white pb-24 page-enter">
+    <div className="min-h-dvh bg-white pb-24 page-enter">
       <header className="px-5 pt-header pb-4 flex items-start justify-between">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
         >
           <ArrowLeft size={26} />
         </button>
@@ -173,11 +173,11 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
       <div className="px-5">
         <div className="flex items-center gap-3 mb-1">
-          <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--nanny-purple-tint)' }}>
+          <span className="size-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--nanny-purple-tint)' }}>
             <Pill size={22} className="text-[var(--nanny-purple)]" />
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="text-title-2 text-[var(--text-primary)] truncate">{medication.medication_name}</h1>
+            <h1 className="text-title-2 text-[var(--text-primary)] truncate text-balance">{medication.medication_name}</h1>
             <p className="text-footnote text-[var(--text-tertiary)] truncate">
               {child ? child.name : medication.child_name}
               {medication.frequency ? ` · ${medication.frequency}` : ''}
@@ -200,20 +200,20 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-caption text-[var(--text-tertiary)] uppercase tracking-wider">Progreso del tratamiento</span>
-              <span className="text-caption text-[var(--text-secondary)] font-medium">
+              <span className="text-caption text-[var(--text-secondary)] font-medium tabular-nums">
                 {daysLeft === 0 ? 'Último día' : `${daysLeft}d restantes`}
               </span>
             </div>
             <div className="h-1.5 bg-[var(--gray-100)] rounded-full overflow-hidden">
               <div className="h-full bg-[var(--nanny-purple)] rounded-full transition-all" style={{ width: `${dayProgress}%` }} />
             </div>
-            <p className="text-caption-2 text-[var(--text-tertiary)] mt-1">Día {Math.min(daysPassed + 1, totalDays)} de {totalDays}</p>
+            <p className="text-caption-2 text-[var(--text-tertiary)] mt-1 tabular-nums">Día {Math.min(daysPassed + 1, totalDays)} de {totalDays}</p>
           </div>
 
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
               <span className="text-caption text-[var(--text-tertiary)] uppercase tracking-wider">Tomas</span>
-              <span className="text-caption text-[var(--text-secondary)] font-medium">{stats.done}/{stats.total}</span>
+              <span className="text-caption text-[var(--text-secondary)] font-medium tabular-nums">{stats.done}/{stats.total}</span>
             </div>
             <div className="h-1.5 bg-[var(--gray-100)] rounded-full overflow-hidden">
               <div className="h-full bg-[var(--success)] rounded-full transition-all" style={{ width: `${intakeProgress}%` }} />
@@ -229,7 +229,7 @@ export default function TratamientoDetailPage({ params }: { params: Promise<{ id
 
         {/* Tomas */}
         <section>
-          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider">
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-1 uppercase tracking-wider text-balance">
             Tomas {isCompleted ? 'realizadas' : 'programadas'}
           </h2>
           <div className="card p-0 overflow-hidden">
@@ -284,7 +284,7 @@ function DoseRowItem({ row, saving, onMark }: { row: DoseRow; saving: boolean; o
 
   return (
     <div className="px-4 py-3 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{
+      <div className="size-9 rounded-full flex items-center justify-center shrink-0" style={{
         background: isDone ? 'var(--success-soft)' : isSkipped ? 'var(--gray-100)' : needsAction ? 'var(--warning-soft)' : 'var(--gray-50)',
       }}>
         {isDone
@@ -296,7 +296,7 @@ function DoseRowItem({ row, saving, onMark }: { row: DoseRow; saving: boolean; o
           : <Circle size={18} className="text-[var(--text-tertiary)]" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-subhead text-[var(--text-primary)]">{time}</p>
+        <p className="text-subhead text-[var(--text-primary)] tabular-nums">{time}</p>
         <p className="text-caption-2 text-[var(--text-tertiary)]">
           {isDone && row.intake?.taken_at
             ? `Tomada ${formatRelative(row.intake.taken_at)}`
@@ -322,7 +322,7 @@ function DoseRowItem({ row, saving, onMark }: { row: DoseRow; saving: boolean; o
               onClick={() => onMark(row, 'done')}
               disabled={saving}
               aria-label="Marcar como hecha"
-              className="w-9 h-9 rounded-full flex items-center justify-center focus-ring tap-highlight"
+              className="size-9 rounded-full flex items-center justify-center focus-ring tap-highlight"
               style={{ background: 'var(--success-soft)', color: 'var(--success)' }}
             >
               <CheckCircle2 size={18} />
@@ -332,7 +332,7 @@ function DoseRowItem({ row, saving, onMark }: { row: DoseRow; saving: boolean; o
                 onClick={() => onMark(row, 'skipped')}
                 disabled={saving}
                 aria-label="Saltar"
-                className="w-9 h-9 rounded-full flex items-center justify-center focus-ring tap-highlight"
+                className="size-9 rounded-full flex items-center justify-center focus-ring tap-highlight"
                 style={{ background: 'var(--gray-100)', color: 'var(--text-secondary)' }}
               >
                 <SkipForward size={16} />
@@ -368,8 +368,8 @@ function InfoCell({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function Pill_Stat({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-caption-2 text-[var(--text-secondary)]">
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+    <span className="inline-flex items-center gap-1 text-caption-2 text-[var(--text-secondary)] tabular-nums">
+      <span className="size-1.5 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );

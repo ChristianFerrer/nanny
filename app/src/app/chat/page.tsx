@@ -1505,7 +1505,7 @@ export default function ChatPage() {
         onClick={() => navTarget && router.push(navTarget)}
         className={`mt-2 -mx-1 flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/70 hover:bg-white transition-colors w-full text-left shadow-xs border border-[var(--border-subtle)]`}
       >
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--nanny-purple-tint)]`}>
+        <span className={`size-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--nanny-purple-tint)]`}>
           <span className={config.color}>{config.icon}</span>
         </span>
         <div className="flex-1 min-w-0">
@@ -1539,13 +1539,13 @@ export default function ChatPage() {
           <div className="flex items-center gap-3 min-w-0">
             {/* Participant avatars stacked */}
             <div className="flex -space-x-2 shrink-0">
-              <div className="w-10 h-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10 shadow-xs">
+              <div className="size-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10 shadow-xs">
                 <Bot size={18} className="text-white" />
               </div>
               {parents.map((p, i) => (
                 <div
                   key={p.id}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white ${
+                  className={`size-10 rounded-full flex items-center justify-center ring-2 ring-white ${
                     p.id === currentParent ? 'bg-[var(--nanny-purple-tint)]' : 'bg-[var(--gray-100)]'
                   }`}
                   style={{ zIndex: parents.length - i }}
@@ -1555,7 +1555,7 @@ export default function ChatPage() {
               ))}
             </div>
             <div className="min-w-0">
-              <h1 className="text-headline text-[var(--text-primary)] truncate">Chat Familiar</h1>
+              <h1 className="text-headline text-[var(--text-primary)] truncate text-balance">Chat Familiar</h1>
               <p className="text-caption text-[var(--text-tertiary)] truncate">
                 {onboardingMode
                   ? (onboardingSaving ? 'Creando tu familia…' : 'Nanny')
@@ -1574,7 +1574,7 @@ export default function ChatPage() {
               <Link
                 href="/perfil"
                 aria-label="Configuración"
-                className="w-10 h-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
+                className="size-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
               >
                 <Settings size={24} className="text-[var(--text-secondary)]" />
               </Link>
@@ -1603,7 +1603,7 @@ export default function ChatPage() {
               <button
                 onClick={() => setSearchQuery('')}
                 aria-label="Limpiar búsqueda"
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[var(--gray-200)] flex items-center justify-center text-[var(--text-secondary)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 size-6 rounded-full bg-[var(--gray-200)] flex items-center justify-center text-[var(--text-secondary)]"
               >
                 <X size={12} />
               </button>
@@ -1616,7 +1616,7 @@ export default function ChatPage() {
       {pushStatus === 'prompt' && (
         <div className="mx-3 mt-2 flex items-center gap-3 bg-[var(--nanny-purple-tint)] rounded-xl px-4 py-3 border border-[var(--nanny-purple-soft)] animate-slide-up">
           <Bell size={20} className="text-[var(--nanny-purple)] shrink-0" />
-          <p className="text-footnote text-[var(--text-primary)] flex-1">
+          <p className="text-footnote text-[var(--text-primary)] flex-1 text-pretty">
             Activa las notificaciones para no perderte mensajes
           </p>
           <button
@@ -1628,7 +1628,7 @@ export default function ChatPage() {
           >
             Activar
           </button>
-          <button onClick={() => setPushStatus('denied')} aria-label="Descartar" className="w-7 h-7 rounded-full hover:bg-white/40 flex items-center justify-center text-[var(--text-secondary)] shrink-0">
+          <button onClick={() => setPushStatus('denied')} aria-label="Descartar" className="size-7 rounded-full hover:bg-white/40 flex items-center justify-center text-[var(--text-secondary)] shrink-0">
             <X size={14} />
           </button>
         </div>
@@ -1656,10 +1656,10 @@ export default function ChatPage() {
         {/* Empty state con sugerencias tappables */}
         {messages.length === 0 && !nannyThinking && dataLoaded && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-            <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-4">
+            <div className="size-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-4">
               <Bot size={32} className="text-[var(--nanny-purple)]" />
             </div>
-            <p className="text-sm text-[var(--nanny-gray)] mb-1 text-center">Escr&iacute;bele a Nanny como le hablar&iacute;as a tu pareja</p>
+            <p className="text-sm text-[var(--nanny-gray)] mb-1 text-center text-pretty">Escr&iacute;bele a Nanny como le hablar&iacute;as a tu pareja</p>
             <p className="text-xs text-[var(--nanny-gray)] mb-6 opacity-60">Prueba con alguna de estas:</p>
             <div className="space-y-2 w-full max-w-[300px]">
               {[
@@ -1689,11 +1689,11 @@ export default function ChatPage() {
             : messages;
           return displayedMessages.length === 0 && searchQuery.trim() ? (
             <div className="flex flex-col items-center justify-center py-12 text-center animate-fade-in">
-              <div className="w-12 h-12 rounded-2xl bg-[var(--gray-100)] flex items-center justify-center mb-3">
+              <div className="size-12 rounded-2xl bg-[var(--gray-100)] flex items-center justify-center mb-3">
                 <Search size={20} className="text-[var(--text-tertiary)]" />
               </div>
               <p className="text-subhead text-[var(--text-primary)]">Sin resultados</p>
-              <p className="text-footnote text-[var(--text-tertiary)] mt-1">No encontramos mensajes con &ldquo;{searchQuery}&rdquo;</p>
+              <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">No encontramos mensajes con &ldquo;{searchQuery}&rdquo;</p>
             </div>
           ) : null;
         })()}
@@ -1736,7 +1736,7 @@ export default function ChatPage() {
               <div className={`flex ${isCurrentParent ? 'justify-end' : 'justify-start'} animate-slide-up`}>
               {/* Avatar circle for other parent */}
               {isOtherParent && (
-                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 mt-5 shrink-0">
+                <div className="size-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 mt-5 shrink-0">
                   <UserIcon size={16} className="text-blue-500" />
                 </div>
               )}
@@ -1789,7 +1789,7 @@ export default function ChatPage() {
                                   <button
                                     onClick={() => setEditingMedTimes(editingMedTimes.filter((_, j) => j !== i))}
                                     aria-label="Quitar horario"
-                                    className="w-9 h-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring"
+                                    className="size-9 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring"
                                   >
                                     <X size={16} />
                                   </button>
@@ -1831,7 +1831,7 @@ export default function ChatPage() {
                           {(() => {
                             const times = (pendingMedConfirm.data?.schedule_times as string[]) || [];
                             return times.length > 0 && (
-                              <p className="text-[10px] text-[var(--nanny-gray)] mb-2">
+                              <p className="text-[10px] text-[var(--nanny-gray)] mb-2 tabular-nums">
                                 Horarios: {times.join(', ')}
                               </p>
                             );
@@ -1875,25 +1875,27 @@ export default function ChatPage() {
                       <>
                         <button
                           onClick={() => handleFeedback(msg.id, true)}
+                          aria-label="Marcar respuesta como útil"
                           className="text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors"
                         >
                           <ThumbsUp size={14} />
                         </button>
                         <button
                           onClick={() => handleFeedback(msg.id, false)}
+                          aria-label="Marcar respuesta como no útil"
                           className="text-[var(--nanny-gray)] hover:text-[var(--nanny-red)] transition-colors"
                         >
                           <ThumbsDown size={14} />
                         </button>
                       </>
                     )}
-                    <span className="text-xs text-[var(--nanny-gray)]">
+                    <span className="text-xs text-[var(--nanny-gray)] tabular-nums">
                       {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 )}
                 {!isNanny && !onboardingMode && (
-                  <p className={`text-xs text-[var(--nanny-gray)] mt-0.5 ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
+                  <p className={`text-xs text-[var(--nanny-gray)] mt-0.5 tabular-nums ${isCurrentParent ? 'text-right mr-1' : 'ml-1'}`}>
                     {new Date(msg.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -1912,9 +1914,9 @@ export default function ChatPage() {
             <div>
               <p className="text-xs mb-1 ml-1 inline-flex items-center gap-1 text-[var(--nanny-purple)] font-medium"><Bot size={14} /> Nanny</p>
               <div className="bubble-nanny inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="size-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="size-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="size-1.5 rounded-full bg-[var(--nanny-purple)] animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -1933,7 +1935,7 @@ export default function ChatPage() {
               </p>
               <p className="text-footnote text-[var(--text-secondary)] truncate">{replyingTo.content}</p>
             </div>
-            <button onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta" className="w-8 h-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring">
+            <button onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta" className="size-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center text-[var(--text-tertiary)] focus-ring">
               <X size={16} />
             </button>
           </div>
@@ -1959,7 +1961,7 @@ export default function ChatPage() {
             type="submit"
             aria-label="Enviar mensaje"
             disabled={!input.trim() || (onboardingMode && (onboardingSending || onboardingSaving))}
-            className="w-9 h-9 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-30 disabled:scale-90 enabled:active:scale-95 transition-all shrink-0 shadow-sm focus-ring"
+            className="size-9 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center disabled:opacity-30 disabled:scale-90 enabled:active:scale-95 transition-all shrink-0 shadow-sm focus-ring"
           >
             <Send size={16} className="text-white ml-[1px]" />
           </button>

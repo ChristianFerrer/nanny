@@ -103,7 +103,7 @@ export default function PerfilPage() {
 
   if (loading || !family) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         <header className="px-5 pt-header pb-5">
           <div className="skeleton h-9 w-48 mb-2" />
           <div className="skeleton h-4 w-32" />
@@ -118,9 +118,9 @@ export default function PerfilPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24 page-enter">
+    <div className="min-h-dvh bg-white pb-24 page-enter">
       <header className="px-5 pt-header pb-4">
-        <h1 className="text-large-title text-[var(--text-primary)]">{family.name}</h1>
+        <h1 className="text-large-title text-balance text-[var(--text-primary)]">{family.name}</h1>
         <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Configuración familiar</p>
       </header>
 
@@ -138,7 +138,7 @@ export default function PerfilPage() {
             </Link>
             <Link href="/perfil/familia" className="list-row w-full focus-ring">
               <span className="text-subhead text-[var(--text-primary)] flex-1 text-left">Zona horaria</span>
-              <span className="text-subhead text-[var(--text-tertiary)] truncate max-w-[55%] text-right">
+              <span className="text-subhead text-[var(--text-tertiary)] truncate max-w-[55%] text-right tabular-nums">
                 {tzShortLabel(family.timezone)}
               </span>
               <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
@@ -154,7 +154,7 @@ export default function PerfilPage() {
           <div className="list-group">
             {parents.map(p => (
               <Link key={p.id} href={`/perfil/padre/${p.id}`} className="list-row w-full text-left focus-ring">
-                <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${p.role === 'mama' ? 'bg-pink-100' : 'bg-blue-100'}`}>
+                <span className={`size-10 rounded-full flex items-center justify-center shrink-0 ${p.role === 'mama' ? 'bg-pink-100' : 'bg-blue-100'}`}>
                   <UserIcon size={18} className={p.role === 'mama' ? 'text-pink-600' : 'text-blue-600'} />
                 </span>
                 <div className="flex-1 min-w-0">
@@ -187,7 +187,7 @@ export default function PerfilPage() {
               return (
                 <Link key={c.id} href={`/perfil/hijo/${c.id}`} className="list-row w-full text-left focus-ring">
                   <span
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-headline font-semibold text-white shrink-0"
+                    className="size-10 rounded-full flex items-center justify-center text-headline font-semibold text-white shrink-0"
                     style={{ background: c.color || 'var(--nanny-purple)' }}
                   >
                     {c.name.charAt(0).toUpperCase()}
@@ -211,7 +211,7 @@ export default function PerfilPage() {
             <Share2 size={12} /> Invitar pareja
           </h2>
           <div className="card space-y-3">
-            <p className="text-footnote text-[var(--text-tertiary)]">
+            <p className="text-footnote text-pretty text-[var(--text-tertiary)]">
               Comparte el enlace para que tu pareja se una a la familia
             </p>
             <button
@@ -244,7 +244,7 @@ export default function PerfilPage() {
             Avanzado
           </summary>
           <div className="card mt-2 space-y-2">
-            <p className="text-caption text-[var(--text-tertiary)]">
+            <p className="text-caption text-pretty text-[var(--text-tertiary)]">
               Nanny revisa el chat automáticamente cada noche para detectar lo que se le haya escapado durante el día. Si necesitás forzar una revisión ahora, podés hacerla desde el chat.
             </p>
             <button
@@ -255,7 +255,7 @@ export default function PerfilPage() {
             </button>
 
             <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--separator)' }}>
-              <p className="text-caption text-[var(--text-tertiary)] mb-2">
+              <p className="text-caption text-pretty text-[var(--text-tertiary)] mb-2">
                 Borrar todos los datos de esta familia (hijos, mensajes, eventos, rutinas, tareas). Esta acción no se puede deshacer.
               </p>
               <button
@@ -291,13 +291,13 @@ export default function PerfilPage() {
             aria-modal="true"
             aria-labelledby="logout-title"
           >
-            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+            <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
               <AlertTriangle size={20} className="text-[var(--danger)]" />
             </div>
-            <h3 id="logout-title" className="text-headline text-center text-[var(--text-primary)]">
+            <h3 id="logout-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
               ¿Cerrar sesión?
             </h3>
-            <p className="text-footnote text-center text-[var(--text-tertiary)] mt-1">
+            <p className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
               Tendrás que volver a iniciar sesión para acceder a tu familia.
             </p>
             <div className="flex gap-2 mt-5">
@@ -330,13 +330,13 @@ export default function PerfilPage() {
             aria-modal="true"
             aria-labelledby="reset-title"
           >
-            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+            <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
               <AlertTriangle size={20} className="text-[var(--danger)]" />
             </div>
-            <h3 id="reset-title" className="text-headline text-center text-[var(--text-primary)]">
+            <h3 id="reset-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
               ¿Borrar TODOS los datos?
             </h3>
-            <p className="text-footnote text-center text-[var(--text-tertiary)] mt-1">
+            <p className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
               Se eliminarán los hijos, eventos, tareas, rutinas, mensajes y tu cuenta. Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-2 mt-5">

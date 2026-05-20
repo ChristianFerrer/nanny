@@ -80,7 +80,7 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter">
+      <div className="min-h-dvh bg-white pb-24 page-enter">
         <header className="px-5 pt-header pb-4">
           <div className="skeleton h-9 w-9 rounded-full mb-3" />
           <div className="skeleton h-7 w-48" />
@@ -91,11 +91,11 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
 
   if (notFound || !child) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-header">
+      <div className="min-h-dvh bg-white pb-24 page-enter px-5 pt-header">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
         >
           <ArrowLeft size={26} />
         </button>
@@ -105,19 +105,19 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
       <header className="px-5 pt-header pb-3">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
         >
           <ArrowLeft size={26} />
         </button>
       </header>
 
       <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)]">Editar hijo</h1>
+        <h1 className="text-large-title text-balance text-[var(--text-primary)]">Editar hijo</h1>
       </div>
 
       <div className="px-5 mt-4 space-y-4">
@@ -129,7 +129,7 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
                 key={c}
                 onClick={() => setColor(c)}
                 aria-label={`Color ${c}`}
-                className={`w-10 h-10 rounded-full transition-transform ${
+                className={`size-10 rounded-full transition-transform ${
                   color === c ? 'ring-2 ring-offset-2 ring-[var(--text-primary)] scale-110' : ''
                 }`}
                 style={{ background: c }}
@@ -170,7 +170,7 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
           </button>
         ) : (
           <div className="rounded-xl p-3" style={{ background: 'var(--danger-soft)' }}>
-            <p className="text-footnote text-[var(--text-primary)] mb-2 inline-flex items-center gap-1.5">
+            <p className="text-footnote text-pretty text-[var(--text-primary)] mb-2 inline-flex items-center gap-1.5">
               <AlertTriangle size={14} className="text-[var(--danger)]" />
               Se borrarán también sus rutinas, eventos y tareas asociados. ¿Confirmás?
             </p>

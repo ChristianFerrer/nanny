@@ -188,18 +188,18 @@ function LoginContent() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
           <div
-            className="w-[72px] h-[72px] rounded-[18px] overflow-hidden mb-5"
+            className="size-[72px] rounded-[18px] overflow-hidden mb-5"
             style={{
               background: 'var(--nanny-purple)',
               boxShadow: '0 8px 24px rgba(124, 58, 237, 0.24), 0 2px 6px rgba(124, 58, 237, 0.16)',
             }}
           >
-            <Image src="/icon-192.png" alt="Nanny" width={72} height={72} priority className="w-full h-full object-cover" />
+            <Image src="/icon-192.png" alt="Nanny" width={72} height={72} priority className="size-full object-cover" />
           </div>
-          <h1 className="text-title-1 text-center" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-title-1 text-center text-balance" style={{ color: 'var(--text-primary)' }}>
             {mode === 'forgot' ? 'Recupera tu cuenta' : 'Bienvenido a Nanny'}
           </h1>
-          <p className="text-callout text-center mt-1.5 max-w-[280px]" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-callout text-center mt-1.5 max-w-[280px] text-pretty" style={{ color: 'var(--text-secondary)' }}>
             {mode === 'forgot'
               ? 'Te enviaremos un enlace a tu correo'
               : inviteFamilyId
@@ -241,13 +241,13 @@ function LoginContent() {
         {mode === 'forgot' && forgotSent ? (
           <div className="card animate-slide-up text-center" style={{ padding: '24px' }}>
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+              className="size-12 rounded-full flex items-center justify-center mx-auto mb-4"
               style={{ background: 'var(--success-soft)' }}
             >
               <Check size={24} style={{ color: 'var(--success)' }} strokeWidth={2.5} />
             </div>
-            <h2 className="text-headline mb-2">Revisa tu correo</h2>
-            <p className="text-footnote" style={{ color: 'var(--text-secondary)' }}>
+            <h2 className="text-headline mb-2 text-balance">Revisa tu correo</h2>
+            <p className="text-footnote text-pretty" style={{ color: 'var(--text-secondary)' }}>
               Enviamos un enlace a <strong style={{ color: 'var(--text-primary)' }}>{email}</strong> para restablecer tu contraseña.
             </p>
             <button

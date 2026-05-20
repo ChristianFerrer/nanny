@@ -40,7 +40,7 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 animate-fade-in">
       <div className="flex flex-col items-center gap-5">
         <div
-          className="w-[88px] h-[88px] rounded-[22px] overflow-hidden flex items-center justify-center"
+          className="size-[88px] rounded-[22px] overflow-hidden flex items-center justify-center"
           style={{
             background: 'var(--nanny-purple)',
             boxShadow: '0 12px 32px rgba(124, 58, 237, 0.28), 0 4px 8px rgba(124, 58, 237, 0.18)',
@@ -52,12 +52,12 @@ export default function Home() {
             width={88}
             height={88}
             priority
-            className="w-full h-full object-cover"
+            className="size-full object-cover"
           />
         </div>
 
         <div className="text-center">
-          <h1 className="text-title-1" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-title-1 text-balance" style={{ color: 'var(--text-primary)' }}>
             Nanny
           </h1>
           <p
@@ -70,7 +70,7 @@ export default function Home() {
 
         {!stalled && (
           <div
-            className="mt-6 w-6 h-6 rounded-full border-2 animate-spin-slow"
+            className="mt-6 size-6 rounded-full border-2 animate-spin-slow"
             style={{
               borderColor: 'var(--gray-200)',
               borderTopColor: 'var(--nanny-purple)',
@@ -82,7 +82,7 @@ export default function Home() {
 
       {stalled && (
         <div className="mt-10 text-center animate-slide-up max-w-xs">
-          <p className="text-footnote mb-4" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-footnote mb-4 text-pretty" style={{ color: 'var(--text-secondary)' }}>
             Estamos tardando más de lo normal
           </p>
           <button

@@ -78,9 +78,9 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter">
+      <div className="min-h-dvh bg-white pb-24 page-enter">
         <header className="px-5 pt-header pb-4">
-          <div className="skeleton h-9 w-9 rounded-full mb-3" />
+          <div className="skeleton size-9 rounded-full mb-3" />
           <div className="skeleton h-7 w-48" />
         </header>
         <div className="px-5 space-y-4">
@@ -93,34 +93,34 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
 
   if (notFound || !task) {
     return (
-      <div className="min-h-screen bg-white pb-24 page-enter px-5 pt-header">
+      <div className="min-h-dvh bg-white pb-24 page-enter px-5 pt-header">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight mb-4"
         >
           <ArrowLeft size={26} />
         </button>
         <p className="text-headline">Tarea no encontrada</p>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-1">Puede que haya sido eliminada.</p>
+        <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">Puede que haya sido eliminada.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] pb-24 page-enter">
+    <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
       <header className="px-5 pt-header pb-3 flex items-center justify-between">
         <button
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
+          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
         >
           <ArrowLeft size={26} />
         </button>
       </header>
 
       <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)]">
+        <h1 className="text-large-title text-[var(--text-primary)] text-balance">
           {isParent ? 'Tarea paraguas' : 'Editar tarea'}
         </h1>
       </div>

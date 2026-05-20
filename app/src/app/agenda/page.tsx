@@ -100,12 +100,12 @@ export default function AgendaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         <div className="px-4 pt-header pb-4 border-b border-[var(--separator)]">
           <div className="flex items-center justify-between mb-4">
-            <div className="skeleton h-8 w-8 rounded-full" />
+            <div className="skeleton size-8 rounded-full" />
             <div className="skeleton h-5 w-32" />
-            <div className="skeleton h-8 w-8 rounded-full" />
+            <div className="skeleton size-8 rounded-full" />
           </div>
           <div className="flex justify-between gap-1">
             {Array.from({ length: 7 }).map((_, i) => (
@@ -123,12 +123,12 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white page-enter">
+    <div className="min-h-dvh bg-white page-enter">
       {/* Header — sticky, glass, Apple-style */}
       <header className="glass px-4 pt-header pb-3 sticky top-0 z-10">
         {/* Title + (botón Hoy condicional) + settings gear */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-large-title text-[var(--text-primary)]">Agenda</h1>
+          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Agenda</h1>
           <div className="flex items-center gap-2">
             {weekOffset !== 0 && (
               <button
@@ -142,7 +142,7 @@ export default function AgendaPage() {
             <Link
               href="/perfil"
               aria-label="Configuración"
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+              className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
             >
               <Settings size={24} />
             </Link>
@@ -152,14 +152,14 @@ export default function AgendaPage() {
           <button
             onClick={() => setWeekOffset(w => w - 1)}
             aria-label="Semana anterior"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            className="size-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <ChevronLeft size={20} />
           </button>
           <div className="text-center">
-            <p className="text-headline text-[var(--text-primary)] capitalize font-semibold">{monthYear}</p>
+            <p className="text-headline text-[var(--text-primary)] capitalize font-semibold tabular-nums">{monthYear}</p>
             {weekOffset !== 0 ? (
-              <p className="text-caption text-[var(--text-tertiary)]">
+              <p className="text-caption text-[var(--text-tertiary)] tabular-nums">
                 Hoy: {today.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}
               </p>
             ) : (
@@ -174,7 +174,7 @@ export default function AgendaPage() {
           <button
             onClick={() => setWeekOffset(w => w + 1)}
             aria-label="Semana siguiente"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            className="size-9 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
           >
             <ChevronRight size={20} />
           </button>
@@ -234,7 +234,7 @@ export default function AgendaPage() {
                 }`}
               >
                 <span className="font-semibold leading-none" style={{ fontSize: '12px' }}>{dayLabel}</span>
-                <span className="text-headline font-semibold leading-none">{day.getDate()}</span>
+                <span className="text-headline font-semibold leading-none tabular-nums">{day.getDate()}</span>
                 {/* Mini-timeline: 6 segments representando 4h cada uno */}
                 <div className="flex gap-[1px] mt-1 w-full px-0.5" aria-hidden="true">
                   {segments.map((kind, idx) => {
@@ -259,7 +259,7 @@ export default function AgendaPage() {
                   })}
                 </div>
                 {dayTasks.length > 0 && (
-                  <span className={`text-[9px] font-semibold leading-none ${
+                  <span className={`text-[9px] font-semibold leading-none tabular-nums ${
                     isSelected ? 'text-white/90' : 'text-[var(--warning)]'
                   }`}>
                     {dayTasks.length} {dayTasks.length === 1 ? 'tarea' : 'tareas'}
@@ -315,7 +315,7 @@ export default function AgendaPage() {
               key={i}
               className={isPast && selectedDayIdx === null ? 'opacity-50' : ''}
             >
-              <h3 className={`text-xs font-semibold mb-2 ${
+              <h3 className={`text-xs font-semibold mb-2 text-balance ${
                 selectedDayIdx === i ? 'text-[var(--nanny-purple)]' : isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--nanny-gray)]'
               }`}>
                 {smartLabel}
@@ -326,7 +326,7 @@ export default function AgendaPage() {
                   className="block bg-white rounded-xl p-4 text-center hover:bg-[var(--gray-50)] transition-colors focus-ring"
                 >
                   <p className="text-sm text-[var(--text-tertiary)]">Día libre.</p>
-                  <p className="text-caption text-[var(--nanny-purple)] font-semibold mt-1">
+                  <p className="text-caption text-[var(--nanny-purple)] font-semibold mt-1 text-pretty">
                     ¿Querés agendar algo? Decile a Nanny →
                   </p>
                 </Link>
@@ -344,11 +344,11 @@ export default function AgendaPage() {
                         onClick={() => router.push(`/evento/${event.id}`)}
                       >
                         <div className="flex items-start gap-2">
-                          <span className={`w-7 h-7 rounded-lg ${(typeIcons[event.event_type] || typeIcons.other).bg} flex items-center justify-center shrink-0`}>{(typeIcons[event.event_type] || typeIcons.other).icon}</span>
+                          <span className={`size-7 rounded-lg ${(typeIcons[event.event_type] || typeIcons.other).bg} flex items-center justify-center shrink-0`}>{(typeIcons[event.event_type] || typeIcons.other).icon}</span>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm">{event.title}</p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-[var(--nanny-gray)]">
-                              <span className="flex items-center gap-0.5">
+                              <span className="flex items-center gap-0.5 tabular-nums">
                                 <Clock size={10} /> {time}
                               </span>
                               {event.location && (
@@ -358,7 +358,7 @@ export default function AgendaPage() {
                               )}
                             </div>
                           </div>
-                          {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
+                          {child && <span className="size-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );
@@ -380,21 +380,21 @@ export default function AgendaPage() {
                         }}
                       >
                         <div className="flex items-start gap-2">
-                          <span className="w-7 h-7 rounded-lg bg-[var(--nanny-purple-tint)] flex items-center justify-center shrink-0">
+                          <span className="size-7 rounded-lg bg-[var(--nanny-purple-tint)] flex items-center justify-center shrink-0">
                             <Repeat size={14} className="text-[var(--nanny-purple)]" />
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm text-[var(--text-secondary)]">{routine.name}</p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-tertiary)]">
                               {timeLabel && (
-                                <span className="flex items-center gap-0.5">
+                                <span className="flex items-center gap-0.5 tabular-nums">
                                   <Clock size={10} /> {timeLabel}
                                 </span>
                               )}
                               <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nanny-purple)]">Rutina</span>
                             </div>
                           </div>
-                          {child && <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: child.color || 'var(--nanny-purple)' }}>{child.name.charAt(0)}</span>}
+                          {child && <span className="size-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: child.color || 'var(--nanny-purple)' }}>{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );
@@ -410,6 +410,7 @@ export default function AgendaPage() {
                         <div className="flex items-start gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
+                            aria-label="Completar tarea"
                             className="mt-0.5 text-[var(--nanny-gray)] hover:text-[var(--nanny-green)] transition-colors shrink-0"
                           >
                             <Circle size={18} />
@@ -425,7 +426,7 @@ export default function AgendaPage() {
                               )}
                             </div>
                           </div>
-                          {child && <span className="w-5 h-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
+                          {child && <span className="size-5 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-[9px] font-bold text-[var(--nanny-purple)] shrink-0">{child.name.charAt(0)}</span>}
                         </div>
                       </div>
                     );
@@ -447,7 +448,7 @@ export default function AgendaPage() {
       <Link
         href="/chat"
         aria-label="Decirle a Nanny"
-        className="fixed right-4 z-30 w-14 h-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
+        className="fixed right-4 z-30 size-14 rounded-full bg-[var(--nanny-purple)] shadow-lg flex items-center justify-center active:scale-95 transition-transform focus-ring"
         style={{ bottom: 'calc(var(--nav-h) + 12px)' }}
       >
         <Plus size={24} className="text-white" />
