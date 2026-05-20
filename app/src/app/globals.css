@@ -686,6 +686,10 @@ body[data-keyboard="open"] .bottom-nav {
   .animate-slide-up,
   .animate-fade-in,
   .animate-scale-in { animation: none !important; }
+  /* El shimmer es decorativo y corre infinito; el bloque gris ya indica
+     carga, así que cortamos la animación continua. El spinner funcional
+     (.animate-spin-slow) se mantiene como feedback de carga. */
+  .skeleton { animation: none !important; }
 }
 
 /* ============================================
