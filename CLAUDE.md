@@ -312,12 +312,13 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 ## 8. Pipeline de Chat AI (`app/src/lib/chat/`)
 
-**Sprint 3 (en curso):** convive el pipeline nuevo (listener + decision agent) con el viejo (classifier/extractor/responder). El switch lo hace `/api/chat/route.ts` mirando `USE_NEW_PIPELINE_FAMILY_IDS`. Cuando el cutover esté validado se retira el viejo.
+**Replanteo (mayo 2026):** el pipeline orquestado (classifier/extractor/responder + listener + decision agent) generaba demasiada complejidad, latencia y silencios. Volvimos a lo básico: **`assistant.ts` — un cerebro único.** El switch lo hace `/api/chat/route.ts` mirando `USE_NEW_PIPELINE_FAMILY_IDS`. Una vez validado, se retira todo lo demás.
 
-### Pipeline nuevo (Sprints 1+3 — Anthropic)
+### Nanny Assistant (`assistant.ts`) — el cerebro único
 
-1. `listener.ts` — **captura silenciosa.** Claude Haiku 4.5 con 4 tools (`create_event`, `create_task`, `create_medication`, `create_routine`). NO genera reply textual: solo extrae items estructurados y los persiste a Supabase via service role. Prompt caching sobre system+tools (estables) → cache breakpoint; mensaje + contexto familiar (volátil) → input fresh. Best-effort: si falla, no bloquea al decision agent. Costo ~$0.001/msg, latencia ~1s. Regla de oro: ante la duda, no captura.
-2. `lib/agent/decision-agent.ts` — Claude Sonnet 4.6 con prompt caching. Decide si Nanny tiene algo que decir (acuse, recordatorio, pregunta de learning queue). Ve los items que recién creó el listener en su contexto de agenda 48h. Costo ~$0.005/msg, latencia ~3s.
+UNA llamada a Claude Sonnet 4.6 por mensaje. Lee la conversación reciente (últimos 20 mensajes, como un todo — entiende ráfagas) + lo ya anotado (agenda, tareas, medicación) + hijos + zona horaria de la familia. Tiene 4 tools (`anotar_evento`, `anotar_tarea`, `anotar_medicacion`, `anotar_rutina`) y responde en texto. En un solo turno decide qué anotar (persiste directo a Supabase) y qué responder. Sin classifier, sin listener separado, sin decision agent, sin postprocess regex. Prompt corto: confiamos en la inteligencia del modelo con el contexto correcto. Prompt caching sobre el system. Latencia ~2-3s, costo ~$0.01/msg.
+
+**Componentes en transición (a retirar si el assistant valida):** `listener.ts` (Sprint 3 Fase A, desconectado del endpoint), `lib/agent/decision-agent.ts` + cron `nanny-wake`, `lib/agent/memory-updater.ts` + cron `memory-updater`. Quedan en disco pero el chat ya no los usa.
 
 ### Pipeline viejo (OpenAI — legacy, sigue activo para familias fuera del flag)
 
