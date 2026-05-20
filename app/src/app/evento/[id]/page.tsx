@@ -141,8 +141,8 @@ export default function EventoDetailPage({ params }: { params: Promise<{ id: str
 
       <div className="px-5 mt-4 space-y-4">
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Título</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} />
+          <label htmlFor="evento-titulo" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Título</label>
+          <input id="evento-titulo" type="text" value={title} onChange={e => setTitle(e.target.value)} />
         </div>
 
         <div>
@@ -158,24 +158,24 @@ export default function EventoDetailPage({ params }: { params: Promise<{ id: str
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
+            <label htmlFor="evento-fecha" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
               <Calendar size={12} /> Fecha
             </label>
-            <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+            <input id="evento-fecha" type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} />
           </div>
           <div>
-            <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
+            <label htmlFor="evento-hora" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
               <Clock size={12} /> Hora
             </label>
-            <input type="time" value={timeStr} onChange={e => setTimeStr(e.target.value)} />
+            <input id="evento-hora" type="time" value={timeStr} onChange={e => setTimeStr(e.target.value)} />
           </div>
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
+          <label htmlFor="evento-lugar" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider inline-flex items-center gap-1">
             <MapPin size={12} /> Lugar (opcional)
           </label>
-          <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Cole, club, casa…" />
+          <input id="evento-lugar" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Cole, club, casa…" />
         </div>
 
         <div>
@@ -204,8 +204,9 @@ export default function EventoDetailPage({ params }: { params: Promise<{ id: str
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Notas (opcional)</label>
+          <label htmlFor="evento-notas" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Notas (opcional)</label>
           <textarea
+            id="evento-notas"
             value={description}
             onChange={e => setDescription(e.target.value)}
             rows={2}

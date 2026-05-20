@@ -1597,6 +1597,7 @@ export default function ChatPage() {
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar en el chat…"
               autoFocus
+              aria-label="Buscar en el chat"
               className="pl-10 pr-10 py-2 text-subhead"
             />
             {searchQuery && (

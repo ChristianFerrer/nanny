@@ -138,23 +138,23 @@ export default function EditarHijoPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre" />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nombre" aria-label="Nombre" />
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Fecha de nacimiento</label>
-          <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
+          <label htmlFor="hijo-fecha-nacimiento" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Fecha de nacimiento</label>
+          <input id="hijo-fecha-nacimiento" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
         </div>
 
-        <input type="text" value={school} onChange={e => setSchool(e.target.value)} placeholder="Colegio" />
+        <input type="text" value={school} onChange={e => setSchool(e.target.value)} placeholder="Colegio" aria-label="Colegio" />
 
         <div className="flex gap-2">
-          <input type="text" value={teacher} onChange={e => setTeacher(e.target.value)} placeholder="Maestra" />
-          <input type="text" value={grade} onChange={e => setGrade(e.target.value)} placeholder="Grado" />
+          <input type="text" value={teacher} onChange={e => setTeacher(e.target.value)} placeholder="Maestra" aria-label="Maestra" />
+          <input type="text" value={grade} onChange={e => setGrade(e.target.value)} placeholder="Grado" aria-label="Grado" />
         </div>
 
-        <input type="text" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Alergias (separadas por coma)" />
-        <textarea value={medicalNotes} onChange={e => setMedicalNotes(e.target.value)} placeholder="Notas médicas" rows={2} />
-        <textarea value={personalityNotes} onChange={e => setPersonalityNotes(e.target.value)} placeholder="Notas de personalidad" rows={2} />
+        <input type="text" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Alergias (separadas por coma)" aria-label="Alergias (separadas por coma)" />
+        <textarea value={medicalNotes} onChange={e => setMedicalNotes(e.target.value)} placeholder="Notas médicas" rows={2} aria-label="Notas médicas" />
+        <textarea value={personalityNotes} onChange={e => setPersonalityNotes(e.target.value)} placeholder="Notas de personalidad" rows={2} aria-label="Notas de personalidad" />
 
         <button onClick={handleSave} disabled={saving || !name.trim()} className="btn btn-primary btn-block">
           <Save size={18} /> {saving ? 'Guardando…' : 'Guardar'}

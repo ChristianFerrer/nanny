@@ -111,13 +111,13 @@ export default function EditarFamiliaPage() {
 
       <div className="px-5 mt-4 space-y-4">
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre de la familia</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} />
+          <label htmlFor="familia-nombre" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre de la familia</label>
+          <input id="familia-nombre" type="text" value={name} onChange={e => setName(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Zona horaria</label>
-          <select value={timezone} onChange={e => setTimezone(e.target.value)} className="w-full">
+          <label htmlFor="familia-timezone" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Zona horaria</label>
+          <select id="familia-timezone" value={timezone} onChange={e => setTimezone(e.target.value)} className="w-full">
             {TIMEZONE_OPTIONS.map(({ tz, label }) => (
               <option key={tz} value={tz}>{label}</option>
             ))}

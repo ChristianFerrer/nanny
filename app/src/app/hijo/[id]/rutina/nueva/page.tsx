@@ -134,8 +134,8 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
 
       <div className="px-5 mt-4 space-y-4">
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Guardería, Fútbol, Almuerzo" />
+          <label htmlFor="rutina-nombre" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre</label>
+          <input id="rutina-nombre" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Guardería, Fútbol, Almuerzo" />
         </div>
 
         <div>
@@ -192,12 +192,12 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Desde</label>
-            <input type="time" value={timeStart} onChange={e => setTimeStart(e.target.value)} />
+            <label htmlFor="rutina-desde" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Desde</label>
+            <input id="rutina-desde" type="time" value={timeStart} onChange={e => setTimeStart(e.target.value)} />
           </div>
           <div>
-            <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Hasta</label>
-            <input type="time" value={timeEnd} onChange={e => setTimeEnd(e.target.value)} />
+            <label htmlFor="rutina-hasta" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Hasta</label>
+            <input id="rutina-hasta" type="time" value={timeEnd} onChange={e => setTimeEnd(e.target.value)} />
           </div>
         </div>
 

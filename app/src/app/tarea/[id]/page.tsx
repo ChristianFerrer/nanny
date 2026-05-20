@@ -138,8 +138,8 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
         )}
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Título</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} />
+          <label htmlFor="tarea-titulo" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Título</label>
+          <input id="tarea-titulo" type="text" value={title} onChange={e => setTitle(e.target.value)} />
         </div>
 
         {!isParent && (
@@ -169,8 +169,8 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div>
-              <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Vencimiento (opcional)</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+              <label htmlFor="tarea-vencimiento" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Vencimiento (opcional)</label>
+              <input id="tarea-vencimiento" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
 
             <div>

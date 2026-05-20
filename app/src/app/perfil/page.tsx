@@ -101,6 +101,26 @@ export default function PerfilPage() {
     window.location.href = '/login';
   };
 
+  // Escape cierra el dialog de logout
+  useEffect(() => {
+    if (!confirmLogout) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConfirmLogout(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmLogout]);
+
+  // Escape cierra el dialog de reset (respeta el guard de resetting)
+  useEffect(() => {
+    if (!confirmReset) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !resetting) setConfirmReset(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmReset, resetting]);
+
   if (loading || !family) {
     return (
       <div className="min-h-dvh bg-white">
@@ -290,6 +310,7 @@ export default function PerfilPage() {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="logout-title"
+            aria-describedby="logout-desc"
           >
             <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
               <AlertTriangle size={20} className="text-[var(--danger)]" />
@@ -297,7 +318,7 @@ export default function PerfilPage() {
             <h3 id="logout-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
               ¿Cerrar sesión?
             </h3>
-            <p className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
+            <p id="logout-desc" className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
               Tendrás que volver a iniciar sesión para acceder a tu familia.
             </p>
             <div className="flex gap-2 mt-5">
@@ -305,6 +326,7 @@ export default function PerfilPage() {
                 onClick={() => setConfirmLogout(false)}
                 className="btn btn-secondary flex-1"
                 disabled={loggingOut}
+                autoFocus
               >
                 Cancelar
               </button>
@@ -329,6 +351,7 @@ export default function PerfilPage() {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="reset-title"
+            aria-describedby="reset-desc"
           >
             <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
               <AlertTriangle size={20} className="text-[var(--danger)]" />
@@ -336,7 +359,7 @@ export default function PerfilPage() {
             <h3 id="reset-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
               ¿Borrar TODOS los datos?
             </h3>
-            <p className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
+            <p id="reset-desc" className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
               Se eliminarán los hijos, eventos, tareas, rutinas, mensajes y tu cuenta. Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-2 mt-5">
@@ -344,6 +367,7 @@ export default function PerfilPage() {
                 onClick={() => setConfirmReset(false)}
                 className="btn btn-secondary flex-1"
                 disabled={resetting}
+                autoFocus
               >
                 Cancelar
               </button>

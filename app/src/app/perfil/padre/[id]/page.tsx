@@ -153,13 +153,14 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} />
+          <label htmlFor="padre-nombre" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Nombre</label>
+          <input id="padre-nombre" type="text" value={name} onChange={e => setName(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Teléfono</label>
+          <label htmlFor="padre-telefono" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Teléfono</label>
           <input
+            id="padre-telefono"
             type="tel"
             value={phone}
             onChange={e => setPhone(formatPhone(e.target.value))}
@@ -169,8 +170,8 @@ export default function EditarPadrePage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div>
-          <label className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Opcional" />
+          <label htmlFor="padre-email" className="text-caption text-[var(--text-tertiary)] mb-2 block uppercase tracking-wider">Email</label>
+          <input id="padre-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Opcional" />
         </div>
 
         <button onClick={handleSave} disabled={saving || !name.trim()} className="btn btn-primary btn-block">
