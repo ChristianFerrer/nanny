@@ -124,7 +124,6 @@ export default function AgendaPage() {
       <header className="glass px-4 pt-header pb-2 sticky top-0 z-[var(--z-sticky)]">
         <div className="mb-3">
           <PageHeader
-            collapsible
             title="Agenda"
             subtitle="Eventos, rutinas y tareas"
             right={
