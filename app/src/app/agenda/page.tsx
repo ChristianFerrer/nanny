@@ -83,7 +83,8 @@ export default function AgendaPage() {
 
   const getChild = (id: string | null) => children.find(c => c.id === id);
 
-  const monthYear = startOfWeek.toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  const monthName = startOfWeek.toLocaleDateString('es', { month: 'long' });
+  const monthYear = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${startOfWeek.getFullYear()}`;
 
   // ¿El día tiene algo? (para el punto bajo el número, estilo iOS Calendar)
   const dayHasItems = (day: Date) => {
@@ -158,7 +159,7 @@ export default function AgendaPage() {
             <ChevronLeft size={22} />
           </button>
           <div className="text-center">
-            <p className="text-headline text-[var(--text-primary)] capitalize font-semibold tabular-nums">{monthYear}</p>
+            <p className="text-callout text-[var(--text-primary)] font-semibold tabular-nums">{monthYear}</p>
             {weekOffset !== 0 ? (
               <p className="text-caption text-[var(--text-tertiary)] tabular-nums">
                 Hoy · {today.toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}
