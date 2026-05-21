@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sparkles, Settings } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
 import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
 import { buildGroupedTasks, type GroupOrTask } from '@/lib/task-grouping';
@@ -70,20 +71,20 @@ export default function TareasPage() {
 
   return (
     <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-header pb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Tareas</h1>
-          <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">
-            Pendientes con y sin fecha
-          </p>
-        </div>
-        <Link
-          href="/perfil"
-          aria-label="Configuración"
-          className="size-10 mt-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-        >
-          <Settings size={24} />
-        </Link>
+      <header className="px-5 pt-header pb-4">
+        <PageHeader
+          title="Tareas"
+          subtitle="Pendientes con y sin fecha"
+          right={
+            <Link
+              href="/perfil"
+              aria-label="Configuración"
+              className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+            >
+              <Settings size={24} />
+            </Link>
+          }
+        />
       </header>
 
       <div className="px-4 space-y-5">

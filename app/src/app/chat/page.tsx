@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings, Repeat } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getRoutines, getRoutineExceptions, addRoutine, addRoutineException, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
 import { registerPushNotifications, sendPushToFamily } from '@/lib/push';
@@ -1535,52 +1536,21 @@ export default function ChatPage() {
     >
       {/* Header — glass Apple-style */}
       <div className="glass px-4 py-3 shrink-0 z-[var(--z-sticky)]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Participant avatars stacked */}
-            <div className="flex -space-x-2 shrink-0">
-              <div className="size-10 rounded-full bg-[var(--nanny-purple)] flex items-center justify-center ring-2 ring-white z-10 shadow-xs">
-                <Bot size={18} className="text-white" />
-              </div>
-              {parents.map((p, i) => (
-                <div
-                  key={p.id}
-                  className={`size-10 rounded-full flex items-center justify-center ring-2 ring-white ${
-                    p.id === currentParent ? 'bg-[var(--nanny-purple-tint)]' : 'bg-[var(--gray-100)]'
-                  }`}
-                  style={{ zIndex: parents.length - i }}
-                >
-                  <UserIcon size={16} className={p.id === currentParent ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-secondary)]'} />
-                </div>
-              ))}
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-headline text-[var(--text-primary)] truncate text-balance">Chat Familiar</h1>
-              <p className="text-caption text-[var(--text-tertiary)] truncate">
-                {onboardingMode
-                  ? (onboardingSaving ? 'Creando tu familia…' : 'Nanny')
-                  : <>Nanny{parents.map(p => `, ${p.name}`).join('')}</>
-                }
-              </p>
-            </div>
-          </div>
-          {!onboardingMode && (
-            <div className="flex items-center gap-2 relative shrink-0">
-              {/* Solo ⚙ — la navegación vive en el bottom nav.
-                  Search/refresh/catchup eliminados: cada uno era una pequeña
-                  admisión de que el asistente no estaba haciendo su trabajo.
-                  Si querés algo viejo, le preguntás a Nanny; el polling ya
-                  trae mensajes nuevos; el catchup corre solo de noche. */}
-              <Link
-                href="/perfil"
-                aria-label="Configuración"
-                className="size-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
-              >
-                <Settings size={24} className="text-[var(--text-secondary)]" />
-              </Link>
-            </div>
-          )}
-        </div>
+        <PageHeader
+          title="Chat"
+          subtitle={onboardingMode
+            ? (onboardingSaving ? 'Creando tu familia…' : 'Configuremos tu familia')
+            : parents.map(p => p.name).join(' · ')}
+          right={!onboardingMode ? (
+            <Link
+              href="/perfil"
+              aria-label="Configuración"
+              className="size-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
+            >
+              <Settings size={24} className="text-[var(--text-secondary)]" />
+            </Link>
+          ) : undefined}
+        />
       </div>
 
       {/* Search bar (expandible) — DEPRECATED: se eliminó el botón. El bloque queda

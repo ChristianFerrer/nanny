@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Settings, Repeat } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
 import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
 import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
@@ -120,26 +121,31 @@ export default function AgendaPage() {
     <div className="min-h-dvh bg-white page-enter">
       {/* Header — iOS Calendar: mes prominente, semana navegable, strip de días */}
       <header className="glass px-4 pt-header pb-2 sticky top-0 z-[var(--z-sticky)]">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-large-title text-[var(--text-primary)] text-balance">Agenda</h1>
-          <div className="flex items-center gap-2">
-            {weekOffset !== 0 && (
-              <button
-                onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
-                aria-label="Ir a hoy"
-                className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
-              >
-                Hoy
-              </button>
-            )}
-            <Link
-              href="/perfil"
-              aria-label="Configuración"
-              className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-            >
-              <Settings size={24} />
-            </Link>
-          </div>
+        <div className="mb-3">
+          <PageHeader
+            title="Agenda"
+            subtitle="Eventos, rutinas y tareas"
+            right={
+              <>
+                {weekOffset !== 0 && (
+                  <button
+                    onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
+                    aria-label="Ir a hoy"
+                    className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
+                  >
+                    Hoy
+                  </button>
+                )}
+                <Link
+                  href="/perfil"
+                  aria-label="Configuración"
+                  className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+                >
+                  <Settings size={24} />
+                </Link>
+              </>
+            }
+          />
         </div>
 
         {/* Navegación de mes/semana */}
