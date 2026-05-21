@@ -1537,11 +1537,10 @@ export default function ChatPage() {
       {/* Header — glass Apple-style */}
       <div className="glass px-4 py-3 shrink-0 z-[var(--z-sticky)]">
         <PageHeader
-          compact
           title="Chat"
           subtitle={onboardingMode
             ? (onboardingSaving ? 'Creando tu familia…' : 'Configuremos tu familia')
-            : parents.map(p => p.name).join(' · ')}
+            : ['Nanny', ...parents.map(p => p.name)].join(' · ')}
           right={!onboardingMode ? (
             <Link
               href="/perfil"
