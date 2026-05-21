@@ -1537,6 +1537,7 @@ export default function ChatPage() {
       {/* Header — glass Apple-style */}
       <div className="glass px-4 py-3 shrink-0 z-[var(--z-sticky)]">
         <PageHeader
+          collapsible
           title="Chat"
           subtitle={onboardingMode
             ? (onboardingSaving ? 'Creando tu familia…' : 'Configuremos tu familia')
