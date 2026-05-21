@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { getEvents, getChildren, getParents, getCachedSnapshot, updateEvent, deleteEvent } from '@/lib/store';
 import type { FamilyEvent, Child, Parent } from '@/lib/types';
+import DetailHeader from '@/components/DetailHeader';
 
 const TYPE_OPTIONS: { value: string; label: string; icon: React.ReactNode }[] = [
   { value: 'doctor', label: 'Médico', icon: <Stethoscope size={14} /> },
@@ -125,19 +126,7 @@ export default function EventoDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-header pb-3 flex items-center justify-between">
-        <button
-          onClick={() => router.back()}
-          aria-label="Volver"
-          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
-        >
-          <ArrowLeft size={26} />
-        </button>
-      </header>
-
-      <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)] text-balance">Editar evento</h1>
-      </div>
+      <DetailHeader title="Editar evento" subtitle={child?.name} />
 
       <div className="px-5 mt-4 space-y-4">
         <div>

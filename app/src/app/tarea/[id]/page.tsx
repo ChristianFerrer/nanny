@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Trash2, Layers, AlertTriangle } from 'lucide-react';
 import { getTasks, getChildren, getParents, getCachedSnapshot, updateTask, deleteTask } from '@/lib/store';
 import type { Task, Child, Parent } from '@/lib/types';
+import DetailHeader from '@/components/DetailHeader';
 
 export default function TareaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -109,21 +110,7 @@ export default function TareaDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-header pb-3 flex items-center justify-between">
-        <button
-          onClick={() => router.back()}
-          aria-label="Volver"
-          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
-        >
-          <ArrowLeft size={26} />
-        </button>
-      </header>
-
-      <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)] text-balance">
-          {isParent ? 'Tarea paraguas' : 'Editar tarea'}
-        </h1>
-      </div>
+      <DetailHeader title={isParent ? 'Tarea paraguas' : 'Editar tarea'} />
 
       <div className="px-5 mt-4 space-y-4">
         {isParent && (

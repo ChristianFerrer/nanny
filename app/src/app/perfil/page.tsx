@@ -9,6 +9,7 @@ import { clearCachedChat } from '@/lib/chat-cache';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
 import { formatAge } from '@/lib/age';
+import DetailHeader from '@/components/DetailHeader';
 
 const TIMEZONE_LABELS: Record<string, string> = {
   'America/Argentina/Buenos_Aires': 'Argentina (GMT-3)',
@@ -139,10 +140,7 @@ export default function PerfilPage() {
 
   return (
     <div className="min-h-dvh bg-white pb-24 page-enter">
-      <header className="px-5 pt-header pb-4">
-        <h1 className="text-large-title text-balance text-[var(--text-primary)]">{family.name}</h1>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Configuración familiar</p>
-      </header>
+      <DetailHeader title={family.name} subtitle="Configuración" />
 
       <div className="px-4 space-y-4">
         {/* Familia */}

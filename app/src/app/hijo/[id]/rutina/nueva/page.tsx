@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
 import { getChildren, addRoutine } from '@/lib/store';
 import type { Child } from '@/lib/types';
+import DetailHeader from '@/components/DetailHeader';
 
 const DAY_LABELS: { value: number; short: string }[] = [
   { value: 1, short: 'L' },
@@ -117,20 +118,7 @@ export default function NuevaRutinaPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-dvh bg-[var(--bg-canvas)] pb-24 page-enter">
-      <header className="px-5 pt-header pb-3">
-        <button
-          onClick={() => router.back()}
-          aria-label="Volver"
-          className="size-10 -ml-2 rounded-full flex items-center justify-center text-[var(--text-secondary)] focus-ring tap-highlight"
-        >
-          <ArrowLeft size={26} />
-        </button>
-      </header>
-
-      <div className="px-5">
-        <h1 className="text-large-title text-[var(--text-primary)] text-balance">Nueva rutina</h1>
-        <p className="text-footnote text-[var(--text-tertiary)] mt-0.5">Para {child.name}</p>
-      </div>
+      <DetailHeader title="Nueva rutina" subtitle={`Para ${child.name}`} />
 
       <div className="px-5 mt-4 space-y-4">
         <div>
