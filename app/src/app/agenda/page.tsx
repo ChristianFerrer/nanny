@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Settings, Repeat } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Repeat } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
@@ -126,26 +126,15 @@ export default function AgendaPage() {
           <PageHeader
             title="Agenda"
             subtitle="Eventos, rutinas y tareas"
-            right={
-              <>
-                {weekOffset !== 0 && (
-                  <button
-                    onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
-                    aria-label="Ir a hoy"
-                    className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
-                  >
-                    Hoy
-                  </button>
-                )}
-                <Link
-                  href="/perfil"
-                  aria-label="Configuración"
-                  className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-                >
-                  <Settings size={24} />
-                </Link>
-              </>
-            }
+            right={weekOffset !== 0 ? (
+              <button
+                onClick={() => { setWeekOffset(0); setSelectedDayIdx(todayInitialIdx); }}
+                aria-label="Ir a hoy"
+                className="px-3 h-9 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] text-caption font-semibold focus-ring active:scale-95 transition-transform"
+              >
+                Hoy
+              </button>
+            ) : undefined}
           />
         </div>
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { GraduationCap, CalendarDays as CalIcon, CheckSquare as TaskIcon, Pill, Plus, ChevronRight, Users, Settings } from 'lucide-react';
+import { GraduationCap, CalendarDays as CalIcon, CheckSquare as TaskIcon, Pill, Plus, ChevronRight, Users } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { getChildren, getTodayEvents, getTasks, getMedications, getCachedSnapshot } from '@/lib/store';
 import type { Child, FamilyEvent, Task, Medication } from '@/lib/types';
@@ -54,22 +54,13 @@ export default function HijosPage() {
           title="Hijos"
           subtitle="Perfiles y memoria de cada hijo"
           right={
-            <>
-              <Link
-                href="/perfil/hijo/nuevo"
-                aria-label="Agregar hijo"
-                className="size-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
-              >
-                <Plus size={20} />
-              </Link>
-              <Link
-                href="/perfil"
-                aria-label="Configuración"
-                className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-              >
-                <Settings size={24} />
-              </Link>
-            </>
+            <Link
+              href="/perfil/hijo/nuevo"
+              aria-label="Agregar hijo"
+              className="size-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
+            >
+              <Plus size={20} />
+            </Link>
           }
         />
       </header>

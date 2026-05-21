@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Link from 'next/link';
-import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Settings, Repeat } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, Bot, CalendarDays, CheckSquare, Bell, X, Pill, RefreshCw, Thermometer, ListChecks, CreditCard, Car, Clock, AlertTriangle, ChevronRight, Stethoscope, GraduationCap, Trophy, Cake, Plane, MapPin as MapPinIcon, User as UserIcon, Reply, Search, Repeat } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { useRouter } from 'next/navigation';
 import { getMessages, getNewMessages, addMessage, addEvent, addTask, addMedication, getMedications, getParents, getChildren, getFamily, getEvents, getTasks, getRoutines, getRoutineExceptions, addRoutine, addRoutineException, getCurrentParentId, hasFamily, getCachedFamilyId, getCachedSnapshot, updateFamily, invalidateTableCache } from '@/lib/store';
@@ -1541,15 +1540,6 @@ export default function ChatPage() {
           subtitle={onboardingMode
             ? (onboardingSaving ? 'Creando tu familia…' : 'Configuremos tu familia')
             : ['Nanny', ...parents.map(p => p.name)].join(' · ')}
-          right={!onboardingMode ? (
-            <Link
-              href="/perfil"
-              aria-label="Configuración"
-              className="size-10 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center transition-colors focus-ring"
-            >
-              <Settings size={24} className="text-[var(--text-secondary)]" />
-            </Link>
-          ) : undefined}
         />
       </div>
 

@@ -3,25 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, CalendarDays, Users, CheckSquare } from 'lucide-react';
+import { MessageCircle, CalendarDays, Users, CheckSquare, Settings } from 'lucide-react';
 import { getMessages, getTasks, getCurrentParentId } from '@/lib/store';
 
-// Bottom nav simplificada: 4 tabs principales.
+// Bottom nav: 5 tabs.
 //
 // Decisión de UX: Chat (input) → Agenda (qué pasa cuándo) → Tareas (pendientes
-// y backlog) → Hijos (memoria estable). La configuración vive en un gear ⚙
-// dentro del header de cada pantalla, no en una tab — es un flujo raro.
+// y backlog) → Hijos (memoria estable) → Ajustes (config familiar). La tuerca
+// dejó de vivir en el header de cada pantalla y ahora es una tab fija.
 const tabs = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
   { href: '/agenda', icon: CalendarDays, label: 'Agenda' },
   { href: '/tareas', icon: CheckSquare, label: 'Tareas' },
   { href: '/hijo', icon: Users, label: 'Hijos' },
+  { href: '/perfil', icon: Settings, label: 'Ajustes' },
 ];
 
-// Rutas que no son tabs pero deben mantener una tab "iluminada" para no
-// confundir al usuario. /perfil cae bajo Agenda (donde está el gear), pero
-// si llegara desde otro lugar igual no resaltamos ninguna tab para
-// /perfil — es config, conceptualmente fuera de las 4 tabs.
 const AGENDA_ROUTES = ['/agenda', '/hoy', '/semana']; // /hoy y /semana redirigen, pero por las dudas
 
 // /chat ya NO está oculto: la nav vive consistente en todas las tabs.

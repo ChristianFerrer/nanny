@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Settings } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { getTasks, getChildren, getParents, completeTask, uncompleteTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
@@ -75,15 +75,6 @@ export default function TareasPage() {
         <PageHeader
           title="Tareas"
           subtitle="Pendientes con y sin fecha"
-          right={
-            <Link
-              href="/perfil"
-              aria-label="Configuración"
-              className="size-10 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
-            >
-              <Settings size={24} />
-            </Link>
-          }
         />
       </header>
 

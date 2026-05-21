@@ -230,7 +230,7 @@ body[data-page="chat"] main {
    TYPOGRAPHY SCALE (Apple HIG-inspired)
    ============================================ */
 
-.text-large-title { font-size: 34px; line-height: 1.12; letter-spacing: -0.022em; font-weight: 700; }
+.text-large-title { font-size: 30.6px; line-height: 1.12; letter-spacing: -0.022em; font-weight: 700; }
 .text-title-1     { font-size: 28px; line-height: 1.14; letter-spacing: -0.022em; font-weight: 700; }
 .text-title-2     { font-size: 22px; line-height: 1.18; letter-spacing: -0.020em; font-weight: 700; }
 .text-title-3     { font-size: 20px; line-height: 1.20; letter-spacing: -0.018em; font-weight: 600; }
