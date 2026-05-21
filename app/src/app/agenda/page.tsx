@@ -3,18 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Circle, Plus, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Settings, Repeat } from 'lucide-react';
 import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
 import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
-
-// Estilo de card alineado al mockup de la landing (AgendaMockup).
-const CARD = 'flex items-start gap-3 p-3 w-full text-left rounded-[14px]';
-const CARD_STYLE: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid rgba(0,0,0,0.06)',
-  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-};
 
 export default function AgendaPage() {
   const router = useRouter();
@@ -101,16 +93,6 @@ export default function AgendaPage() {
     return routines.some(r => r.active && r.days_of_week.includes(dow));
   };
 
-  // Avatar circular con color del hijo + inicial (como el mockup).
-  const Avatar = ({ child, fallback }: { child?: Child; fallback: string }) => (
-    <span
-      className="size-10 rounded-full flex items-center justify-center text-white text-[15px] font-semibold shrink-0"
-      style={{ background: child?.color || 'var(--nanny-purple)' }}
-    >
-      {(child?.name || fallback).charAt(0).toUpperCase()}
-    </span>
-  );
-
   if (loading) {
     return (
       <div className="min-h-dvh bg-white">
@@ -125,10 +107,10 @@ export default function AgendaPage() {
             ))}
           </div>
         </div>
-        <div className="p-4 space-y-2.5">
+        <div className="p-4 space-y-4">
           <div className="skeleton h-5 w-24 rounded" />
-          <div className="skeleton h-16 w-full rounded-[14px]" />
-          <div className="skeleton h-16 w-full rounded-[14px]" />
+          <div className="skeleton h-12 w-full rounded-xl" />
+          <div className="skeleton h-12 w-full rounded-xl" />
         </div>
       </div>
     );
@@ -136,7 +118,7 @@ export default function AgendaPage() {
 
   return (
     <div className="min-h-dvh bg-white page-enter">
-      {/* Header — mes navegable + strip de días estilo iOS */}
+      {/* Header — iOS Calendar: mes prominente, semana navegable, strip de días */}
       <header className="glass px-4 pt-header pb-2 sticky top-0 z-[var(--z-sticky)]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-large-title text-[var(--text-primary)] text-balance">Agenda</h1>
@@ -160,6 +142,7 @@ export default function AgendaPage() {
           </div>
         </div>
 
+        {/* Navegación de mes/semana */}
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => setWeekOffset(w => w - 1)}
@@ -192,7 +175,7 @@ export default function AgendaPage() {
           </button>
         </div>
 
-        {/* Week strip — letra + número, día seleccionado en círculo morado */}
+        {/* Week strip — iOS Calendar: letra del día + número, seleccionado = círculo lleno */}
         <div role="radiogroup" aria-label="Día de la semana" className="flex justify-between">
           {days.map((day, i) => {
             const isToday = day.toDateString() === today.toDateString();
@@ -227,7 +210,11 @@ export default function AgendaPage() {
                   {day.getDate()}
                 </span>
                 <span
-                  className={`size-1 rounded-full ${hasItems ? 'bg-[var(--nanny-purple)]' : 'bg-transparent'}`}
+                  className={`size-1 rounded-full ${
+                    hasItems
+                      ? isSelected ? 'bg-[var(--nanny-purple)]' : 'bg-[var(--nanny-purple)]'
+                      : 'bg-transparent'
+                  }`}
                   aria-hidden="true"
                 />
               </button>
@@ -236,7 +223,7 @@ export default function AgendaPage() {
         </div>
       </header>
 
-      {/* Lista — cards por item, estilo landing AgendaMockup */}
+      {/* Lista tipo agenda — un bloque por día */}
       <div className="px-4 py-4 space-y-5 pb-24">
         {days
           .map((day, i) => ({ day, i }))
@@ -272,8 +259,8 @@ export default function AgendaPage() {
 
           return (
             <section key={i} className={isPast && selectedDayIdx === null ? 'opacity-50' : ''}>
-              {/* Encabezado de día */}
-              <div className="flex items-baseline gap-2 mb-2.5 px-1">
+              {/* Encabezado de día — estilo iOS Calendar */}
+              <div className="flex items-baseline gap-2 mb-2 px-1">
                 <h2 className={`text-headline font-semibold capitalize ${isToday ? 'text-[var(--nanny-purple)]' : 'text-[var(--text-primary)]'}`}>
                   {label}
                 </h2>
@@ -285,81 +272,100 @@ export default function AgendaPage() {
               {hasNothing ? (
                 <Link
                   href="/chat"
-                  className="block rounded-[14px] px-4 py-3.5 focus-ring"
-                  style={CARD_STYLE}
+                  className="block rounded-2xl bg-[var(--gray-50)] px-4 py-3.5 hover:bg-[var(--gray-100)] transition-colors focus-ring"
                 >
                   <p className="text-subhead text-[var(--text-tertiary)]">Día libre</p>
                   <p className="text-caption text-[var(--nanny-purple)] font-medium mt-0.5 text-pretty">Decile a Nanny qué agendar →</p>
                 </Link>
               ) : (
-                <div className="space-y-2.5">
-                  {dayEvents.map(event => {
+                <div className="rounded-2xl bg-white border border-[var(--border-subtle)] overflow-hidden shadow-xs">
+                  {dayEvents.map((event, idx) => {
                     const child = getChild(event.child_id);
                     const time = new Date(event.date_start).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-                    const sub = [child?.name, event.location].filter(Boolean).join(' · ');
+                    const isLast = idx === dayEvents.length - 1 && dayRoutines.length === 0 && dayTasks.length === 0;
                     return (
                       <button
                         key={event.id}
                         onClick={() => router.push(`/evento/${event.id}`)}
-                        className={`${CARD} active:scale-[0.99] transition-transform`}
-                        style={CARD_STYLE}
+                        className={`w-full flex items-stretch gap-3 px-3 py-2.5 text-left active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
                       >
-                        <Avatar child={child} fallback={event.title} />
+                        <span className="w-12 shrink-0 text-right pt-0.5 text-footnote font-medium text-[var(--text-secondary)] tabular-nums">{time}</span>
+                        <span className="w-[3px] shrink-0 rounded-full bg-[var(--nanny-purple)]" />
                         <span className="flex-1 min-w-0">
-                          <span className="block text-subhead font-semibold text-[var(--text-primary)] truncate">{event.title}</span>
-                          {sub && <span className="block text-caption text-[var(--text-tertiary)] truncate mt-0.5">{sub}</span>}
+                          <span className="block text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{event.title}</span>
+                          {event.location && (
+                            <span className="flex items-center gap-1 mt-0.5 text-caption text-[var(--text-tertiary)] truncate">
+                              <MapPin size={11} /> {event.location}
+                            </span>
+                          )}
                         </span>
-                        <span className="text-caption font-semibold text-[var(--nanny-purple)] shrink-0 tabular-nums pt-0.5">{time}</span>
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 self-center" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
 
-                  {dayRoutines.map(({ routine, exception }) => {
+                  {dayRoutines.map(({ routine, exception }, idx) => {
                     const child = getChild(routine.child_id);
                     const start = exception?.time_start_override || routine.time_start;
                     const end = exception?.time_end_override || routine.time_end;
-                    const timeLabel = start && end ? `${start.slice(0, 5)}–${end.slice(0, 5)}` : start ? start.slice(0, 5) : '';
+                    const timeLabel = start ? start.slice(0, 5) : '';
+                    const isLast = idx === dayRoutines.length - 1 && dayTasks.length === 0;
                     return (
                       <button
                         key={routine.id}
                         onClick={() => child && router.push(`/hijo/${child.id}`)}
-                        className={`${CARD} active:scale-[0.99] transition-transform`}
-                        style={{ background: '#fff', border: '1px dashed rgba(124,58,237,0.4)' }}
+                        className={`w-full flex items-stretch gap-3 px-3 py-2.5 text-left active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
                       >
-                        <Avatar child={child} fallback={routine.name} />
-                        <span className="flex-1 min-w-0">
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-subhead font-semibold text-[var(--text-primary)] truncate">{routine.name}</span>
-                            <span className="text-caption-2 font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] shrink-0">Rutina</span>
-                          </span>
-                          {child && <span className="block text-caption text-[var(--text-tertiary)] truncate mt-0.5">{child.name}</span>}
+                        <span className="w-12 shrink-0 text-right pt-0.5 text-footnote font-medium text-[var(--text-tertiary)] tabular-nums">{timeLabel || '—'}</span>
+                        <span className="w-5 shrink-0 flex justify-center pt-0.5">
+                          <Repeat size={14} className="text-[var(--nanny-purple)]" />
                         </span>
-                        {timeLabel && <span className="text-caption font-semibold text-[var(--text-tertiary)] shrink-0 tabular-nums pt-0.5">{timeLabel}</span>}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-callout font-medium text-[var(--text-secondary)] leading-snug truncate">{routine.name}</span>
+                          <span className="text-caption text-[var(--text-tertiary)]">Rutina{end ? ` · hasta ${end.slice(0, 5)}` : ''}</span>
+                        </span>
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 self-center" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
 
-                  {dayTasks.map(task => {
+                  {dayTasks.map((task, idx) => {
                     const child = getChild(task.child_id);
-                    const sub = [child?.name, task.priority !== 'normal' ? task.priority : null].filter(Boolean).join(' · ');
+                    const isLast = idx === dayTasks.length - 1;
                     return (
                       <div
                         key={task.id}
                         onClick={() => router.push(`/tarea/${task.id}`)}
-                        className={`${CARD} cursor-pointer active:scale-[0.99] transition-transform`}
-                        style={CARD_STYLE}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer active:bg-[var(--gray-50)] transition-colors ${isLast ? '' : 'border-b border-[var(--border-subtle)]'}`}
                       >
                         <button
                           onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
                           aria-label="Completar tarea"
-                          className="size-10 rounded-[10px] bg-[var(--gray-100)] flex items-center justify-center shrink-0 text-[var(--text-quaternary)] hover:text-[var(--nanny-purple)] transition-colors focus-ring"
+                          className="shrink-0 text-[var(--text-quaternary)] hover:text-[var(--nanny-purple)] transition-colors focus-ring rounded-full"
                         >
-                          <Circle size={18} />
+                          <Circle size={20} />
                         </button>
                         <div className="flex-1 min-w-0">
-                          <p className="text-subhead font-semibold text-[var(--text-primary)] truncate">{task.title}</p>
-                          {sub && <p className="text-caption text-[var(--text-tertiary)] truncate mt-0.5">{sub}</p>}
+                          <p className="text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{task.title}</p>
+                          {task.priority !== 'normal' && (
+                            <span className={`text-caption font-medium ${task.priority === 'urgent' || task.priority === 'high' ? 'text-[var(--danger)]' : 'text-[var(--text-tertiary)]'}`}>
+                              {task.priority}
+                            </span>
+                          )}
                         </div>
+                        {child && (
+                          <span className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: child.color || 'var(--nanny-purple)' }}>
+                            {child.name.charAt(0)}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
