@@ -102,6 +102,10 @@ Vercel Hobby solo soporta cron diario, así que los cron jobs corren en **cron-j
 
 14/14 micro-batches completados. Toda la app tiene el nuevo design system, animaciones de entrada, dark mode auto, headers Apple-style. Detalle completo en `REDESIGN-PLAN.md`.
 
+### Agenda estilo Apple Calendar — ✅ Cerrado (mayo 2026)
+
+`/agenda` tiene selector **Lista / Día** en el header. **Lista**: semana agrupada por día (solo días con items), con número de semana ISO (`S21`), barra de color por hijo + avatar, y horas inicio→fin a la derecha (inicio negro, fin gris). **Día**: timeline horario (`components/DayTimeline.tsx`) con rango dinámico de horas, bloques posicionados por hora, layout de columnas para eventos solapados (lado a lado), franja "todo el día" (eventos sin hora + tareas), tinte por color de hijo. Tap en un día del strip hace drill-in a la vista Día. `event_type` → ícono lucide (doctor/school/birthday/activity/travel/other). "Hoy" como pill fijo abajo-izquierda (estilo Apple).
+
 ### Refactor de UI a páginas full-screen — ✅ Cerrado (abril 2026)
 
 Toda edición de detalle ahora vive en páginas full-screen con back arrow, no en bottom sheets / popups. El patrón unificado:
