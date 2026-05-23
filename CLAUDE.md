@@ -320,7 +320,13 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 ### Nanny Assistant (`assistant.ts`) — el cerebro único
 
-UNA llamada a Claude Sonnet 4.6 por mensaje. Lee la conversación reciente (últimos 20 mensajes, como un todo — entiende ráfagas) + lo ya anotado (agenda, tareas, medicación) + hijos + zona horaria de la familia. Tiene 4 tools (`anotar_evento`, `anotar_tarea`, `anotar_medicacion`, `anotar_rutina`) y responde en texto. En un solo turno decide qué anotar (persiste directo a Supabase) y qué responder. Sin classifier, sin listener separado, sin decision agent, sin postprocess regex. Prompt corto: confiamos en la inteligencia del modelo con el contexto correcto. Prompt caching sobre el system. Latencia ~2-3s, costo ~$0.01/msg.
+UNA llamada a Claude Sonnet 4.6 por mensaje. Lee la conversación reciente (últimos 20 mensajes, como un todo — entiende ráfagas) + lo ya anotado (eventos próximos, tareas pendientes, tratamientos activos, rutinas activas — **cada item con su id entre corchetes**) + hijos + zona horaria de la familia. En un solo turno decide qué anotar/gestionar (persiste directo a Supabase) y qué responder. Sin classifier, sin listener separado, sin decision agent, sin postprocess regex. Prompt corto: confiamos en la inteligencia del modelo con el contexto correcto. Prompt caching sobre el system. Latencia ~2-3s, costo ~$0.01/msg.
+
+**8 tools** — el cuaderno es editable, no solo append:
+- Crear: `anotar_evento`, `anotar_tarea`, `anotar_medicacion`, `anotar_rutina`.
+- Gestionar (sobre el id del bloque "Ya está anotado"): `completar_tarea` (status=done), `cancelar_item` (reversible: `status=cancelled` para evento/tarea/tratamiento, `active=false` para rutina; cubre los 4 tipos), `editar_evento` y `editar_tarea` (correcciones in-place). Todas las mutaciones van scopeadas por familia (events/tasks/medications por `family_id`; routines por `child_id ∈ hijos de la familia`).
+- **Protocolo**: confirmar antes de `completar_tarea`/`cancelar_item` (proponé y esperá el "sí"); detección proactiva de duplicados y tareas dadas por cumplidas; editar el item existente en vez de crear uno nuevo ante una corrección. Nunca toca un item que no esté en el contexto.
+- Los `cancelled`/`done` se filtran en las vistas (agenda lista + `DayTimeline` + `/tareas`) para que desaparezcan del cuaderno.
 
 **Componentes en transición (a retirar si el assistant valida):** `listener.ts` (Sprint 3 Fase A, desconectado del endpoint), `lib/agent/decision-agent.ts` + cron `nanny-wake`, `lib/agent/memory-updater.ts` + cron `memory-updater`. Quedan en disco pero el chat ya no los usa.
 

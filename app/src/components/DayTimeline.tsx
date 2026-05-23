@@ -93,14 +93,14 @@ export default function DayTimeline({
   const childColor = (id: string | null) => getChild(id)?.color || '#7C3AED';
 
   // --- Eventos del día ---
-  const dayEvents = events.filter(e => new Date(e.date_start).toDateString() === ds);
+  const dayEvents = events.filter(e => e.status !== 'cancelled' && new Date(e.date_start).toDateString() === ds);
   // --- Rutinas activas del día (sin excepción cancelada) ---
   const dayRoutines = routines
     .filter(r => r.active && r.days_of_week.includes(dow))
     .map(r => ({ routine: r, exception: routineExceptions.find(rx => rx.routine_id === r.id && rx.date === dayIso) }))
     .filter(({ exception }) => !exception || !exception.cancelled);
   // --- Tareas del día ---
-  const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === ds);
+  const dayTasks = tasks.filter(t => t.status !== 'cancelled' && t.status !== 'done' && t.due_date && new Date(t.due_date).toDateString() === ds);
 
   // Separar bloques con hora vs. items de "todo el día"
   const timed: Omit<Block, 'col' | 'cols'>[] = [];

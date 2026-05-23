@@ -95,8 +95,8 @@ export default function AgendaPage() {
 
   const dayHasItems = (day: Date) => {
     const dstr = day.toDateString();
-    if (events.some(e => new Date(e.date_start).toDateString() === dstr)) return true;
-    if (tasks.some(t => t.due_date && new Date(t.due_date).toDateString() === dstr)) return true;
+    if (events.some(e => e.status !== 'cancelled' && new Date(e.date_start).toDateString() === dstr)) return true;
+    if (tasks.some(t => t.status !== 'cancelled' && t.status !== 'done' && t.due_date && new Date(t.due_date).toDateString() === dstr)) return true;
     const dow = day.getDay();
     return routines.some(r => r.active && r.days_of_week.includes(dow));
   };
@@ -249,8 +249,8 @@ export default function AgendaPage() {
             }
             return withItems.map(({ day, i }) => {
               const dstr = day.toDateString();
-              const dayEvents = events.filter(e => new Date(e.date_start).toDateString() === dstr);
-              const dayTasks = tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === dstr);
+              const dayEvents = events.filter(e => e.status !== 'cancelled' && new Date(e.date_start).toDateString() === dstr);
+              const dayTasks = tasks.filter(t => t.status !== 'cancelled' && t.status !== 'done' && t.due_date && new Date(t.due_date).toDateString() === dstr);
               const dow = day.getDay();
               const dayIso = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
               const dayRoutines = routines

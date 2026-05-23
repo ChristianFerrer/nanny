@@ -77,7 +77,15 @@ Reglas:
 - NO dupliques lo que ya está anotado (te paso la agenda actual más abajo). Si algo ya existe, no lo crees de nuevo.
 - NO inventes datos. Si falta algo importante, anotá lo que sí sabés y preguntá lo justo en la misma línea de confirmación.
 - Respuestas cortas. Sos una asistente, no un chatbot que habla de más.
-- Cero efusividad, cero signos de exclamación de más, máximo una pregunta por turno.`;
+- Cero efusividad, cero signos de exclamación de más, máximo una pregunta por turno.
+
+Gestionás el cuaderno (agenda, tareas, tratamientos, rutinas), no solo anotás:
+- Cada item en "Ya está anotado" tiene un id entre corchetes (ej. [tarea abc-123]). Para cerrar, cancelar o corregir algo, usá ESE id con la tool correspondiente.
+- Tareas cumplidas: si un mensaje da por hecha una tarea ("ya compré los pañales", "listo lo del pediatra"), ofrecé cerrarla con completar_tarea.
+- Duplicados / cosas que ya no van: si ves dos registros del mismo plan, o algo que se canceló, ofrecé limpiarlo con cancelar_item (es reversible, no se pierde nada).
+- Correcciones: si cambian un dato ("el cumple es a las 5, no a las 4"), corregí el item existente con editar_evento / editar_tarea usando su id; NO crees uno nuevo.
+- SIEMPRE confirmá antes de cerrar (completar_tarea) o cancelar (cancelar_item): proponelo en una línea ("¿Cierro la tarea de los pañales?") y esperá el sí. Cuando confirmen ("sí", "dale", "cerralo"), ejecutá la acción que propusiste recién.
+- Nunca canceles, cierres ni edites algo que no esté en "Ya está anotado".`;
 
 const TOOLS: Anthropic.Messages.Tool[] = [
   {
@@ -145,6 +153,59 @@ const TOOLS: Anthropic.Messages.Tool[] = [
       required: ['child_name', 'name', 'type', 'days_of_week', 'time_start'],
     },
   },
+  {
+    name: 'completar_tarea',
+    description: 'Marcar una tarea como cumplida/cerrada. Confirmá antes. Usar el id de una tarea que esté en "Ya está anotado".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id de la tarea (del bloque "Ya está anotado").' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'cancelar_item',
+    description: 'Cancelar (reversible) un registro: un duplicado, algo que se canceló o que ya no va. Confirmá antes. Usar el id del bloque "Ya está anotado".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id del item.' },
+        tipo: { type: 'string', enum: ['evento', 'tarea', 'rutina', 'tratamiento'], description: 'Qué tipo de item es (según en qué lista del bloque "Ya está anotado" aparece).' },
+      },
+      required: ['id', 'tipo'],
+    },
+  },
+  {
+    name: 'editar_evento',
+    description: 'Corregir un evento existente (cambió la hora, el lugar, el título). Incluí solo los campos que cambian. NO crees uno nuevo para una corrección.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id del evento.' },
+        title: { type: 'string' },
+        event_type: { type: 'string', enum: ['doctor', 'school', 'birthday', 'activity', 'travel', 'other'] },
+        date_start: { type: 'string', description: 'ISO 8601 con hora.' },
+        date_end: { type: 'string', description: 'ISO 8601, opcional.' },
+        location: { type: 'string' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'editar_tarea',
+    description: 'Corregir una tarea existente (título, fecha límite, responsable). Incluí solo los campos que cambian.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id de la tarea.' },
+        title: { type: 'string' },
+        due_date: { type: 'string', description: 'ISO 8601.' },
+        assigned_to: { type: 'string', enum: ['mama', 'papa'] },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 // ────────────────────────────────────────────────────────────
@@ -175,19 +236,20 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantResu
       .order('created_at', { ascending: false })
       .limit(CONVERSATION_WINDOW),
     admin.from('events')
-      .select('title, date_start, child_id')
+      .select('id, title, date_start, child_id')
       .eq('family_id', input.familyId)
+      .neq('status', 'cancelled')
       .gte('date_start', new Date(now.getTime() - 24 * 3600 * 1000).toISOString())
       .order('date_start', { ascending: true })
       .limit(30),
     admin.from('tasks')
-      .select('title, status, child_id')
+      .select('id, title, status, child_id')
       .eq('family_id', input.familyId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(30),
     admin.from('medications')
-      .select('medication_name, child_name, status')
+      .select('id, medication_name, child_name, status')
       .eq('family_id', input.familyId)
       .eq('status', 'active')
       .limit(20),
@@ -209,6 +271,16 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantResu
     parentById.set(p.id, p.name);
   }
 
+  // Rutinas activas (la tabla routines no tiene family_id: se scopea por child).
+  const familyChildIds = childrenList.map(c => c.id);
+  const { data: routines } = familyChildIds.length
+    ? await admin.from('routines')
+        .select('id, name, child_id, days_of_week, time_start')
+        .in('child_id', familyChildIds)
+        .eq('active', true)
+        .limit(30)
+    : { data: [] as { id: string; name: string; child_id: string; days_of_week: number[]; time_start: string | null }[] };
+
   // ── Renderizar la conversación (cronológica, último abajo) ──
   const msgs = ((recentMessages || []) as {
     content: string; sender_type: 'parent' | 'nanny'; sender_id: string | null; created_at: string;
@@ -223,15 +295,21 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantResu
 
   // ── Renderizar lo ya anotado (para no duplicar) ──
   const agendaLines: string[] = [];
-  for (const e of (events || []) as { title: string; date_start: string; child_id: string | null }[]) {
+  for (const e of (events || []) as { id: string; title: string; date_start: string; child_id: string | null }[]) {
     const child = e.child_id ? childById.get(e.child_id) : null;
-    agendaLines.push(`- Evento: ${e.title} (${e.date_start}${child ? `, ${child}` : ''})`);
+    agendaLines.push(`- [evento ${e.id}] ${e.title} (${e.date_start}${child ? `, ${child}` : ''})`);
   }
-  for (const t of (tasks || []) as { title: string; child_id: string | null }[]) {
-    agendaLines.push(`- Tarea pendiente: ${t.title}`);
+  for (const t of (tasks || []) as { id: string; title: string; child_id: string | null }[]) {
+    const child = t.child_id ? childById.get(t.child_id) : null;
+    agendaLines.push(`- [tarea ${t.id}] ${t.title}${child ? ` (${child})` : ''}`);
   }
-  for (const m of (medications || []) as { medication_name: string; child_name: string }[]) {
-    agendaLines.push(`- Tratamiento activo: ${m.medication_name}${m.child_name ? ` (${m.child_name})` : ''}`);
+  for (const m of (medications || []) as { id: string; medication_name: string; child_name: string }[]) {
+    agendaLines.push(`- [tratamiento ${m.id}] ${m.medication_name}${m.child_name ? ` (${m.child_name})` : ''}`);
+  }
+  for (const r of (routines || []) as { id: string; name: string; child_id: string; days_of_week: number[]; time_start: string | null }[]) {
+    const child = childById.get(r.child_id);
+    const dias = (r.days_of_week || []).map(d => ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d]).join('');
+    agendaLines.push(`- [rutina ${r.id}] ${r.name}${child ? ` (${child})` : ''}${dias ? `, ${dias}` : ''}${r.time_start ? ` ${r.time_start.slice(0, 5)}` : ''}`);
   }
   const agendaText = agendaLines.length > 0 ? agendaLines.join('\n') : '(nada anotado todavía)';
 
@@ -441,6 +519,64 @@ async function persistTool(args: {
     }).select('id, name').single();
     if (error || !data) { console.error('[assistant] routine insert error', error); return null; }
     return { type: 'routine', id: data.id, title: data.name };
+  }
+
+  // ── Gestión: completar / cancelar / editar (scope por familia) ──
+
+  if (block.name === 'completar_tarea') {
+    const id = strField(input.id);
+    if (!id) return null;
+    await admin.from('tasks')
+      .update({ status: 'done', completed_at: new Date().toISOString() })
+      .eq('id', id).eq('family_id', familyId);
+    return null;
+  }
+
+  if (block.name === 'cancelar_item') {
+    const id = strField(input.id);
+    const tipo = strField(input.tipo);
+    if (!id) return null;
+    if (tipo === 'evento') {
+      await admin.from('events').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+    } else if (tipo === 'tarea') {
+      await admin.from('tasks').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+    } else if (tipo === 'tratamiento') {
+      await admin.from('medications').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+    } else if (tipo === 'rutina') {
+      const childIds = [...childByName.values()];
+      if (childIds.length) {
+        await admin.from('routines').update({ active: false }).eq('id', id).in('child_id', childIds);
+      }
+    }
+    return null;
+  }
+
+  if (block.name === 'editar_evento') {
+    const id = strField(input.id);
+    if (!id) return null;
+    const patch: Record<string, unknown> = {};
+    if (strField(input.title)) patch.title = strField(input.title);
+    if (strField(input.event_type)) patch.event_type = strField(input.event_type);
+    if (strField(input.date_start)) patch.date_start = strField(input.date_start);
+    if (strField(input.date_end)) patch.date_end = strField(input.date_end);
+    if (strField(input.location)) patch.location = strField(input.location);
+    if (Object.keys(patch).length) {
+      await admin.from('events').update(patch).eq('id', id).eq('family_id', familyId);
+    }
+    return null;
+  }
+
+  if (block.name === 'editar_tarea') {
+    const id = strField(input.id);
+    if (!id) return null;
+    const patch: Record<string, unknown> = {};
+    if (strField(input.title)) patch.title = strField(input.title);
+    if (strField(input.due_date)) patch.due_date = strField(input.due_date);
+    if (assignedToId) patch.assigned_to = assignedToId;
+    if (Object.keys(patch).length) {
+      await admin.from('tasks').update(patch).eq('id', id).eq('family_id', familyId);
+    }
+    return null;
   }
 
   return null;

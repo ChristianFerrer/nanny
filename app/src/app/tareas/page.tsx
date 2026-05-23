@@ -66,7 +66,7 @@ export default function TareasPage() {
 
   const goToTask = (t: Task) => router.push(`/tarea/${t.id}`);
 
-  const items = buildGroupedTasks(tasks);
+  const items = buildGroupedTasks(tasks.filter(t => t.status !== 'cancelled'));
   const sections = bucketize(items);
 
   return (
