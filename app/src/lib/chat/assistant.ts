@@ -42,6 +42,7 @@ export interface AssistantCapturedItem {
   type: 'event' | 'task' | 'medication' | 'routine';
   id: string;
   title: string;
+  action?: 'create' | 'complete' | 'cancel' | 'edit';
 }
 
 export interface AssistantResult {
@@ -79,13 +80,13 @@ Reglas:
 - Respuestas cortas. Sos una asistente, no un chatbot que habla de más.
 - Cero efusividad, cero signos de exclamación de más, máximo una pregunta por turno.
 
-Gestionás el cuaderno (agenda, tareas, tratamientos, rutinas), no solo anotás:
-- Cada item en "Ya está anotado" tiene un id entre corchetes (ej. [tarea abc-123]). Para cerrar, cancelar o corregir algo, usá ESE id con la tool correspondiente.
-- Tareas cumplidas: si un mensaje da por hecha una tarea ("ya compré los pañales", "listo lo del pediatra"), ofrecé cerrarla con completar_tarea.
-- Duplicados / cosas que ya no van: si ves dos registros del mismo plan, o algo que se canceló, ofrecé limpiarlo con cancelar_item (es reversible, no se pierde nada).
-- Correcciones: si cambian un dato ("el cumple es a las 5, no a las 4"), corregí el item existente con editar_evento / editar_tarea usando su id; NO crees uno nuevo.
-- SIEMPRE confirmá antes de cerrar (completar_tarea) o cancelar (cancelar_item): proponelo en una línea ("¿Cierro la tarea de los pañales?") y esperá el sí. Cuando confirmen ("sí", "dale", "cerralo"), ejecutá la acción que propusiste recién.
-- Nunca canceles, cierres ni edites algo que no esté en "Ya está anotado".`;
+Gestionás el cuaderno (agenda, tareas, tratamientos, rutinas), no solo anotás. Tu trabajo es SACARLE carga administrativa a los padres: si algo se puede cerrar o limpiar, hacelo vos, no se lo dejes pendiente.
+- Cada item en "Ya está anotado" tiene un id entre corchetes (ej. [tarea abc-123]). Para cerrar, cancelar o corregir algo, llamá la tool correspondiente con ESE id.
+- CLAVE: una acción SOLO ocurre si llamás la tool. Decir "marco las tres como completadas" o "lo corrijo ahora" SIN llamar a completar_tarea NO cierra nada. Si decís que cerraste/cancelaste/corregiste algo, hacelo en el MISMO turno con la tool. Nunca anuncies una acción que no ejecutaste.
+- Si te lo piden de forma directa ("cerrá las tareas pendientes", "borrá el duplicado", "el cumple es a las 5 no a las 4") → hacelo YA, sin pedir confirmación: el pedido ya es la confirmación. Para "cerrá las tareas pendientes" llamá completar_tarea UNA VEZ por cada tarea pendiente del contexto.
+- Confirmá ANTES solo cuando la iniciativa es TUYA: si VOS detectás un duplicado o una tarea que un mensaje da por cumplida ("ya compré los pañales"), proponé en una línea ("¿Cierro la tarea de los pañales?") y esperá el sí; cuando confirmen, ejecutá la tool.
+- Correcciones: editá el item existente (editar_evento / editar_tarea) en vez de crear uno nuevo.
+- Nunca toques (cerrar/cancelar/editar) algo que no esté en "Ya está anotado".`;
 
 const TOOLS: Anthropic.Messages.Tool[] = [
   {
@@ -391,7 +392,17 @@ ${conversationText}`;
   // un acuse mínimo para que el padre tenga feedback.
   let reply: string | null = replyText.length > 0 ? replyText : null;
   if (!reply && items.length > 0) {
-    reply = `Anotado: ${items.map(i => i.title).join(', ')}.`;
+    const titlesFor = (a: string) => items.filter(i => (i.action ?? 'create') === a).map(i => i.title);
+    const created = titlesFor('create');
+    const closed = titlesFor('complete');
+    const cancelled = titlesFor('cancel');
+    const edited = titlesFor('edit');
+    const parts: string[] = [];
+    if (created.length) parts.push(`Anotado: ${created.join(', ')}`);
+    if (closed.length) parts.push(`Cerré: ${closed.join(', ')}`);
+    if (cancelled.length) parts.push(`Cancelé: ${cancelled.join(', ')}`);
+    if (edited.length) parts.push(`Actualicé: ${edited.join(', ')}`);
+    reply = parts.length ? `${parts.join('. ')}.` : null;
   }
 
   console.log('[assistant]', {
@@ -526,29 +537,42 @@ async function persistTool(args: {
   if (block.name === 'completar_tarea') {
     const id = strField(input.id);
     if (!id) return null;
-    await admin.from('tasks')
+    const { data, error } = await admin.from('tasks')
       .update({ status: 'done', completed_at: new Date().toISOString() })
-      .eq('id', id).eq('family_id', familyId);
-    return null;
+      .eq('id', id).eq('family_id', familyId)
+      .select('id, title');
+    const affected = data?.length ?? 0;
+    if (error || !affected) { console.warn('[assistant] completar_tarea sin efecto', { id, affected, error: error?.message }); return null; }
+    console.log('[assistant] completar_tarea', { id, title: data![0].title });
+    return { type: 'task', id, title: data![0].title, action: 'complete' };
   }
 
   if (block.name === 'cancelar_item') {
     const id = strField(input.id);
     const tipo = strField(input.tipo);
     if (!id) return null;
+    let title = '';
+    let affected = 0;
+    let type: AssistantCapturedItem['type'] = 'task';
     if (tipo === 'evento') {
-      await admin.from('events').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+      const { data } = await admin.from('events').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId).select('id, title');
+      affected = data?.length ?? 0; title = data?.[0]?.title ?? ''; type = 'event';
     } else if (tipo === 'tarea') {
-      await admin.from('tasks').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+      const { data } = await admin.from('tasks').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId).select('id, title');
+      affected = data?.length ?? 0; title = data?.[0]?.title ?? ''; type = 'task';
     } else if (tipo === 'tratamiento') {
-      await admin.from('medications').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId);
+      const { data } = await admin.from('medications').update({ status: 'cancelled' }).eq('id', id).eq('family_id', familyId).select('id, medication_name');
+      affected = data?.length ?? 0; title = data?.[0]?.medication_name ?? ''; type = 'medication';
     } else if (tipo === 'rutina') {
       const childIds = [...childByName.values()];
       if (childIds.length) {
-        await admin.from('routines').update({ active: false }).eq('id', id).in('child_id', childIds);
+        const { data } = await admin.from('routines').update({ active: false }).eq('id', id).in('child_id', childIds).select('id, name');
+        affected = data?.length ?? 0; title = data?.[0]?.name ?? ''; type = 'routine';
       }
     }
-    return null;
+    if (!affected) { console.warn('[assistant] cancelar_item sin efecto', { id, tipo }); return null; }
+    console.log('[assistant] cancelar_item', { id, tipo, title });
+    return { type, id, title, action: 'cancel' };
   }
 
   if (block.name === 'editar_evento') {
@@ -560,10 +584,11 @@ async function persistTool(args: {
     if (strField(input.date_start)) patch.date_start = strField(input.date_start);
     if (strField(input.date_end)) patch.date_end = strField(input.date_end);
     if (strField(input.location)) patch.location = strField(input.location);
-    if (Object.keys(patch).length) {
-      await admin.from('events').update(patch).eq('id', id).eq('family_id', familyId);
-    }
-    return null;
+    if (!Object.keys(patch).length) return null;
+    const { data, error } = await admin.from('events').update(patch).eq('id', id).eq('family_id', familyId).select('id, title');
+    const affected = data?.length ?? 0;
+    if (error || !affected) { console.warn('[assistant] editar_evento sin efecto', { id, affected, error: error?.message }); return null; }
+    return { type: 'event', id, title: data![0].title, action: 'edit' };
   }
 
   if (block.name === 'editar_tarea') {
@@ -573,10 +598,11 @@ async function persistTool(args: {
     if (strField(input.title)) patch.title = strField(input.title);
     if (strField(input.due_date)) patch.due_date = strField(input.due_date);
     if (assignedToId) patch.assigned_to = assignedToId;
-    if (Object.keys(patch).length) {
-      await admin.from('tasks').update(patch).eq('id', id).eq('family_id', familyId);
-    }
-    return null;
+    if (!Object.keys(patch).length) return null;
+    const { data, error } = await admin.from('tasks').update(patch).eq('id', id).eq('family_id', familyId).select('id, title');
+    const affected = data?.length ?? 0;
+    if (error || !affected) { console.warn('[assistant] editar_tarea sin efecto', { id, affected, error: error?.message }); return null; }
+    return { type: 'task', id, title: data![0].title, action: 'edit' };
   }
 
   return null;
