@@ -1022,6 +1022,18 @@ export default function ChatPage() {
           },
         },
       );
+
+      // Nanny pudo haber creado/cerrado/cancelado/editado items server-side
+      // (pipeline nuevo persiste directo en Supabase y solo devuelve el reply).
+      // Mientras estás en /chat, Agenda/Tareas no están montadas, así que el
+      // realtime no las refresca; e in-app el cache (TTL 30s) serviría datos
+      // viejos al navegar. Invalidamos el cache de datos para que la próxima
+      // pantalla refetchee fresco.
+      invalidateTableCache('events');
+      invalidateTableCache('tasks');
+      invalidateTableCache('medications');
+      invalidateTableCache('routines');
+      invalidateTableCache('routine_exceptions');
     } catch (err) {
       console.error('[chat sse] stream failed:', err);
       showToast('Sin conexión con Nanny. Intentalo de nuevo.', '/chat');
