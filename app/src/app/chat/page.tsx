@@ -132,7 +132,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>(
     _cachedChat?.messages || _snap?.messages || []
   );
-  const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
+  const [parents, setParents] = useState<Parent[]>(_snap?.parents || _cachedChat?.parents || []);
   const [children, setChildren] = useState<Child[]>(_snap?.children || []);
   const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
   const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
@@ -141,7 +141,7 @@ export default function ChatPage() {
   const [routineExceptions, setRoutineExceptions] = useState<RoutineException[]>(_snap?.routineExceptions || []);
   const [familyId, setFamilyId] = useState<string>(_snap?.family?.id || '');
   const [input, setInput] = useState('');
-  const [currentParent, setCurrentParent] = useState<string>(_snap?.currentParentId || '');
+  const [currentParent, setCurrentParent] = useState<string>(_snap?.currentParentId || _cachedChat?.currentParentId || '');
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const [pushStatus, setPushStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied'>('idle');
   const [toast, setToast] = useState<{ text: string; href: string } | null>(null);
@@ -681,8 +681,8 @@ export default function ChatPage() {
   // del server al volver.
   useEffect(() => {
     if (!familyId || messages.length === 0) return;
-    saveCachedChat(familyId, messages);
-  }, [familyId, messages]);
+    saveCachedChat(familyId, messages, { currentParentId: currentParent, parents });
+  }, [familyId, messages, currentParent, parents]);
 
   // Push notification registration
   useEffect(() => {
