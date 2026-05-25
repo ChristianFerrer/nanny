@@ -51,6 +51,40 @@ export default function PerfilPage() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState('');
+
+  const handleInviteByEmail = async () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+    setInviteStatus('sending');
+    setInviteError('');
+    try {
+      const res = await fetch('/api/invite-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setInviteStatus('sent');
+        setInviteEmail('');
+        setTimeout(() => setInviteStatus('idle'), 4000);
+      } else {
+        setInviteStatus('error');
+        setInviteError(
+          data.code === 'INVALID_EMAIL' ? 'Email inválido'
+          : data.code === 'SELF_INVITE' ? 'Ese es tu propio correo'
+          : data.code === 'ALREADY_MEMBER' ? 'Ese correo ya está en tu familia'
+          : 'No se pudo guardar la invitación'
+        );
+      }
+    } catch {
+      setInviteStatus('error');
+      setInviteError('Sin conexión. Intentalo de nuevo.');
+    }
+  };
 
   const handleReset = async () => {
     setResetting(true);
@@ -230,8 +264,42 @@ export default function PerfilPage() {
           </h2>
           <div className="card space-y-3">
             <p className="text-footnote text-pretty text-[var(--text-tertiary)]">
-              Comparte el enlace para que tu pareja se una a la familia
+              Invita por correo y tu pareja se unirá automáticamente al crear su cuenta con ese email — aunque no abra el enlace.
             </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                value={inviteEmail}
+                onChange={(e) => { setInviteEmail(e.target.value); if (inviteStatus !== 'idle') setInviteStatus('idle'); }}
+                placeholder="correo de tu pareja"
+                aria-label="Correo de tu pareja"
+                className={`flex-1 ${inviteStatus === 'error' ? 'input-error' : ''}`}
+              />
+              <button
+                onClick={handleInviteByEmail}
+                disabled={inviteStatus === 'sending' || !inviteEmail.trim()}
+                className="btn btn-primary"
+                style={{ flexShrink: 0 }}
+              >
+                {inviteStatus === 'sending' ? 'Enviando…' : 'Invitar'}
+              </button>
+            </div>
+            {inviteStatus === 'sent' && (
+              <p className="text-footnote" style={{ color: 'var(--success)' }}>
+                Listo. Cuando tu pareja cree su cuenta con ese correo, se unirá a la familia.
+              </p>
+            )}
+            {inviteStatus === 'error' && (
+              <p className="text-footnote" style={{ color: 'var(--danger)' }}>{inviteError}</p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ background: 'var(--gray-200)' }} />
+              <span className="text-caption-2" style={{ color: 'var(--text-tertiary)' }}>o comparte el enlace</span>
+              <div className="flex-1 h-px" style={{ background: 'var(--gray-200)' }} />
+            </div>
             <button
               onClick={() => {
                 const inviteLink = `${window.location.origin}/login?invite=${family.id}`;

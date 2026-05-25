@@ -53,6 +53,29 @@ export async function POST(req: NextRequest) {
           alreadyMember: true,
         });
       }
+
+      // ¿Invitado por correo? Si hay un slot de parent sin vincular cuyo email
+      // coincide con el de este usuario, lo unimos a ESA familia en vez de crear
+      // una nueva. Cubre el caso donde la pareja se registra sin usar el link.
+      const { data: authUserRes } = await supabase.auth.admin.getUserById(authUserId);
+      const userEmail = authUserRes?.user?.email;
+      if (userEmail) {
+        const { data: slots } = await supabase
+          .from('parents')
+          .select('id, family_id')
+          .eq('email', userEmail.toLowerCase())
+          .is('auth_user_id', null)
+          .limit(1);
+        const slot = slots && slots.length > 0 ? slots[0] : null;
+        if (slot?.family_id) {
+          await supabase
+            .from('parents')
+            .update({ auth_user_id: authUserId })
+            .eq('id', slot.id)
+            .is('auth_user_id', null);
+          return NextResponse.json({ success: true, family_id: slot.family_id, alreadyMember: true });
+        }
+      }
     }
 
     // Create family

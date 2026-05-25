@@ -574,6 +574,17 @@ export default function ChatPage() {
         throw new Error(result.error || 'Error al guardar');
       }
 
+      // El usuario ya estaba vinculado (o fue invitado por correo) a una familia
+      // existente: no creamos una nueva, lo llevamos a la suya.
+      if (result.alreadyMember) {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(), family_id: '', sender_id: null, sender_type: 'nanny',
+          content: 'Este correo ya está vinculado a una familia. Te llevo a ella.',
+          message_type: 'text', metadata: { intent: 'CHAT', onboarding: true },
+          created_at: new Date().toISOString(),
+        }]);
+      }
+
       // If partner phone exists, send WhatsApp invite
       if (data.partner_phone && data.partner_name) {
         const inviteUrl = `${window.location.origin}/login?invite=${result.family_id}`;
