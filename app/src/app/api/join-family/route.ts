@@ -25,7 +25,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado', code: 'NOT_AUTHENTICATED' }, { status: 401 });
     }
 
-    const { familyId } = await req.json();
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    let familyId: string | undefined = typeof body.familyId === 'string' ? body.familyId : undefined;
+    // Fallback: invitación guardada en la metadata del usuario al registrarse.
+    // Cubre el caso donde el cliente no tiene el familyId a mano (localStorage
+    // perdido, otro navegador, redirect de confirmación de email). Sin esto, un
+    // padre invitado caía en onboarding y creaba una familia nueva.
+    if (!familyId) {
+      const metaFam = (user.user_metadata as Record<string, unknown> | undefined)?.pending_family_id;
+      if (typeof metaFam === 'string' && metaFam) familyId = metaFam;
+    }
     if (!familyId) {
       return NextResponse.json({ error: 'Falta el ID de familia', code: 'MISSING_FAMILY_ID' }, { status: 400 });
     }

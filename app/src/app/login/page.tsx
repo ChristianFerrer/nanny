@@ -94,7 +94,23 @@ function LoginContent() {
     const supabase = getSupabase();
 
     if (mode === 'register') {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+      const origin = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // El invite se guarda en la metadata del usuario (durable en el
+          // server): sobrevive a pérdida de localStorage, cambio de navegador y
+          // redirect de confirmación de email. Así el segundo padre se une a la
+          // familia existente en vez de crear una nueva. emailRedirectTo
+          // reinyecta el invite en la URL si el proyecto tiene confirmación de
+          // email activada.
+          ...(origin && inviteFamilyId
+            ? { emailRedirectTo: `${origin}/login?invite=${inviteFamilyId}` }
+            : {}),
+          ...(inviteFamilyId ? { data: { pending_family_id: inviteFamilyId } } : {}),
+        },
+      });
       if (signUpError) {
         setError(signUpError.message);
         setLoading(false);

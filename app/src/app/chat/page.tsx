@@ -302,23 +302,27 @@ export default function ChatPage() {
         if (!familyExists && typeof window !== 'undefined') {
           let pendingInvite: string | null = null;
           try { pendingInvite = window.localStorage.getItem('nanny:pendingInvite'); } catch {}
-          if (pendingInvite) {
-            try {
-              const joinRes = await fetch('/api/join-family', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ familyId: pendingInvite }),
-              });
-              const joinData = await joinRes.json();
-              if (joinRes.ok && joinData.success) {
-                try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
-                familyExists = true;
-              } else if (joinData.code === 'FAMILY_NOT_FOUND') {
-                try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
-              }
-            } catch {
-              // network glitch — leave the invite in storage for the next try
+          // Intentamos unir SIEMPRE antes de caer en onboarding, aunque no haya
+          // invite en localStorage: el server cae a la invitación guardada en la
+          // metadata del usuario. Esto evita que un padre invitado cree una
+          // familia nueva cuando se perdió el localStorage o cambió de navegador.
+          try {
+            const joinRes = await fetch('/api/join-family', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(pendingInvite ? { familyId: pendingInvite } : {}),
+            });
+            const joinData = await joinRes.json();
+            if (joinRes.ok && joinData.success) {
+              try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
+              familyExists = true;
+            } else if (joinData.code === 'FAMILY_NOT_FOUND') {
+              try { window.localStorage.removeItem('nanny:pendingInvite'); } catch {}
             }
+            // MISSING_FAMILY_ID (sin invite en body ni metadata) → no hay
+            // invitación real → seguimos al onboarding normal.
+          } catch {
+            // glitch de red — dejamos el invite para el próximo intento
           }
         }
 

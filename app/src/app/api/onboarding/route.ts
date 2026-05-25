@@ -35,6 +35,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Red de seguridad contra familias duplicadas: si este usuario ya está
+    // vinculado a una familia (o una invitación pendiente lo vinculó), NO crear
+    // una nueva. Idempotente — cubre el bug donde un padre invitado, por
+    // cualquier race del flujo de invitación, terminaba disparando onboarding.
+    if (authUserId) {
+      const { data: existingParent } = await supabase
+        .from('parents')
+        .select('family_id')
+        .eq('auth_user_id', authUserId)
+        .limit(1)
+        .maybeSingle();
+      if (existingParent?.family_id) {
+        return NextResponse.json({
+          success: true,
+          family_id: existingParent.family_id,
+          alreadyMember: true,
+        });
+      }
+    }
+
     // Create family
     const familyInsert: { name: string; timezone?: string } = { name: familyName || 'Mi Familia' };
     if (initialTimezone) familyInsert.timezone = initialTimezone;
