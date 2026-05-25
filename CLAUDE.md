@@ -323,9 +323,10 @@ Ejemplos: `docs(redesign): cierre de fase X`, `docs(refactor-chat): completar fa
 
 UNA llamada a Claude Sonnet 4.6 por mensaje. Lee la conversación reciente (últimos 20 mensajes, como un todo — entiende ráfagas) + lo ya anotado (eventos próximos, tareas pendientes, tratamientos activos, rutinas activas — **cada item con su id entre corchetes**) + hijos + zona horaria de la familia. En un solo turno decide qué anotar/gestionar (persiste directo a Supabase) y qué responder. Sin classifier, sin listener separado, sin decision agent, sin postprocess regex. Prompt corto: confiamos en la inteligencia del modelo con el contexto correcto. Prompt caching sobre el system. Latencia ~2-3s, costo ~$0.01/msg.
 
-**8 tools** — el cuaderno es editable, no solo append:
+**10 tools** — el cuaderno es editable, no solo append:
 - Crear: `anotar_evento`, `anotar_tarea`, `anotar_medicacion`, `anotar_rutina`.
-- Gestionar (sobre el id del bloque "Ya está anotado"): `completar_tarea` (status=done), `cancelar_item` (reversible: `status=cancelled` para evento/tarea/tratamiento, `active=false` para rutina; cubre los 4 tipos), `editar_evento` y `editar_tarea` (correcciones in-place). Todas las mutaciones van scopeadas por familia (events/tasks/medications por `family_id`; routines por `child_id ∈ hijos de la familia`).
+- Gestionar (sobre el id del bloque "Ya está anotado"): `completar_tarea` (status=done), `cancelar_item` (reversible: `status=cancelled` para evento/tarea/tratamiento, `active=false` para rutina; cubre los 4 tipos), y edición in-place de los 4 tipos: `editar_evento`, `editar_tarea`, `editar_medicacion`, `editar_rutina`. Todas las mutaciones van scopeadas por familia (events/tasks/medications por `family_id`; routines por `child_id ∈ hijos de la familia`).
+- **Anti-duplicación (mayo 2026):** ante una ACTUALIZACIÓN de algo ya anotado (un tratamiento que cambió de duración/horario, una rutina que cambió de días/hora), el assistant edita el item existente con su id en vez de crear un segundo registro. La línea de "Ya está anotado" para tratamientos incluye frecuencia + horarios + fecha de fin para que el modelo reconozca el match. El prompt también le pide preguntar por el dato más importante que falte al anotar evento/tarea (prioridad: responsable > fecha > hora, una pregunta por turno).
 - **Protocolo**: confirmar antes de `completar_tarea`/`cancelar_item` (proponé y esperá el "sí"); detección proactiva de duplicados y tareas dadas por cumplidas; editar el item existente en vez de crear uno nuevo ante una corrección. Nunca toca un item que no esté en el contexto.
 - Los `cancelled`/`done` se filtran en las vistas (agenda lista + `DayTimeline` + `/tareas`) para que desaparezcan del cuaderno.
 
@@ -531,6 +532,7 @@ Helpers disponibles:
 | `20260514_support_contacts.sql` | Tabla `support_contacts`: red de apoyo de la familia (abuela, niñera, etc.). Vincula a teléfonos WhatsApp. Estado de consentimiento. **AGENT-REWRITE Sprint 0.** |
 | `20260514_whatsapp_conversations.sql` | Tabla `whatsapp_conversations`: log de mensajes Nanny ↔ contactos vía Meta API. Incluye `intent` y `parsed_response` para integración con decision agent. **AGENT-REWRITE Sprint 0.** |
 | `20260515_decision_agent_log.sql` | Tabla `decision_agent_log`: trace de cada despertar del decision agent (trigger scheduled/message/manual, decision JSONB, cost_usd, latency_ms). RLS read-only por familia. **AGENT-REWRITE Sprint 1.** |
+| `20260525_events_assigned_to.sql` | Columna `assigned_to` (FK a `parents`) en `events` + índice. Idempotente (`IF NOT EXISTS`). El assistant y el morning-brief ya escribían/leían `events.assigned_to` sin que existiera en el schema canónico; la agenda ahora muestra el responsable del evento. |
 
 ---
 

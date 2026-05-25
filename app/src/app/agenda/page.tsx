@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Repeat } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Circle, Plus, Repeat, User } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import DayTimeline from '@/components/DayTimeline';
-import { getEvents, getChildren, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
+import { getEvents, getChildren, getParents, getTasks, getMedications, getRoutines, getRoutineExceptions, completeTask, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
 import { useRealtimeFamily } from '@/lib/realtime';
-import type { FamilyEvent, Child, Task, Medication, Routine, RoutineException } from '@/lib/types';
+import type { FamilyEvent, Child, Parent, Task, Medication, Routine, RoutineException } from '@/lib/types';
 
 // Número de semana ISO (lunes como primer día), estilo "S21" de Apple Calendar.
 function isoWeek(date: Date): number {
@@ -19,11 +19,30 @@ function isoWeek(date: Date): number {
   return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
 }
 
+// Línea secundaria de un ítem de agenda: a qué hijo pertenece y, si existe,
+// el padre/madre responsable.
+function ItemMeta({ childName, assignedName }: { childName?: string; assignedName?: string }) {
+  if (!childName && !assignedName) return null;
+  return (
+    <span className="flex items-center gap-1 mt-0.5 text-caption text-[var(--text-tertiary)] truncate">
+      {childName && <span className="truncate">{childName}</span>}
+      {childName && assignedName && <span aria-hidden="true">·</span>}
+      {assignedName && (
+        <span className="inline-flex items-center gap-0.5 truncate">
+          <User size={11} className="shrink-0" />
+          {assignedName}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function AgendaPage() {
   const router = useRouter();
   const _snap = getCachedSnapshot();
   const [events, setEvents] = useState<FamilyEvent[]>(_snap?.events || []);
   const [children, setChildren] = useState<Child[]>(_snap?.children || []);
+  const [parents, setParents] = useState<Parent[]>(_snap?.parents || []);
   const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
   const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
   const [routines, setRoutines] = useState<Routine[]>(_snap?.routines || []);
@@ -39,12 +58,13 @@ export default function AgendaPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [e, c, t, m, r, rx] = await Promise.all([
-        getEvents(), getChildren(), getTasks(), getMedications(),
+      const [e, c, p, t, m, r, rx] = await Promise.all([
+        getEvents(), getChildren(), getParents(), getTasks(), getMedications(),
         getRoutines(), getRoutineExceptions(),
       ]);
       setEvents(e);
       setChildren(c);
+      setParents(p);
       setTasks(t);
       setMedications(m);
       setRoutines(r);
@@ -89,6 +109,7 @@ export default function AgendaPage() {
   });
 
   const getChild = (id: string | null) => children.find(c => c.id === id);
+  const getParentName = (id: string | null | undefined) => (id ? parents.find(p => p.id === id)?.name : undefined);
 
   const monthName = startOfWeek.toLocaleDateString('es', { month: 'long' });
   const monthYear = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${startOfWeek.getFullYear()}`;
@@ -293,6 +314,7 @@ export default function AgendaPage() {
                           )}
                           <span className="flex-1 min-w-0 self-center">
                             <span className="block text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{event.title}</span>
+                            <ItemMeta childName={child?.name} assignedName={getParentName(event.assigned_to)} />
                             {event.location && (
                               <span className="flex items-center gap-1 mt-0.5 text-caption text-[var(--text-tertiary)] truncate">
                                 <MapPin size={11} /> {event.location}
@@ -333,7 +355,7 @@ export default function AgendaPage() {
                           </span>
                           <span className="flex-1 min-w-0 self-center">
                             <span className="block text-callout font-medium text-[var(--text-secondary)] leading-snug truncate">{routine.name}</span>
-                            <span className="text-caption text-[var(--text-tertiary)]">Rutina</span>
+                            <span className="text-caption text-[var(--text-tertiary)] truncate">{child ? `Rutina · ${child.name}` : 'Rutina'}</span>
                           </span>
                           <span className="shrink-0 text-right self-center">
                             {start ? (
@@ -368,6 +390,7 @@ export default function AgendaPage() {
                           </button>
                           <div className="flex-1 min-w-0">
                             <p className="text-callout font-medium text-[var(--text-primary)] leading-snug truncate">{task.title}</p>
+                            <ItemMeta childName={child?.name} assignedName={getParentName(task.assigned_to)} />
                             {task.priority !== 'normal' && (
                               <span className={`text-caption font-medium ${task.priority === 'urgent' || task.priority === 'high' ? 'text-[var(--danger)]' : 'text-[var(--text-tertiary)]'}`}>
                                 {task.priority}

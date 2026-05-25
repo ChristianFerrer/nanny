@@ -75,8 +75,9 @@ Cómo trabajás:
 - Si es charla sin nada que hacer (un saludo, un "gracias"), respondé breve y cálido. Si de verdad no aportás nada, podés no responder.
 
 Reglas:
-- NO dupliques lo que ya está anotado (te paso la agenda actual más abajo). Si algo ya existe, no lo crees de nuevo.
-- NO inventes datos. Si falta algo importante, anotá lo que sí sabés y preguntá lo justo en la misma línea de confirmación.
+- NO dupliques lo que ya está anotado (te paso la agenda actual más abajo). Si algo ya existe, no lo crees de nuevo. Si te dan una ACTUALIZACIÓN de algo ya anotado —un tratamiento que ahora dura más o cambió de horario, una rutina que cambió de días/hora, un evento que se movió— editá ESE item con su id (editar_evento / editar_tarea / editar_medicacion / editar_rutina). Nunca crees un segundo registro del mismo tratamiento o de la misma rutina.
+- Datos pendientes: cuando anotás un evento o una tarea, fijate qué falta de lo importante —quién se encarga (mamá o papá), la fecha y la hora—. Anotá lo que sí sabés y preguntá por lo que falte en la MISMA línea de confirmación. Una sola pregunta por turno, por el dato más importante que falte (prioridad: responsable > fecha > hora). Ej: "Anoté la cita del pediatra el jueves. ¿Quién lo lleva?".
+- NO inventes datos.
 - Respuestas cortas. Sos una asistente, no un chatbot que habla de más.
 - Cero efusividad, cero signos de exclamación de más, máximo una pregunta por turno.
 
@@ -85,7 +86,7 @@ Gestionás el cuaderno (agenda, tareas, tratamientos, rutinas), no solo anotás.
 - CLAVE: una acción SOLO ocurre si llamás la tool. Decir "marco las tres como completadas" o "lo corrijo ahora" SIN llamar a completar_tarea NO cierra nada. Si decís que cerraste/cancelaste/corregiste algo, hacelo en el MISMO turno con la tool. Nunca anuncies una acción que no ejecutaste.
 - Si te lo piden de forma directa ("cerrá las tareas pendientes", "borrá el duplicado", "el cumple es a las 5 no a las 4") → hacelo YA, sin pedir confirmación: el pedido ya es la confirmación. Para "cerrá las tareas pendientes" llamá completar_tarea UNA VEZ por cada tarea pendiente del contexto.
 - Confirmá ANTES solo cuando la iniciativa es TUYA: si VOS detectás un duplicado o una tarea que un mensaje da por cumplida ("ya compré los pañales"), proponé en una línea ("¿Cierro la tarea de los pañales?") y esperá el sí; cuando confirmen, ejecutá la tool.
-- Correcciones: editá el item existente (editar_evento / editar_tarea) en vez de crear uno nuevo.
+- Correcciones y actualizaciones: editá el item existente (editar_evento / editar_tarea / editar_medicacion / editar_rutina) con su id en vez de crear uno nuevo. Aplica también a tratamientos y rutinas.
 - Nunca toques (cerrar/cancelar/editar) algo que no esté en "Ya está anotado".`;
 
 const TOOLS: Anthropic.Messages.Tool[] = [
@@ -207,6 +208,38 @@ const TOOLS: Anthropic.Messages.Tool[] = [
       required: ['id'],
     },
   },
+  {
+    name: 'editar_medicacion',
+    description: 'Actualizar un tratamiento existente (cambió la frecuencia, los horarios, la duración o la fecha de fin). Incluí solo los campos que cambian. NO crees un tratamiento nuevo para una actualización del mismo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id del tratamiento (del bloque "Ya está anotado").' },
+        medication_name: { type: 'string' },
+        frequency: { type: 'string', description: 'Ej: "cada 6 horas".' },
+        schedule_times: { type: 'array', items: { type: 'string' }, description: 'HH:MM.' },
+        duration_days: { type: 'number' },
+        start_date: { type: 'string', description: 'ISO date.' },
+        end_date: { type: 'string', description: 'ISO date.' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'editar_rutina',
+    description: 'Actualizar una rutina existente (cambió el horario, los días o el nombre). Incluí solo los campos que cambian. NO crees una rutina nueva para una actualización de la misma.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id de la rutina (del bloque "Ya está anotado").' },
+        name: { type: 'string' },
+        days_of_week: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 }, description: '0=dom..6=sáb.' },
+        time_start: { type: 'string', description: 'HH:MM 24h.' },
+        time_end: { type: 'string', description: 'HH:MM 24h.' },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 // ────────────────────────────────────────────────────────────
@@ -250,7 +283,7 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantResu
       .order('created_at', { ascending: false })
       .limit(30),
     admin.from('medications')
-      .select('id, medication_name, child_name, status')
+      .select('id, medication_name, child_name, status, frequency, schedule_times, start_date, end_date')
       .eq('family_id', input.familyId)
       .eq('status', 'active')
       .limit(20),
@@ -304,8 +337,12 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantResu
     const child = t.child_id ? childById.get(t.child_id) : null;
     agendaLines.push(`- [tarea ${t.id}] ${t.title}${child ? ` (${child})` : ''}`);
   }
-  for (const m of (medications || []) as { id: string; medication_name: string; child_name: string }[]) {
-    agendaLines.push(`- [tratamiento ${m.id}] ${m.medication_name}${m.child_name ? ` (${m.child_name})` : ''}`);
+  for (const m of (medications || []) as { id: string; medication_name: string; child_name: string; frequency: string | null; schedule_times: string[] | null; start_date: string | null; end_date: string | null }[]) {
+    const det: string[] = [];
+    if (m.frequency) det.push(m.frequency);
+    if (m.schedule_times?.length) det.push(m.schedule_times.map(t => t.slice(0, 5)).join('/'));
+    if (m.end_date) det.push(`hasta ${m.end_date.slice(0, 10)}`);
+    agendaLines.push(`- [tratamiento ${m.id}] ${m.medication_name}${m.child_name ? ` (${m.child_name})` : ''}${det.length ? ` — ${det.join(', ')}` : ''}`);
   }
   for (const r of (routines || []) as { id: string; name: string; child_id: string; days_of_week: number[]; time_start: string | null }[]) {
     const child = childById.get(r.child_id);
@@ -603,6 +640,45 @@ async function persistTool(args: {
     const affected = data?.length ?? 0;
     if (error || !affected) { console.warn('[assistant] editar_tarea sin efecto', { id, affected, error: error?.message }); return null; }
     return { type: 'task', id, title: data![0].title, action: 'edit' };
+  }
+
+  if (block.name === 'editar_medicacion') {
+    const id = strField(input.id);
+    if (!id) return null;
+    const patch: Record<string, unknown> = {};
+    if (strField(input.medication_name)) patch.medication_name = strField(input.medication_name);
+    if (strField(input.frequency)) patch.frequency = strField(input.frequency);
+    if (Array.isArray(input.schedule_times)) {
+      patch.schedule_times = input.schedule_times.filter((t): t is string => typeof t === 'string');
+    }
+    if (typeof input.duration_days === 'number') patch.duration_days = input.duration_days;
+    if (strField(input.start_date)) patch.start_date = strField(input.start_date);
+    if (strField(input.end_date)) patch.end_date = strField(input.end_date);
+    if (!Object.keys(patch).length) return null;
+    const { data, error } = await admin.from('medications').update(patch).eq('id', id).eq('family_id', familyId).select('id, medication_name');
+    const affected = data?.length ?? 0;
+    if (error || !affected) { console.warn('[assistant] editar_medicacion sin efecto', { id, affected, error: error?.message }); return null; }
+    return { type: 'medication', id, title: data![0].medication_name, action: 'edit' };
+  }
+
+  if (block.name === 'editar_rutina') {
+    const id = strField(input.id);
+    if (!id) return null;
+    const childIds = [...childByName.values()];
+    if (!childIds.length) return null;
+    const patch: Record<string, unknown> = {};
+    if (strField(input.name)) patch.name = strField(input.name);
+    if (Array.isArray(input.days_of_week)) {
+      const days = input.days_of_week.filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6);
+      if (days.length) patch.days_of_week = days;
+    }
+    if (strField(input.time_start)) patch.time_start = strField(input.time_start);
+    if (strField(input.time_end)) patch.time_end = strField(input.time_end);
+    if (!Object.keys(patch).length) return null;
+    const { data, error } = await admin.from('routines').update(patch).eq('id', id).in('child_id', childIds).select('id, name');
+    const affected = data?.length ?? 0;
+    if (error || !affected) { console.warn('[assistant] editar_rutina sin efecto', { id, affected, error: error?.message }); return null; }
+    return { type: 'routine', id, title: data![0].name, action: 'edit' };
   }
 
   return null;

@@ -106,6 +106,7 @@ export interface FamilyEvent {
   date_start: string;
   date_end: string | null;
   location: string | null;
+  assigned_to?: string | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   source: string;
   auto_detected: boolean;
