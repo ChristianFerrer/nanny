@@ -1,11 +1,44 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Baby, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import Image from 'next/image';
+import { Mail, Lock, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 
-type Mode = 'login' | 'register';
+const PENDING_INVITE_KEY = 'nanny:pendingInvite';
+
+type JoinResult =
+  | { success: true; familyId: string }
+  | { success: false; code?: string; error?: string };
+
+async function joinFamilyWithRetry(familyId: string, maxAttempts = 3): Promise<JoinResult> {
+  let lastError: { code?: string; error?: string } = {};
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, 250 * Math.pow(2, attempt - 1)));
+    }
+    try {
+      const res = await fetch('/api/join-family', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ familyId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, familyId: data.familyId };
+      }
+      lastError = { code: data.code, error: data.error };
+      // Only the auth race is worth retrying; everything else fails fast.
+      if (data.code !== 'NOT_AUTHENTICATED') break;
+    } catch (e) {
+      lastError = { code: 'NETWORK', error: String(e) };
+    }
+  }
+  return { success: false, ...lastError };
+}
+
+type Mode = 'login' | 'register' | 'forgot';
 
 export default function LoginPage() {
   return (
@@ -18,15 +51,42 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const inviteFamilyId = searchParams.get('invite');
+  const queryInvite = searchParams.get('invite');
+  // Resolve invite synchronously: prefer URL, fall back to localStorage. Survives
+  // email-confirmation redirects that might strip the query string.
+  const [pendingInvite] = useState<string | null>(() => {
+    if (queryInvite) return queryInvite;
+    if (typeof window === 'undefined') return null;
+    try { return window.localStorage.getItem(PENDING_INVITE_KEY); } catch { return null; }
+  });
   const [mode, setMode] = useState<Mode>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resetStatus, setResetStatus] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Persist invite from URL so it survives later navigations.
+  useEffect(() => {
+    if (!queryInvite || typeof window === 'undefined') return;
+    try { window.localStorage.setItem(PENDING_INVITE_KEY, queryInvite); } catch {}
+  }, [queryInvite]);
+
+  const inviteFamilyId = pendingInvite;
+
+  const isDev = process.env.NODE_ENV === 'development';
+
+  const passwordStrength = useMemo(() => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 10) score++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+    if (/\d/.test(password) || /[^A-Za-z0-9]/.test(password)) score++;
+    return Math.min(score, 4);
+  }, [password]);
+
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -34,22 +94,30 @@ function LoginContent() {
     const supabase = getSupabase();
 
     if (mode === 'register') {
+      const origin = typeof window !== 'undefined' ? window.location.origin : undefined;
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // El invite se guarda en la metadata del usuario (durable en el
+          // server): sobrevive a pérdida de localStorage, cambio de navegador y
+          // redirect de confirmación de email. Así el segundo padre se une a la
+          // familia existente en vez de crear una nueva. emailRedirectTo
+          // reinyecta el invite en la URL si el proyecto tiene confirmación de
+          // email activada.
+          ...(origin && inviteFamilyId
+            ? { emailRedirectTo: `${origin}/login?invite=${inviteFamilyId}` }
+            : {}),
+          ...(inviteFamilyId ? { data: { pending_family_id: inviteFamilyId } } : {}),
+        },
       });
       if (signUpError) {
         setError(signUpError.message);
         setLoading(false);
         return;
       }
-      // If user already exists, signUp succeeds but no session is created
-      // In that case, try signing in instead
       if (!signUpData.session) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) {
           setError('Este email ya tiene cuenta. Verifica tu contraseña.');
           setLoading(false);
@@ -57,10 +125,7 @@ function LoginContent() {
         }
       }
     } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         setError(
           signInError.message === 'Invalid login credentials'
@@ -72,10 +137,8 @@ function LoginContent() {
       }
     }
 
-    // After auth, get the current session user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      // Fallback: try getting from session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
         setError('No se pudo iniciar sesión. Intenta de nuevo.');
@@ -84,151 +147,266 @@ function LoginContent() {
       }
     }
 
-    // If invite link, join the existing family
     if (inviteFamilyId) {
-      try {
-        const joinRes = await fetch('/api/join-family', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyId: inviteFamilyId }),
-        });
-        const joinData = await joinRes.json();
-        if (joinData.success) {
-          router.replace('/chat');
-          return;
-        }
-      } catch {
-        // Fall through to normal check
+      // Retry join with small backoff: covers the case where session cookies
+      // haven't propagated to the server immediately after signUp/signIn.
+      const joinResult = await joinFamilyWithRetry(inviteFamilyId);
+      if (joinResult.success) {
+        try { window.localStorage.removeItem(PENDING_INVITE_KEY); } catch {}
+        router.replace('/chat');
+        return;
       }
+      if (joinResult.code === 'NOT_AUTHENTICATED') {
+        // Session lost — keep invite in storage and let /chat retry on first load
+        router.replace('/chat');
+        return;
+      }
+      if (joinResult.code === 'FAMILY_NOT_FOUND') {
+        setError('El enlace de invitación ya no es válido. Pídele a tu pareja que te envíe uno nuevo.');
+        try { window.localStorage.removeItem(PENDING_INVITE_KEY); } catch {}
+        setLoading(false);
+        return;
+      }
+      // Other errors: show but still allow access — chat will retry from storage
+      setError('No pudimos vincularte a la familia. Lo intentaremos de nuevo al abrir el chat.');
+      setLoading(false);
+      router.replace('/chat');
+      return;
     }
 
-    // Check if user has a family using admin API (bypasses RLS)
-    try {
-      const res = await fetch('/api/check-family');
-      const { hasFamily } = await res.json();
-      router.replace(hasFamily ? '/chat' : '/onboarding');
-    } catch {
-      router.replace('/onboarding');
+    router.replace('/chat');
+  };
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    const supabase = getSupabase();
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (resetError) {
+      setError(resetError.message);
+      setLoading(false);
+      return;
     }
+    setForgotSent(true);
+    setLoading(false);
+  };
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError('');
+    setForgotSent(false);
   };
 
   return (
-    <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-xs animate-fade-in">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-24 h-24 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center mb-5">
-            <Baby size={48} className="text-[var(--nanny-purple)]" />
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 animate-fade-in">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-10">
+          <div
+            className="size-[72px] rounded-[18px] overflow-hidden mb-5"
+            style={{
+              background: 'var(--nanny-purple)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.10)',
+            }}
+          >
+            <Image src="/icon-192.png" alt="Nanny" width={72} height={72} priority className="size-full object-cover" />
           </div>
-          <h1 className="text-3xl font-bold">Bienvenido a Nanny</h1>
-          <p className="text-sm text-[var(--nanny-gray)] mt-2 text-center max-w-[250px]">
-            {inviteFamilyId
-              ? 'Crea tu cuenta para unirte a la familia.'
-              : 'Organiza la vida de tus hijos desde el chat.'}
+          <h1 className="text-title-1 text-center text-balance" style={{ color: 'var(--text-primary)' }}>
+            {mode === 'forgot' ? 'Recupera tu cuenta' : 'Bienvenido a Nanny'}
+          </h1>
+          <p className="text-callout text-center mt-1.5 max-w-[280px] text-pretty" style={{ color: 'var(--text-secondary)' }}>
+            {mode === 'forgot'
+              ? 'Te enviaremos un enlace a tu correo'
+              : inviteFamilyId
+              ? 'Crea tu cuenta para unirte a la familia'
+              : 'Tú cuidas a tus hijos. Nanny cuida los detalles.'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="relative">
-            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--nanny-gray)]" />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              required
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-[var(--nanny-purple-light)] outline-none"
-            />
-          </div>
-
-          <div className="relative">
-            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--nanny-gray)]" />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contraseña"
-              required
-              minLength={6}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-[var(--nanny-purple-light)] outline-none"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-[var(--nanny-red)] text-center">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40"
+        {mode !== 'forgot' && (
+          <div
+            role="tablist"
+            className="flex p-1 rounded-[14px] mb-6"
+            style={{ background: 'var(--gray-100)' }}
           >
-            {loading ? (
-              'Cargando...'
-            ) : mode === 'login' ? (
-              <>Entrar <LogIn size={16} /></>
-            ) : (
-              <>Crear cuenta <UserPlus size={16} /></>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          {mode === 'login' ? (
-            <p className="text-sm text-[var(--nanny-gray)]">
-              ¿No tienes cuenta?{' '}
-              <button
-                onClick={() => { setMode('register'); setError(''); }}
-                className="text-[var(--nanny-purple)] font-medium"
-              >
-                Regístrate
-              </button>
-            </p>
-          ) : (
-            <p className="text-sm text-[var(--nanny-gray)]">
-              ¿Ya tienes cuenta?{' '}
-              <button
-                onClick={() => { setMode('login'); setError(''); }}
-                className="text-[var(--nanny-purple)] font-medium"
-              >
-                Inicia sesión
-              </button>
-            </p>
-          )}
-        </div>
-        {/* Reset button for testing */}
-        {email && (
-          <div className="mt-8 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              disabled={!!resetStatus}
-              onClick={async () => {
-                if (!confirm(`¿Borrar TODOS los datos de ${email}? Esta acción no se puede deshacer.`)) return;
-                setResetStatus('Borrando...');
-                try {
-                  const res = await fetch('/api/reset-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email }),
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    setResetStatus('Datos borrados. Puedes registrarte de nuevo.');
-                    // Sign out locally
-                    await getSupabase().auth.signOut();
-                  } else {
-                    setResetStatus(data.error || 'Error al borrar');
-                  }
-                } catch {
-                  setResetStatus('Error de conexión');
-                }
-                setTimeout(() => setResetStatus(''), 4000);
-              }}
-              className="w-full text-xs text-[var(--nanny-gray)] py-2 hover:text-[var(--nanny-red)] transition-colors"
-            >
-              {resetStatus || `Reiniciar datos de ${email}`}
-            </button>
+            {(['login', 'register'] as const).map(m => {
+              const active = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => switchMode(m)}
+                  className="flex-1 py-2.5 rounded-[10px] text-subhead transition-all"
+                  style={{
+                    background: active ? 'var(--bg-elevated)' : 'transparent',
+                    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontWeight: active ? 600 : 500,
+                    boxShadow: active ? 'var(--shadow-xs)' : 'none',
+                  }}
+                >
+                  {m === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+                </button>
+              );
+            })}
           </div>
         )}
+
+        {mode === 'forgot' && forgotSent ? (
+          <div className="card animate-slide-up text-center" style={{ padding: '24px' }}>
+            <div
+              className="size-12 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'var(--success-soft)' }}
+            >
+              <Check size={24} style={{ color: 'var(--success)' }} strokeWidth={2.5} />
+            </div>
+            <h2 className="text-headline mb-2 text-balance">Revisa tu correo</h2>
+            <p className="text-footnote text-pretty" style={{ color: 'var(--text-secondary)' }}>
+              Enviamos un enlace a <strong style={{ color: 'var(--text-primary)' }}>{email}</strong> para restablecer tu contraseña.
+            </p>
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className="btn btn-ghost btn-sm mt-5"
+            >
+              <ArrowLeft size={16} /> Volver a iniciar sesión
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={mode === 'forgot' ? handleForgot : handleAuth} className="space-y-3">
+            <div className="relative">
+              <Mail
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--text-tertiary)' }}
+              />
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                required
+                aria-label="Email"
+                className={error ? 'input-error' : ''}
+                style={{ paddingLeft: '46px' }}
+              />
+            </div>
+
+            {mode !== 'forgot' && (
+              <>
+                <div className="relative">
+                  <Lock
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  />
+                  <input
+                    type="password"
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === 'register' ? 'Mínimo 6 caracteres' : 'Contraseña'}
+                    required
+                    minLength={6}
+                    aria-label="Contraseña"
+                    className={error ? 'input-error' : ''}
+                    style={{ paddingLeft: '46px' }}
+                  />
+                </div>
+
+                {mode === 'register' && password.length > 0 && (
+                  <div className="px-1 animate-fade-in">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="flex-1 h-[3px] rounded-full transition-colors"
+                          style={{
+                            background:
+                              i <= passwordStrength
+                                ? passwordStrength <= 1
+                                  ? 'var(--danger)'
+                                  : passwordStrength === 2
+                                  ? 'var(--warning)'
+                                  : 'var(--success)'
+                                : 'var(--gray-200)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p
+                      className="text-caption-2 mt-1.5"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      {passwordStrength <= 1
+                        ? 'Contraseña débil'
+                        : passwordStrength === 2
+                        ? 'Aceptable'
+                        : passwordStrength === 3
+                        ? 'Buena'
+                        : 'Excelente'}
+                    </p>
+                  </div>
+                )}
+
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    className="block ml-auto px-1 py-1 text-footnote focus-ring rounded"
+                    style={{ color: 'var(--nanny-purple)', fontWeight: 500 }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                )}
+              </>
+            )}
+
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 p-3 rounded-[12px] animate-slide-up"
+                style={{ background: 'var(--danger-soft)' }}
+              >
+                <AlertCircle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
+                <p className="text-footnote" style={{ color: 'var(--danger)' }}>{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary btn-block"
+              style={{ marginTop: '8px' }}
+            >
+              {loading
+                ? 'Cargando…'
+                : mode === 'forgot'
+                ? 'Enviar enlace'
+                : mode === 'login'
+                ? 'Iniciar sesión'
+                : 'Crear cuenta'}
+            </button>
+
+            {mode === 'forgot' && (
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="btn btn-ghost btn-block"
+              >
+                <ArrowLeft size={16} /> Volver
+              </button>
+            )}
+          </form>
+        )}
+
+        {/* El botón "Reiniciar datos" se movió a /perfil → Avanzado, ahora
+            requiere usuario autenticado (no se puede wipear desde login con
+            solo escribir el email, eso era un agujero de seguridad). */}
       </div>
     </div>
   );

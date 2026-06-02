@@ -2,48 +2,131 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { getChildren } from '@/lib/store';
-import type { Child } from '@/lib/types';
+import { GraduationCap, CalendarDays as CalIcon, CheckSquare as TaskIcon, Pill, Plus, ChevronRight, Users } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
+import { getChildren, getTodayEvents, getTasks, getMedications, getCachedSnapshot } from '@/lib/store';
+import type { Child, FamilyEvent, Task, Medication } from '@/lib/types';
+import { formatAge } from '@/lib/age';
 
 export default function HijosPage() {
-  const [children, setChildren] = useState<Child[]>([]);
+  const _snap = getCachedSnapshot();
+  const [children, setChildren] = useState<Child[]>(_snap?.children || []);
+  const [todayEvents, setTodayEvents] = useState<FamilyEvent[]>(_snap?.events || []);
+  const [tasks, setTasks] = useState<Task[]>(_snap?.tasks || []);
+  const [medications, setMedications] = useState<Medication[]>(_snap?.medications || []);
+  const [loading, setLoading] = useState(!_snap);
 
   const loadData = useCallback(async () => {
-    setChildren(await getChildren());
+    try {
+      const [c, te, t, m] = await Promise.all([
+        getChildren(), getTodayEvents(), getTasks(), getMedications(),
+      ]);
+      setChildren(c);
+      setTodayEvents(te);
+      setTasks(t);
+      setMedications(m);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  return (
-    <div className="min-h-screen">
-      <div className="px-5 pt-12 pb-4">
-        <h1 className="text-2xl font-bold">Hijos</h1>
-        <p className="text-sm text-[var(--nanny-gray)]">Perfiles y memoria de cada hijo</p>
+  if (loading) {
+    return (
+      <div className="min-h-dvh bg-white">
+        <header className="px-5 pt-header pb-4">
+          <div className="skeleton h-9 w-32 mb-2" />
+          <div className="skeleton h-4 w-48" />
+        </header>
+        <div className="px-4 space-y-3">
+          <div className="skeleton h-28 w-full rounded-2xl" />
+          <div className="skeleton h-28 w-full rounded-2xl" />
+        </div>
       </div>
+    );
+  }
 
-      <div className="px-4 space-y-3 pb-20">
-        {children.map(child => {
-          const age = child.birth_date ? calcAge(child.birth_date) : null;
+  return (
+    <div className="min-h-dvh bg-white page-enter">
+      <header className="px-5 pt-header pb-4">
+        <PageHeader
+          title="Hijos"
+          subtitle="Perfiles y memoria de cada hijo"
+          right={
+            <Link
+              href="/perfil/hijo/nuevo"
+              aria-label="Agregar hijo"
+              className="size-10 rounded-full bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)] flex items-center justify-center active:scale-95 transition-transform focus-ring"
+            >
+              <Plus size={20} />
+            </Link>
+          }
+        />
+      </header>
+
+      <div className="px-4 space-y-3 pb-24">
+        {children.length === 0 ? (
+          <div className="card-flat text-center py-12 px-6">
+            <div className="size-14 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-4">
+              <Users size={26} className="text-[var(--nanny-purple)]" />
+            </div>
+            <p className="text-headline text-[var(--text-primary)]">Aún no hay hijos</p>
+            <p className="text-footnote text-[var(--text-tertiary)] mt-1 mb-5 text-pretty">Agrega el perfil de tu primer hijo para que Nanny pueda ayudarte mejor</p>
+            <Link href="/perfil?addChild=1" className="btn btn-primary">
+              <Plus size={16} /> Agregar hijo
+            </Link>
+          </div>
+        ) : children.map(child => {
+          const age = child.birth_date ? formatAge(child.birth_date) : null;
+          const childEvents = todayEvents.filter(e => e.child_id === child.id).length;
+          const childTasks = tasks.filter(t => t.child_id === child.id && t.status !== 'done').length;
+          const childMeds = medications.filter(m => m.child_id === child.id && m.status === 'active').length;
+          const hasUrgent = childMeds > 0 || tasks.some(t => t.child_id === child.id && t.priority === 'urgent' && t.status !== 'done');
+
           return (
             <Link
               key={child.id}
               href={`/hijo/${child.id}`}
-              className="block bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow"
+              className="block card hover:shadow-md transition-shadow active:scale-[0.99]"
             >
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-[var(--nanny-purple-bg)] flex items-center justify-center text-3xl">
-                  {child.emoji}
-                </div>
-                <div className="flex-1">
-                  <h2 className="font-semibold text-lg">{child.name}</h2>
-                  {age !== null && (
-                    <p className="text-sm text-[var(--nanny-gray)]">{age} años</p>
+                <div className="relative shrink-0">
+                  <div
+                    className="size-16 rounded-full flex items-center justify-center text-title-3 font-semibold text-white shadow-sm"
+                    style={{ background: child.color || 'var(--nanny-purple)' }}
+                  >
+                    {child.name.charAt(0).toUpperCase()}
+                  </div>
+                  {hasUrgent && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 size-3.5 rounded-full bg-[var(--danger)] border-2 border-white"
+                      aria-label="Requiere atención"
+                    />
                   )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-headline text-[var(--text-primary)] truncate text-balance">{child.name}</h2>
+                    {age !== null && (
+                      <span className="text-footnote text-[var(--text-tertiary)] tabular-nums">{age}</span>
+                    )}
+                  </div>
                   {child.school && (
-                    <p className="text-xs text-[var(--nanny-gray)] mt-0.5">🏫 {child.school}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)] mt-0.5 inline-flex items-center gap-1 truncate">
+                      <GraduationCap size={12} /> {child.school}
+                    </p>
                   )}
+                  {/* Mini-dashboard de stats */}
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    <Stat icon={<CalIcon size={11} />} label={`${childEvents} hoy`} active={childEvents > 0} tone="purple" />
+                    <Stat icon={<TaskIcon size={11} />} label={`${childTasks} ${childTasks === 1 ? 'tarea' : 'tareas'}`} active={childTasks > 0} tone="warning" />
+                    {childMeds > 0 && (
+                      <Stat icon={<Pill size={11} />} label="Medicamento" active tone="purple" />
+                    )}
+                  </div>
                 </div>
-                <div className="text-[var(--nanny-gray)]">›</div>
+                <ChevronRight size={18} className="text-[var(--text-quaternary)] shrink-0" />
               </div>
             </Link>
           );
@@ -53,13 +136,17 @@ export default function HijosPage() {
   );
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
+function Stat({ icon, label, active, tone }: { icon: React.ReactNode; label: string; active: boolean; tone: 'purple' | 'warning' | 'success' | 'neutral' }) {
+  const styles = {
+    purple: active ? 'bg-[var(--nanny-purple-tint)] text-[var(--nanny-purple)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
+    warning: active ? 'bg-[var(--warning-soft)] text-[var(--warning)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
+    success: active ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--gray-100)] text-[var(--text-quaternary)]',
+    neutral: 'bg-[var(--gray-100)] text-[var(--text-secondary)]',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium tabular-nums ${styles[tone]}`}>
+      {icon} {label}
+    </span>
+  );
 }
+

@@ -1,78 +1,458 @@
 @import "tailwindcss";
 
+/* ============================================
+   NANNY DESIGN SYSTEM — Apple-inspired
+   Premium, minimal, refined.
+   ============================================ */
+
 :root {
+  /* ─── Brand ─── */
   --nanny-purple: #7C3AED;
+  --nanny-purple-hover: #6D28D9;
+  --nanny-purple-pressed: #5B21B6;
+  --nanny-purple-soft: #F5F3FF;
+  --nanny-purple-tint: rgba(124, 58, 237, 0.08);
+
+  /* ─── Neutral scale (Apple-style) ─── */
+  --gray-50:  #FAFAFA;
+  --gray-100: #F5F5F7;   /* Apple background */
+  --gray-200: #E8E8ED;
+  --gray-300: #D2D2D7;
+  --gray-400: #A1A1A6;
+  --gray-500: #86868B;
+  --gray-600: #6E6E73;
+  --gray-700: #424245;
+  --gray-800: #1D1D1F;   /* Apple primary text */
+  --gray-900: #000000;
+
+  /* ─── Surfaces ─── */
+  --bg-canvas: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-subtle: var(--gray-50);
+  --bg-muted: var(--gray-100);
+  --bg-inverse: var(--gray-800);
+
+  /* ─── Text ─── */
+  --text-primary: var(--gray-800);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-500);
+  --text-quaternary: var(--gray-400);
+  --text-inverse: #FFFFFF;
+  --text-accent: var(--nanny-purple);
+
+  /* ─── Borders / Separators ─── */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --separator: rgba(60, 60, 67, 0.12);   /* iOS hairline */
+
+  /* ─── Semantic ─── */
+  --success: #34C759;
+  --success-soft: #E8F8EC;
+  --warning: #FF9500;
+  --warning-soft: #FFF4E5;
+  --danger: #FF3B30;
+  --danger-soft: #FFEBEA;
+  --info: #007AFF;
+  --info-soft: #E5F1FF;
+
+  /* ─── Elevation (very subtle Apple-style) ─── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.06);
+
+  /* ─── Radius ─── */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ─── Motion (Apple cubic-bezier) ─── */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.5, 1.5, 0.5, 1);
+  --duration-fast: 150ms;
+  --duration-base: 240ms;
+  --duration-slow: 400ms;
+
+  /* ─── Layout ─── */
+  --nav-h: calc(64px + env(safe-area-inset-bottom, 12px) + 16px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* ─── Layers (z-index scale) — ascendente, una sola fuente de verdad ─── */
+  --z-sticky: 10;    /* headers sticky, composer del chat */
+  --z-raised: 30;    /* FAB / controles flotantes sobre el contenido */
+  --z-nav: 50;       /* bottom nav */
+  --z-toast: 55;     /* toasts / banners transitorios (sobre el nav) */
+  --z-overlay: 60;   /* backdrop de sheet / modal */
+  --z-modal: 61;     /* contenido de sheet / modal */
+  --z-dialog: 62;    /* dialog de confirmación centrado (sobre el sheet) */
+
+  /* ─── Legacy aliases (mantener compat con código existente) ─── */
   --nanny-purple-light: #A78BFA;
-  --nanny-purple-bg: #F5F3FF;
-  --nanny-green: #10B981;
-  --nanny-orange: #F59E0B;
-  --nanny-red: #EF4444;
-  --nanny-blue: #3B82F6;
-  --nanny-gray: #6B7280;
-  --nanny-gray-light: #F3F4F6;
-  --nanny-bg: #FAFAFA;
+  --nanny-purple-bg: var(--nanny-purple-soft);
+  --nanny-green: var(--success);
+  --nanny-orange: var(--warning);
+  --nanny-red: var(--danger);
+  --nanny-blue: var(--info);
+  --nanny-gray: var(--text-secondary);
+  --nanny-gray-light: var(--gray-100);
+  --nanny-bg: var(--bg-canvas);
+}
+
+/* ============================================
+   DARK MODE (auto via prefers-color-scheme)
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gray-50:  #1C1C1E;
+    --gray-100: #2C2C2E;
+    --gray-200: #3A3A3C;
+    --gray-300: #48484A;
+    --gray-400: #636366;
+    --gray-500: #8E8E93;
+    --gray-600: #AEAEB2;
+    --gray-700: #C7C7CC;
+    --gray-800: #F2F2F7;
+    --gray-900: #FFFFFF;
+
+    --bg-canvas: #000000;
+    --bg-elevated: #1C1C1E;
+    --bg-subtle: #1C1C1E;
+    --bg-muted: #2C2C2E;
+
+    --text-primary: #F2F2F7;
+    --text-secondary: #AEAEB2;
+    --text-tertiary: #8E8E93;
+    --text-quaternary: #636366;
+
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-default: rgba(255, 255, 255, 0.14);
+    --border-strong: rgba(255, 255, 255, 0.22);
+    --separator: rgba(84, 84, 88, 0.55);
+
+    --success-soft: rgba(52, 199, 89, 0.18);
+    --warning-soft: rgba(255, 149, 0, 0.18);
+    --danger-soft: rgba(255, 59, 48, 0.18);
+    --info-soft: rgba(0, 122, 255, 0.18);
+
+    --nanny-purple-soft: rgba(124, 58, 237, 0.18);
+    --nanny-purple-tint: rgba(124, 58, 237, 0.22);
+    --nanny-purple-bg: rgba(124, 58, 237, 0.18);
+    --nanny-gray-light: var(--gray-100);
+  }
+
+  /* Glass overrides para dark */
+  .glass {
+    background: rgba(28, 28, 30, 0.72);
+  }
+  .glass-strong {
+    background: rgba(28, 28, 30, 0.86);
+  }
+  .bottom-nav {
+    background: rgba(28, 28, 30, 0.82);
+  }
+
+  /* Sheet con bg elevated en dark */
+  .sheet {
+    background: var(--bg-elevated);
+  }
+
+  /* Bubble nanny en dark queda muy oscuro; ajusto */
+  .bubble-nanny {
+    background: var(--gray-100);
+    color: var(--text-primary);
+  }
+  .bubble-other-parent {
+    background: var(--bg-elevated);
+    border-color: var(--border-subtle);
+  }
 }
 
 @theme inline {
-  --color-background: var(--nanny-bg);
-  --color-foreground: #1F2937;
+  --color-background: var(--bg-canvas);
+  --color-foreground: var(--text-primary);
   --color-primary: var(--nanny-purple);
   --color-primary-light: var(--nanny-purple-light);
 }
 
+/* ============================================
+   RESET + BASE
+   ============================================ */
+
 * {
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  height: 100vh;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+               'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--nanny-bg);
-  color: #1F2937;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
   max-width: 430px;
   margin: 0 auto;
-  min-height: 100dvh;
   position: relative;
+  font-size: 15px;
+  line-height: 1.47;
+  letter-spacing: -0.01em;
+  font-feature-settings: 'cv02', 'cv11', 'ss01';
+}
+
+main {
+  height: 100dvh;
+  overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: var(--bg-canvas);
 }
 
-/* Chat bubbles */
-.bubble-parent {
+body[data-page="chat"] main {
+  padding-bottom: 0 !important;
+  overflow: hidden;
+}
+
+/* ============================================
+   TYPOGRAPHY SCALE (Apple HIG-inspired)
+   ============================================ */
+
+.text-large-title { font-size: 30.6px; line-height: 1.12; letter-spacing: -0.022em; font-weight: 700; }
+.text-title-1     { font-size: 28px; line-height: 1.14; letter-spacing: -0.022em; font-weight: 700; }
+.text-title-2     { font-size: 22px; line-height: 1.18; letter-spacing: -0.020em; font-weight: 700; }
+.text-title-3     { font-size: 20px; line-height: 1.20; letter-spacing: -0.018em; font-weight: 600; }
+.text-headline    { font-size: 17px; line-height: 1.29; letter-spacing: -0.014em; font-weight: 600; }
+.text-body        { font-size: 17px; line-height: 1.41; letter-spacing: -0.012em; font-weight: 400; }
+.text-callout     { font-size: 16px; line-height: 1.31; letter-spacing: -0.011em; font-weight: 400; }
+.text-subhead     { font-size: 15px; line-height: 1.33; letter-spacing: -0.010em; font-weight: 500; }
+.text-footnote    { font-size: 13px; line-height: 1.38; letter-spacing: -0.005em; font-weight: 400; }
+.text-caption     { font-size: 12px; line-height: 1.33; letter-spacing: 0;        font-weight: 500; }
+.text-caption-2   { font-size: 11px; line-height: 1.18; letter-spacing: 0.005em;  font-weight: 500; }
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  min-height: 50px;
+  transition: transform var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  outline: none;
+  white-space: nowrap;
+}
+
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
   background: var(--nanny-purple);
-  color: white;
-  border-radius: 18px 18px 4px 18px;
-  padding: 10px 14px;
-  max-width: 85%;
-  margin-left: auto;
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover:not(:disabled) { background: var(--nanny-purple-hover); }
+.btn-primary:active:not(:disabled) { background: var(--nanny-purple-pressed); }
+
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--gray-200); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--nanny-purple);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--nanny-purple-tint); }
+
+.btn-tinted {
+  background: var(--nanny-purple-tint);
+  color: var(--nanny-purple);
+}
+.btn-tinted:hover:not(:disabled) { background: var(--nanny-purple-soft); }
+
+.btn-destructive {
+  background: var(--danger);
+  color: #fff;
 }
 
-.bubble-nanny {
-  background: white;
-  color: #1F2937;
-  border: 1px solid #E5E7EB;
-  border-radius: 18px 18px 18px 4px;
-  padding: 10px 14px;
-  max-width: 85%;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+.btn-sm { min-height: 36px; padding: 8px 14px; font-size: 14px; border-radius: var(--radius-md); }
+.btn-lg { min-height: 56px; padding: 16px 24px; font-size: 17px; border-radius: var(--radius-xl); }
+.btn-block { width: 100%; }
+.btn-icon { padding: 0; width: 44px; min-height: 44px; }
+
+/* ============================================
+   INPUTS
+   ============================================ */
+
+.input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="search"],
+textarea,
+select {
+  width: 100%;
+  background: var(--gray-100);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.bubble-other-parent {
-  background: #E0E7FF;
-  color: #1F2937;
-  border-radius: 18px 18px 18px 4px;
-  padding: 10px 14px;
-  max-width: 85%;
+.input:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+  background: #fff;
+  border-color: var(--nanny-purple);
+  box-shadow: 0 0 0 4px var(--nanny-purple-tint);
 }
 
-/* Confirmation card */
-.confirmation-card {
-  background: white;
-  border: 2px solid var(--nanny-purple-light);
-  border-radius: 16px;
+.input::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+textarea { resize: none; }
+
+.input-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 4px var(--danger-soft) !important;
+}
+
+/* ============================================
+   CARDS
+   ============================================ */
+
+.card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
   padding: 16px;
-  max-width: 90%;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
 }
 
-/* Bottom nav */
+.card-flat {
+  background: var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  border: none;
+}
+
+.card-elevated {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+}
+
+/* ============================================
+   LIST ROWS (iOS-style grouped list)
+   ============================================ */
+
+.list-group {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+  position: relative;
+}
+
+.list-row:active { background: var(--gray-50); }
+.list-row + .list-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: var(--separator);
+}
+
+/* ============================================
+   GLASS / BLUR EFFECT
+   ============================================ */
+
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  color: #fff;
+}
+
+/* ============================================
+   BOTTOM NAV (Apple Tab Bar)
+   ============================================ */
+
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -80,40 +460,269 @@ body {
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  background: white;
-  border-top: 1px solid #E5E7EB;
-  padding: 8px 0;
-  padding-bottom: env(safe-area-inset-bottom, 8px);
-  z-index: 50;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-top: 1px solid var(--separator);
+  padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 8px);
+  padding-top: 8px;
+  z-index: var(--z-nav);
+  transition: transform var(--duration-base) var(--ease-out),
+              opacity var(--duration-base) var(--ease-out);
 }
 
-/* Scrollbar */
+body[data-keyboard="open"] .bottom-nav {
+  transform: translateX(-50%) translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ============================================
+   CHAT BUBBLES
+   ============================================ */
+
+.bubble-parent {
+  background: var(--nanny-purple);
+  color: white;
+  border-radius: 22px 22px 6px 22px;
+  padding: 10px 14px;
+  max-width: 78%;
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-xs);
+}
+
+.bubble-nanny {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-radius: 22px 22px 22px 6px;
+  padding: 10px 14px;
+  max-width: 78%;
+  font-size: 16px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.bubble-other-parent {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 22px 22px 22px 6px;
+  padding: 10px 14px;
+  max-width: 78%;
+  font-size: 16px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-xs);
+}
+
+.confirmation-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--nanny-purple-soft);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  max-width: 90%;
+  box-shadow: var(--shadow-sm);
+}
+
+/* iOS Safari blink workaround for chat input */
+@keyframes iosBlink {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.chat-input-field:focus { animation: iosBlink 0.02s; }
+
+/* ============================================
+   BADGES & PILLS
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  border-radius: var(--radius-full);
+  line-height: 1;
+}
+
+.badge-neutral  { background: var(--gray-100); color: var(--text-secondary); }
+.badge-purple   { background: var(--nanny-purple-tint); color: var(--nanny-purple); }
+.badge-success  { background: var(--success-soft); color: #1F8F3F; }
+.badge-warning  { background: var(--warning-soft); color: #B86600; }
+.badge-danger   { background: var(--danger-soft); color: #C62828; }
+.badge-info     { background: var(--info-soft); color: #0056CC; }
+
+.priority-urgent { background: var(--danger-soft); color: #C62828; }
+.priority-high   { background: var(--warning-soft); color: #B86600; }
+.priority-normal { background: var(--info-soft); color: #0056CC; }
+.priority-low    { background: var(--gray-100); color: var(--text-secondary); }
+
+/* ============================================
+   BOTTOM SHEET
+   ============================================ */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.40);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: var(--z-overlay);
+  animation: fadeIn var(--duration-base) var(--ease-out);
+}
+
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  max-height: 90dvh;
+  background: var(--bg-elevated);
+  border-radius: 24px 24px 0 0;
+  z-index: var(--z-modal);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--duration-slow) var(--ease-out);
+  box-shadow: var(--shadow-xl);
+  /* Compensar la altura del bottom-nav (z:50) que vive siempre visible.
+     El sheet sigue arrancando desde bottom:0 pero su contenido recibe
+     padding-bottom equivalente al nav + safe-area, evitando que la
+     última fila quede tapada por la barra de tabs. */
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0));
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  background: var(--gray-300);
+  border-radius: var(--radius-full);
+  margin: 8px auto 4px;
+  flex-shrink: 0;
+}
+
+.sheet-header {
+  padding: 12px 20px 8px;
+  flex-shrink: 0;
+}
+
+.sheet-body {
+  padding: 8px 20px 24px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================
+   SKELETON LOADERS
+   ============================================ */
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--gray-100) 0%,
+    var(--gray-200) 50%,
+    var(--gray-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s var(--ease-in-out) infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes slideUp {
+  from { transform: translate(-50%, 100%); }
+  to   { transform: translate(-50%, 0); }
+}
+
+@keyframes slideUpFade {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-slide-up { animation: slideUpFade var(--duration-slow) var(--ease-out); }
+.animate-fade-in  { animation: fadeIn var(--duration-base) var(--ease-out); }
+.animate-scale-in { animation: scaleIn var(--duration-base) var(--ease-out); }
+.animate-spin-slow { animation: spin 1.4s linear infinite; }
+
+/* Page transitions — sutil fade + lift al montar cada pantalla */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: pageEnter 280ms var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .animate-slide-up,
+  .animate-fade-in,
+  .animate-scale-in { animation: none !important; }
+  /* El shimmer es decorativo y corre infinito; el bloque gris ya indica
+     carga, así que cortamos la animación continua. El spinner funcional
+     (.animate-spin-slow) se mantiene como feedback de carga. */
+  .skeleton { animation: none !important; }
+}
+
+/* ============================================
+   UTILITIES
+   ============================================ */
+
+.tap-highlight:active { transform: scale(0.97); transition: transform 100ms var(--ease-out); }
+.divider { height: 1px; background: var(--separator); }
+.divider-inset { height: 1px; background: var(--separator); margin-left: 16px; }
+
+/* Hide scrollbars but keep scroll */
 ::-webkit-scrollbar {
   width: 0;
   background: transparent;
 }
 
-/* Animations */
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+/* Selection */
+::selection {
+  background: var(--nanny-purple-tint);
+  color: var(--nanny-purple);
 }
 
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+/* Focus ring (a11y) */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--nanny-purple);
+  outline-offset: 2px;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Priority badges */
-.priority-urgent { background: #FEE2E2; color: #DC2626; }
-.priority-high { background: #FEF3C7; color: #D97706; }
-.priority-normal { background: #E0E7FF; color: #4F46E5; }
-.priority-low { background: #F3F4F6; color: #6B7280; }
+/* Safe areas helpers */
+.pt-safe { padding-top: var(--safe-top); }
+.pb-safe { padding-bottom: var(--safe-bottom); }
+.pb-nav  { padding-bottom: var(--nav-h); }
+/* Header de página: respeta safe-area + 8px de respiro (no más).
+   Reemplaza los pt-14 / pt-12 fijos que desperdiciaban espacio en
+   navegador y en dispositivos sin notch. */
+.pt-header { padding-top: calc(var(--safe-top) + 8px); }

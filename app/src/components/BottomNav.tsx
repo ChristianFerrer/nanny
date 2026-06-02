@@ -2,41 +2,119 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, CalendarDays, Users, Calendar, User } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { MessageCircle, CalendarDays, Users, CheckSquare, Settings } from 'lucide-react';
+import { getMessages, getTasks, getCurrentParentId } from '@/lib/store';
 
+// Bottom nav: 5 tabs.
+//
+// Decisión de UX: Chat (input) → Agenda (qué pasa cuándo) → Tareas (pendientes
+// y backlog) → Hijos (memoria estable) → Ajustes (config familiar). La tuerca
+// dejó de vivir en el header de cada pantalla y ahora es una tab fija.
 const tabs = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
-  { href: '/hoy', icon: CalendarDays, label: 'Hoy' },
-  { href: '/semana', icon: Calendar, label: 'Semana' },
+  { href: '/agenda', icon: CalendarDays, label: 'Agenda' },
+  { href: '/tareas', icon: CheckSquare, label: 'Tareas' },
   { href: '/hijo', icon: Users, label: 'Hijos' },
-  { href: '/perfil', icon: User, label: 'Perfil' },
+  { href: '/perfil', icon: Settings, label: 'Ajustes' },
 ];
+
+const AGENDA_ROUTES = ['/agenda', '/hoy', '/semana']; // /hoy y /semana redirigen, pero por las dudas
+
+// /chat ya NO está oculto: la nav vive consistente en todas las tabs.
+// Antes el /chat la escondía y delegaba navegación a un menú "..." en su
+// header — eso era inconsistente y forzaba al chat a tener affordances de
+// "manipular" la app. Ahora la barra es la nav, y el header del chat queda
+// limpio (solo ⚙ settings).
+const HIDE_ON = new Set(['/login', '/onboarding', '/', '/landing']);
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [unreadChat, setUnreadChat] = useState(0);
+  const [overdueTasks, setOverdueTasks] = useState(0);
 
-  // Hide nav on auth and onboarding pages
-  if (pathname === '/login' || pathname === '/onboarding' || pathname === '/') {
-    return null;
-  }
+  const checkBadges = useCallback(async () => {
+    try {
+      const [msgs, tasks] = await Promise.all([getMessages(), getTasks()]);
+      const myId = getCurrentParentId();
+
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      if (pathname !== '/chat') {
+        const recentOthers = msgs.filter(m =>
+          m.created_at > fiveMinAgo && m.sender_id !== myId
+        );
+        setUnreadChat(recentOthers.length);
+      } else {
+        setUnreadChat(0);
+      }
+
+      const now = new Date();
+      const overdue = tasks.filter(t =>
+        t.status !== 'done' && t.due_date && new Date(t.due_date) < now
+      );
+      setOverdueTasks(overdue.length);
+    } catch {
+      // badges non-critical
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    checkBadges();
+    const interval = setInterval(checkBadges, 10000);
+    return () => clearInterval(interval);
+  }, [checkBadges]);
+
+  if (HIDE_ON.has(pathname) || pathname.startsWith('/admin')) return null;
+
+  const isActive = (href: string) => {
+    if (href === '/agenda') {
+      return AGENDA_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
+    }
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   return (
-    <nav className="bottom-nav">
-      <div className="flex justify-around items-center">
+    <nav className="bottom-nav" aria-label="Navegación principal">
+      <div className="flex justify-around items-stretch px-2">
         {tabs.map(({ href, icon: Icon, label }) => {
-          const active = pathname.startsWith(href);
+          const active = isActive(href);
+          const badge = href === '/chat' ? unreadChat
+            : href === '/tareas' ? overdueTasks
+            : 0;
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
-                active
-                  ? 'text-[var(--nanny-purple)]'
-                  : 'text-[var(--nanny-gray)] hover:text-[var(--nanny-purple-light)]'
-              }`}
+              aria-label={label}
+              aria-current={active ? 'page' : undefined}
+              className="tap-highlight focus-ring flex-1 flex flex-col items-center justify-center gap-[3px] py-1.5 rounded-lg"
+              style={{
+                color: active ? 'var(--nanny-purple)' : 'var(--text-tertiary)',
+              }}
             >
-              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
-              <span className={`text-[10px] ${active ? 'font-semibold' : 'font-normal'}`}>
+              <div className="relative">
+                <Icon
+                  size={26}
+                  strokeWidth={active ? 2.4 : 1.8}
+                  style={{ transition: 'stroke-width 200ms var(--ease-out)' }}
+                />
+                {badge > 0 && (
+                  <span
+                    aria-label={`${badge} nuevos`}
+                    className="absolute -top-1 -right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-white px-1 animate-scale-in"
+                    style={{
+                      background: href === '/chat' ? 'var(--nanny-purple)' : 'var(--warning)',
+                      boxShadow: '0 0 0 2px var(--bg-canvas)',
+                    }}
+                  >
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                )}
+              </div>
+              <span
+                className="text-caption-2"
+                style={{ fontWeight: active ? 600 : 500 }}
+              >
                 {label}
               </span>
             </Link>

@@ -24,7 +24,7 @@ async function getParentForUser(userId: string): Promise<{ family_id: string; pa
     .select('id, family_id')
     .eq('auth_user_id', userId)
     .limit(1)
-    .single();
+    .maybeSingle();
   if (!parent) return null;
   return { family_id: parent.family_id, parent_id: parent.id };
 }
@@ -39,7 +39,25 @@ export async function GET(req: NextRequest) {
 
     const parentInfo = await getParentForUser(userId);
     if (!parentInfo) {
-      return NextResponse.json({ error: 'No family found' }, { status: 404 });
+      // Usuario autenticado pero todavía sin parent (onboarding pendiente o
+      // post-reset). Devolvemos 200 con payload vacío en vez de 404 — los
+      // pollers (BottomNav badges, realtime) no spammean errores en consola
+      // mientras el usuario completa el onboarding. El cliente detecta
+      // familyId=null y se comporta acorde.
+      const tablesParam = req.nextUrl.searchParams.get('tables')?.split(',') || [];
+      const empty: Record<string, unknown> = { familyId: null, currentParentId: null };
+      for (const t of tablesParam) {
+        if (t === 'family') empty.family = null;
+        else if (t === 'parents') empty.parents = [];
+        else if (t === 'children') empty.children = [];
+        else if (t === 'events') empty.events = [];
+        else if (t === 'tasks') empty.tasks = [];
+        else if (t === 'messages') empty.messages = [];
+        else if (t === 'medications') empty.medications = [];
+        else if (t === 'routines') empty.routines = [];
+        else if (t === 'routine_exceptions') empty.routineExceptions = [];
+      }
+      return NextResponse.json(empty);
     }
     const { family_id: familyId, parent_id: currentParentId } = parentInfo;
 
@@ -92,6 +110,33 @@ export async function GET(req: NextRequest) {
           .order('start_date', { ascending: true })
           .then(({ data }) => { result.medications = data || []; }) as Promise<void>
       );
+    }
+    // Routines and routine_exceptions: ambas dependen de la lista de hijos.
+    // Usamos un fetch encadenado dentro de la misma promesa para no perder
+    // paralelismo con los otros queries.
+    if (tables.includes('routines') || tables.includes('routine_exceptions')) {
+      const wantRoutines = tables.includes('routines');
+      const wantExceptions = tables.includes('routine_exceptions');
+      queries.push((async () => {
+        const { data: kids } = await admin.from('children').select('id').eq('family_id', familyId);
+        const childIds = (kids || []).map(k => k.id);
+        if (childIds.length === 0) {
+          if (wantRoutines) result.routines = [];
+          if (wantExceptions) result.routineExceptions = [];
+          return;
+        }
+        const { data: routines } = await admin.from('routines').select('*').in('child_id', childIds).eq('active', true);
+        if (wantRoutines) result.routines = routines || [];
+        if (wantExceptions) {
+          const routineIds = (routines || []).map(r => r.id);
+          if (routineIds.length === 0) {
+            result.routineExceptions = [];
+          } else {
+            const { data: exceptions } = await admin.from('routine_exceptions').select('*').in('routine_id', routineIds);
+            result.routineExceptions = exceptions || [];
+          }
+        }
+      })());
     }
     if (tables.includes('messages')) {
       const since = req.nextUrl.searchParams.get('since');

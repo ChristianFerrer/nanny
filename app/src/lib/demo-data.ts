@@ -28,6 +28,8 @@ function todayAt(hour: number, min = 0): string {
 export const demoFamily: Family = {
   id: FAMILY_ID,
   name: 'Familia Demo',
+  timezone: 'America/Argentina/Buenos_Aires',
+  timezone_set_manually: false,
   created_at: new Date().toISOString(),
 };
 
@@ -47,13 +49,13 @@ export const demoParents: Parent[] = [
 export const demoChildren: Child[] = [
   {
     id: PAU_ID, family_id: FAMILY_ID, name: 'Pau', birth_date: '2021-03-15',
-    emoji: '🧒', school: 'Colegio San José', teacher: 'Miss Ana',
+    emoji: '🧒', color: null, school: 'Colegio San José', teacher: 'Miss Ana',
     grade: '1° Preescolar', allergies: ['Cacahuate'], medical_notes: 'Alergia leve al cacahuate',
     personality_notes: 'Muy sociable, le gusta dibujar', created_at: new Date().toISOString(),
   },
   {
     id: MIA_ID, family_id: FAMILY_ID, name: 'Mía', birth_date: '2023-08-20',
-    emoji: '👧', school: null, teacher: null, grade: null, allergies: [],
+    emoji: '👧', color: null, school: null, teacher: null, grade: null, allergies: [],
     medical_notes: null, personality_notes: 'Muy curiosa, empezando a hablar',
     created_at: new Date().toISOString(),
   },
@@ -108,6 +110,7 @@ export const demoTasks: Task[] = [
     title: 'Comprar uniforme nuevo', description: 'Talla 6, el anterior ya le queda chico',
     assigned_to: MAMA_ID, due_date: daysFromNow(3), status: 'pending',
     priority: 'normal', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -115,6 +118,7 @@ export const demoTasks: Task[] = [
     title: 'Llevar documentos al colegio', description: 'Constancia de salud actualizada',
     assigned_to: PAPA_ID, due_date: daysFromNow(1), status: 'pending',
     priority: 'high', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -122,6 +126,7 @@ export const demoTasks: Task[] = [
     title: 'Agendar vacunas Mía', description: 'Vacunas de los 18 meses',
     assigned_to: MAMA_ID, due_date: daysFromNow(7), status: 'pending',
     priority: 'high', source: 'chat', auto_detected: true, created_by: null,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
   {
@@ -129,6 +134,7 @@ export const demoTasks: Task[] = [
     title: 'Comprar regalo abuela', description: 'Para su cumpleaños',
     assigned_to: PAPA_ID, due_date: daysFromNow(7), status: 'pending',
     priority: 'normal', source: 'chat', auto_detected: true, created_by: MAMA_ID,
+    parent_task_id: null,
     completed_at: null, created_at: new Date().toISOString(),
   },
 ];

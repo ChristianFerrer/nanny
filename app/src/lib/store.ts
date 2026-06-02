@@ -1,11 +1,40 @@
 // State management — all data goes through API routes (admin client, bypasses RLS)
 
-import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, Medication } from './types';
+import type { Family, Parent, Child, FamilyEvent, Task, Message, Routine, RoutineException, Medication, MedicationIntake, MedicationIntakeStatus } from './types';
 
 // Track current family and parent
 let _currentFamilyId: string | null = null;
 let _currentParentId: string | null = null;
 let _listeners: (() => void)[] = [];
+
+// --- In-memory cache to avoid refetching on every page change ---
+const _cache: Record<string, { data: unknown; ts: number }> = {};
+const CACHE_TTL = 30_000; // 30 seconds — data stays fresh across tab switches
+
+function getCached(key: string): unknown | null {
+  const entry = _cache[key];
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function setCache(key: string, data: unknown) {
+  _cache[key] = { data, ts: Date.now() };
+}
+
+function invalidateCache(table?: string) {
+  if (table) {
+    delete _cache[table];
+  } else {
+    Object.keys(_cache).forEach(k => delete _cache[k]);
+  }
+}
+
+// Pública: usada por /chat para forzar fetch fresco de mensajes en mount
+// (el cache TTL de 30s puede tener una "ventana ciega" donde mensajes
+// recibidos mientras está fresco no aparecen hasta que vence).
+export function invalidateTableCache(table: string) {
+  invalidateCache(table);
+}
 
 function notify() {
   _listeners.forEach(fn => fn());
@@ -16,13 +45,50 @@ export function subscribe(fn: () => void) {
   return () => { _listeners = _listeners.filter(l => l !== fn); };
 }
 
+// Tables that change too frequently to cache
+const NO_CACHE_TABLES = new Set<string>();
+
 // Fetch family data from server API (bypasses RLS)
 async function fetchFamilyData(tables: string[]): Promise<Record<string, unknown>> {
+  // Check cache for single-table requests (skip volatile tables)
+  if (tables.length === 1 && !NO_CACHE_TABLES.has(tables[0])) {
+    const cached = getCached(tables[0]);
+    if (cached) return cached as Record<string, unknown>;
+  }
+
   const res = await fetch(`/api/family-data?tables=${tables.join(',')}`);
+
+  // 404 = no hay parent registrado todavía (usuario en onboarding o
+  // recién reseteado). NO es un error: devolvemos objeto vacío con shape
+  // esperado para que callers como BottomNav y polling sigan funcionando
+  // sin spammear la consola con 404s.
+  if (res.status === 404) {
+    const empty: Record<string, unknown> = { familyId: null, currentParentId: null };
+    for (const t of tables) {
+      if (t === 'family') empty.family = null;
+      else if (t === 'parents') empty.parents = [];
+      else if (t === 'children') empty.children = [];
+      else if (t === 'events') empty.events = [];
+      else if (t === 'tasks') empty.tasks = [];
+      else if (t === 'messages') empty.messages = [];
+      else if (t === 'medications') empty.medications = [];
+      else if (t === 'routines') empty.routines = [];
+      else if (t === 'routine_exceptions') empty.routineExceptions = [];
+    }
+    return empty;
+  }
+
   if (!res.ok) throw new Error('Failed to load family data');
   const data = await res.json();
   if (data.familyId) _currentFamilyId = data.familyId;
   if (data.currentParentId) _currentParentId = data.currentParentId;
+
+  // Cache each table individually (except volatile ones)
+  for (const table of tables) {
+    if (!NO_CACHE_TABLES.has(table)) {
+      setCache(table, data);
+    }
+  }
   return data;
 }
 
@@ -37,6 +103,8 @@ async function writeData(table: string, operation: 'insert' | 'update' | 'delete
     const err = await res.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(err.error || 'Write failed');
   }
+  // Invalidate cache for this table so next read fetches fresh data
+  invalidateCache(table);
   return res.json();
 }
 
@@ -66,10 +134,54 @@ export function getCurrentParentId(): string | null {
   return _currentParentId;
 }
 
+// Check if we already know the family (avoids redundant auth checks)
+export function getCachedFamilyId(): string | null {
+  return _currentFamilyId;
+}
+
+// Synchronous snapshot of cached data — used to initialize state without flash
+export function getCachedSnapshot(): {
+  family: Family | null;
+  parents: Parent[];
+  children: Child[];
+  events: FamilyEvent[];
+  tasks: Task[];
+  medications: Medication[];
+  routines: Routine[];
+  routineExceptions: RoutineException[];
+  messages: Message[];
+  currentParentId: string | null;
+} | null {
+  if (!_currentFamilyId) return null;
+  const fam = getCached('family') as Record<string, unknown> | null;
+  const prts = getCached('parents') as Record<string, unknown> | null;
+  const chld = getCached('children') as Record<string, unknown> | null;
+  const evts = getCached('events') as Record<string, unknown> | null;
+  const tsks = getCached('tasks') as Record<string, unknown> | null;
+  const meds = getCached('medications') as Record<string, unknown> | null;
+  const rts = getCached('routines') as Record<string, unknown> | null;
+  const rex = getCached('routine_exceptions') as Record<string, unknown> | null;
+  const msgs = getCached('messages') as Record<string, unknown> | null;
+  if (!fam) return null;
+  return {
+    family: (fam.family as Family) || null,
+    parents: (prts?.parents as Parent[]) || [],
+    children: (chld?.children as Child[]) || [],
+    events: (evts?.events as FamilyEvent[]) || [],
+    tasks: (tsks?.tasks as Task[]) || [],
+    medications: (meds?.medications as Medication[]) || [],
+    routines: (rts?.routines as Routine[]) || [],
+    routineExceptions: (rex?.routineExceptions as RoutineException[]) || [],
+    messages: (msgs?.messages as Message[]) || [],
+    currentParentId: _currentParentId,
+  };
+}
+
 // Reset cached family when user logs out or switches
 export function resetFamilyCache() {
   _currentFamilyId = null;
   _currentParentId = null;
+  invalidateCache();
 }
 
 export async function getFamily(): Promise<Family | null> {
@@ -130,6 +242,11 @@ export async function completeTask(taskId: string): Promise<void> {
   notify();
 }
 
+export async function uncompleteTask(taskId: string): Promise<void> {
+  await writeData('tasks', 'update', { status: 'pending', completed_at: null }, taskId);
+  notify();
+}
+
 export async function getMessages(): Promise<Message[]> {
   const data = await fetchFamilyData(['messages']);
   return (data.messages as Message[]) || [];
@@ -139,7 +256,22 @@ export async function getNewMessages(since: string): Promise<Message[]> {
   const res = await fetch(`/api/family-data?tables=messages&since=${encodeURIComponent(since)}`);
   if (!res.ok) return [];
   const data = await res.json();
-  return (data.messages as Message[]) || [];
+  const newMessages = (data.messages as Message[]) || [];
+
+  // Mergear los nuevos en la cache en memoria. Sin esto, futuras navegaciones
+  // a /chat leían un getCachedSnapshot() desactualizado (sin los msgs llegados
+  // entre fetch inicial y now), causando el "ver chat antiguo y luego cargar"
+  // que el usuario reportó.
+  if (newMessages.length > 0) {
+    const cached = getCached('messages') as { messages?: Message[] } | null;
+    if (cached && Array.isArray(cached.messages)) {
+      const seen = new Set(cached.messages.map(m => m.id));
+      const merged = [...cached.messages, ...newMessages.filter(m => !seen.has(m.id))];
+      setCache('messages', { ...cached, messages: merged });
+    }
+  }
+
+  return newMessages;
 }
 
 export async function addMessage(msg: Omit<Message, 'id' | 'created_at'>): Promise<Message> {
@@ -175,6 +307,11 @@ export async function addTask(task: Omit<Task, 'id' | 'created_at'>): Promise<Ta
   return (result.data || newTask) as Task;
 }
 
+export async function updateTask(taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at'>>): Promise<void> {
+  await writeData('tasks', 'update', updates as Record<string, unknown>, taskId);
+  notify();
+}
+
 export async function getMedications(): Promise<Medication[]> {
   const data = await fetchFamilyData(['medications']);
   return (data.medications as Medication[]) || [];
@@ -196,12 +333,60 @@ export async function updateMedication(medicationId: string, updates: Partial<Om
   notify();
 }
 
-export async function getRoutines(childId: string): Promise<Routine[]> {
-  const children = await getChildren();
-  const child = children.find(c => c.id === childId);
-  if (!child) return [];
-  // TODO: add routines to family-data endpoint if needed
-  return [];
+export async function getMedicationDetail(medicationId: string): Promise<{ medication: Medication; intakes: MedicationIntake[] } | null> {
+  const res = await fetch(`/api/medication/${medicationId}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function upsertIntake(
+  intake: { id?: string; medication_id: string; family_id: string; scheduled_at: string; status: MedicationIntakeStatus; taken_at?: string | null; recorded_by?: string | null; notes?: string | null }
+): Promise<MedicationIntake> {
+  const now = new Date().toISOString();
+  if (intake.id) {
+    await writeData('medication_intakes', 'update', { ...intake, updated_at: now } as unknown as Record<string, unknown>, intake.id);
+    notify();
+    return { ...intake, created_at: now, updated_at: now } as MedicationIntake;
+  }
+  const newIntake = {
+    ...intake,
+    id: crypto.randomUUID(),
+    taken_at: intake.taken_at ?? null,
+    recorded_by: intake.recorded_by ?? null,
+    notes: intake.notes ?? null,
+    created_at: now,
+    updated_at: now,
+  };
+  const result = await writeData('medication_intakes', 'insert', newIntake as unknown as Record<string, unknown>);
+  notify();
+  return (result.data || newIntake) as MedicationIntake;
+}
+
+export async function getRoutines(childId?: string): Promise<Routine[]> {
+  const data = await fetchFamilyData(['routines']);
+  const all = (data.routines as Routine[]) || [];
+  return childId ? all.filter(r => r.child_id === childId) : all;
+}
+
+export async function getRoutineExceptions(): Promise<RoutineException[]> {
+  const data = await fetchFamilyData(['routine_exceptions']);
+  return (data.routineExceptions as RoutineException[]) || [];
+}
+
+export async function addRoutine(routine: Omit<Routine, 'id' | 'created_at'>): Promise<Routine> {
+  const newRoutine = { ...routine, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  const result = await writeData('routines', 'insert', newRoutine as unknown as Record<string, unknown>);
+  invalidateCache('routines');
+  notify();
+  return (result.data || newRoutine) as Routine;
+}
+
+export async function addRoutineException(exception: Omit<RoutineException, 'id' | 'created_at'>): Promise<RoutineException> {
+  const newException = { ...exception, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  const result = await writeData('routine_exceptions', 'insert', newException as unknown as Record<string, unknown>);
+  invalidateCache('routine_exceptions');
+  notify();
+  return (result.data || newException) as RoutineException;
 }
 
 export async function updateFamily(updates: Partial<Omit<Family, 'id' | 'created_at'>>): Promise<void> {
@@ -232,7 +417,17 @@ export async function deleteEvent(eventId: string): Promise<void> {
   notify();
 }
 
+export async function updateEvent(eventId: string, updates: Partial<Omit<FamilyEvent, 'id' | 'created_at'>>): Promise<void> {
+  await writeData('events', 'update', updates as Record<string, unknown>, eventId);
+  notify();
+}
+
 export async function deleteTask(taskId: string): Promise<void> {
   await writeData('tasks', 'delete', undefined, taskId);
+  notify();
+}
+
+export async function deleteChild(childId: string): Promise<void> {
+  await writeData('children', 'delete', undefined, childId);
   notify();
 }

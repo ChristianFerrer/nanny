@@ -26,12 +26,13 @@ const VALID_INTENTS: NannyIntent[] = [
   'MEDICATION',
   'LOGISTICS_PICKUP', 'LOGISTICS_TRANSPORT',
   'SCHEDULE_CHANGE', 'MILESTONE', 'SUPPLY_LOW',
-  'HEALTH_LOG', 'CHAT', 'INFO', 'IGNORE',
+  'HEALTH_LOG', 'ROUTINE', 'CHAT', 'INFO', 'IGNORE',
 ];
 
 const VALID_NEXT_ACTIONS: NextAction[] = [
   'ask_for_missing_time', 'ask_for_missing_responsible_parent',
   'confirm_event', 'confirm_task', 'confirm_medication',
+  'confirm_routine', 'cancel_routine_date',
   'offer_reminders', 'update_existing_event', 'update_existing_task',
   'stay_silent',
 ];
@@ -285,6 +286,8 @@ export function validateMedicationData(
 
 // ─── Full Response Validation ───
 
+export type ConfirmationType = 'event' | 'task' | 'medication' | 'routine' | 'routine_exception';
+
 export interface ValidatedNannyResponse {
   should_respond: boolean;
   reply: string;
@@ -292,9 +295,13 @@ export interface ValidatedNannyResponse {
   next_action: NextAction;
   child: string | null;
   confirmation: {
-    type: 'event' | 'task' | 'medication';
+    type: ConfirmationType;
     data: Record<string, unknown>;
   } | null;
+  additional_confirmations: {
+    type: ConfirmationType;
+    data: Record<string, unknown>;
+  }[];
   pending_detection: {
     type: string;
     partial_data: Record<string, unknown>;
@@ -357,6 +364,31 @@ export function validateNannyResponse(
         }
         break;
       }
+      case 'routine': {
+        // Passthrough mínimo: el cliente valida child_name contra el store de
+        // hijos. Acá solo descartamos si faltan los campos críticos (sin estos
+        // no podemos crear la fila en routines).
+        const d = confirmation.data;
+        const hasChild = typeof d.child_name === 'string' && (d.child_name as string).trim().length > 0;
+        const hasName = typeof d.name === 'string' && (d.name as string).trim().length > 0;
+        const hasDays = Array.isArray(d.days_of_week) && (d.days_of_week as unknown[]).length > 0;
+        if (!hasChild || !hasName || !hasDays) {
+          allWarnings.push('Rutina incompleta: falta child_name, name o days_of_week');
+          confirmation = null;
+        }
+        // Si pasa los chequeos, dejamos confirmation tal cual (passthrough).
+        break;
+      }
+      case 'routine_exception': {
+        const d = confirmation.data;
+        const hasRoutineId = typeof d.routine_id === 'string' && (d.routine_id as string).trim().length > 0;
+        const hasDate = typeof d.date === 'string' && (d.date as string).trim().length > 0;
+        if (!hasRoutineId || !hasDate) {
+          allWarnings.push('Excepción de rutina incompleta: falta routine_id o date');
+          confirmation = null;
+        }
+        break;
+      }
       default:
         allWarnings.push(`Tipo de confirmation desconocido: ${confirmation.type}`);
         confirmation = null;
@@ -370,6 +402,7 @@ export function validateNannyResponse(
     next_action: nextAction,
     child: (raw.child as string) || null,
     confirmation: confirmation as ValidatedNannyResponse['confirmation'],
+    additional_confirmations: (Array.isArray(raw.additional_confirmations) ? raw.additional_confirmations : []) as ValidatedNannyResponse['additional_confirmations'],
     pending_detection: (raw.pending_detection as ValidatedNannyResponse['pending_detection']) || null,
     validation_warnings: allWarnings,
   };

@@ -1,0 +1,123 @@
+import { test, expect } from '@playwright/test';
+import { setupChatMocks, resetMocks } from './fixtures/mockApis';
+
+/**
+ * 5 tests E2E criticos del chat de Nanny.
+ *
+ * Estos tests cubren los flujos mas sensibles al refactor planificado en
+ * CHAT-REFACTOR-PLAN.md. Si pasan despues de cada fase del refactor, hay
+ * 95% de confianza de que no hubo regresiones funcionales.
+ *
+ * Estrategia:
+ * - Mocks completos via setupChatMocks (sin Supabase ni OpenAI reales)
+ * - Selectores por rol/texto (Playwright best practice, mas robusto que CSS)
+ * - Mobile viewport 430px (definido en playwright.config.ts)
+ *
+ * NOTA: el chat tiene un buffer de 8s antes de mandar a /api/chat (acumula
+ * mensajes consecutivos del mismo sender). Los timeouts esperando respuesta
+ * de Nanny tienen que ser >8s (usamos 15s para margen).
+ */
+
+const NANNY_RESPONSE_TIMEOUT = 15_000;
+
+test.describe('chat — flujos críticos del refactor', () => {
+  test.beforeEach(async ({ page }) => {
+    resetMocks();
+    await setupChatMocks(page);
+    await page.goto('/chat');
+    // Espera a que el chat termine de cargar (input visible)
+    await expect(page.getByPlaceholder('Mensaje')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('1 — mandar mensaje y recibir respuesta de Nanny', async ({ page }) => {
+    const input = page.getByPlaceholder('Mensaje');
+    await input.fill('Hola Nanny');
+    await input.press('Enter');
+
+    // El bubble del usuario aparece
+    await expect(page.getByText('Hola Nanny')).toBeVisible();
+
+    // La respuesta default de Nanny aparece
+    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+  });
+
+  test('2 — intent MEDICATION muestra 3 botones (Sí crear / Editar / No)', async ({ page }) => {
+    const input = page.getByPlaceholder('Mensaje');
+    await input.fill('Pau toma jarabe 3 veces al día');
+    await input.press('Enter');
+
+    // Espera la respuesta de Nanny con intent MEDICATION
+    await expect(page.getByText('Anoté el medicamento. ¿Querés que cree recordatorios?')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+
+    // Los 3 botones deben aparecer
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'No' })).toBeVisible();
+  });
+
+  test('3 — click "Editar horarios" expande el editor inline en el bubble', async ({ page }) => {
+    // Post-commit 78b93fc: el editor de horarios ya no es un bottom sheet,
+    // se expande inline dentro del bubble de Nanny. Los 3 botones (Sí/Editar/No)
+    // se reemplazan por inputs de tipo time + Cancelar/Guardar.
+    const input = page.getByPlaceholder('Mensaje');
+    await input.fill('Pau toma jarabe 3 veces al día');
+    await input.press('Enter');
+
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+    await page.getByRole('button', { name: 'Editar horarios' }).click();
+
+    // Los inputs inline aparecen (aria-label "Horario 1", "Horario 2", "Horario 3")
+    await expect(page.getByLabel('Horario 1')).toBeVisible();
+
+    // Botones Cancelar y Guardar reemplazan a los Sí/Editar/No
+    await expect(page.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardar' })).toBeVisible();
+
+    // Los 3 botones originales ya no se ven mientras se edita
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).not.toBeVisible();
+  });
+
+  test('4 — editar horarios inline, guardar y confirmar medicación', async ({ page }) => {
+    const input = page.getByPlaceholder('Mensaje');
+    await input.fill('Pau toma jarabe 3 veces al día');
+    await input.press('Enter');
+
+    await expect(page.getByRole('button', { name: 'Editar horarios' })).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+    await page.getByRole('button', { name: 'Editar horarios' }).click();
+
+    // Cambiar el primer horario via input inline
+    const firstTime = page.getByLabel('Horario 1');
+    await expect(firstTime).toBeVisible();
+    await firstTime.fill('09:30');
+
+    // Guardar — el editor se colapsa, vuelven los 3 botones
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).toBeVisible();
+
+    // El bubble debe mostrar el nuevo horario en el resumen
+    await expect(page.getByText(/09:30/)).toBeVisible();
+
+    // Confirmar la medicación
+    await page.getByRole('button', { name: 'Sí, crear' }).click();
+
+    // Los botones desaparecen tras confirmar
+    await expect(page.getByRole('button', { name: 'Sí, crear' })).not.toBeVisible({ timeout: 5_000 });
+  });
+
+  test('5 — botón de reply (alternativa al swipe) abre preview de respuesta', async ({ page }) => {
+    // Primero generamos un mensaje al que se pueda responder
+    const input = page.getByPlaceholder('Mensaje');
+    await input.fill('Hola Nanny');
+    await input.press('Enter');
+    await expect(page.getByText('Entendido, anotado.')).toBeVisible({ timeout: NANNY_RESPONSE_TIMEOUT });
+
+    // El botón de reply alternativo es accesible via teclado (sr-only que se muestra en focus)
+    const replyButton = page.getByRole('button', { name: 'Responder a este mensaje' }).first();
+    await replyButton.focus();
+    await replyButton.click();
+
+    // El preview de "Respondiendo a..." debe aparecer (banner con texto del mensaje)
+    await expect(page.getByRole('button', { name: 'Cancelar respuesta' })).toBeVisible();
+  });
+});

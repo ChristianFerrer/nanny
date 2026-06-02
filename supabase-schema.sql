@@ -13,6 +13,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE families (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
+  timezone TEXT NOT NULL DEFAULT 'America/Argentina/Buenos_Aires',
+  timezone_set_manually BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -34,6 +36,7 @@ CREATE TABLE children (
   name TEXT NOT NULL,
   birth_date DATE,
   emoji TEXT DEFAULT '👶',
+  color TEXT,
   school TEXT,
   teacher TEXT,
   grade TEXT,
@@ -85,6 +88,7 @@ CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
   child_id UUID REFERENCES children(id) ON DELETE SET NULL,
+  parent_task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   assigned_to UUID REFERENCES parents(id),
@@ -97,6 +101,8 @@ CREATE TABLE tasks (
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 
 -- ============================================================
 -- TRATAMIENTOS MÉDICOS
@@ -119,6 +125,28 @@ CREATE TABLE medications (
   created_by UUID REFERENCES parents(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE medication_intakes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  medication_id UUID NOT NULL REFERENCES medications(id) ON DELETE CASCADE,
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'done', 'missed', 'skipped')),
+  taken_at TIMESTAMPTZ,
+  recorded_by UUID REFERENCES parents(id) ON DELETE SET NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (medication_id, scheduled_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_medication_intakes_medication
+  ON medication_intakes(medication_id);
+CREATE INDEX IF NOT EXISTS idx_medication_intakes_family
+  ON medication_intakes(family_id);
+CREATE INDEX IF NOT EXISTS idx_medication_intakes_scheduled
+  ON medication_intakes(scheduled_at);
 
 -- ============================================================
 -- CAPA 1 — CONTEXTO INMEDIATO (chat)

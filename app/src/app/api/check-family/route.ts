@@ -28,18 +28,24 @@ export async function GET(req: NextRequest) {
 
     // Use admin client to bypass RLS
     const admin = getSupabaseAdmin();
-    const { data: parent } = await admin
+    const { data: parent, error } = await admin
       .from('parents')
       .select('family_id')
       .eq('auth_user_id', user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    if (error) {
+      console.error('check-family: parent lookup error:', error);
+      return NextResponse.json({ hasFamily: false, error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       hasFamily: !!parent,
       familyId: parent?.family_id || null,
     });
-  } catch {
+  } catch (e) {
+    console.error('check-family: unexpected error:', e);
     return NextResponse.json({ hasFamily: false }, { status: 500 });
   }
 }

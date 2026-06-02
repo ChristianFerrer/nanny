@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
       recall: avg(results.map(r => r.scores.recall)),
       ambiguityHandling: avg(results.map(r => r.scores.ambiguityHandling)),
       behaviorScore: avg(results.map(r => r.scores.behaviorScore)),
+      falsePositiveRate: avg(results.map(r => r.scores.falsePositiveRate ?? 0)),
+      fieldAccuracy: {
+        dateAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.dateAccuracy ?? 1)),
+        ownerAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.ownerAccuracy ?? 1)),
+        typeAccuracy: avg(results.map(r => r.scores.fieldAccuracy?.typeAccuracy ?? 1)),
+      },
       overall: avg(results.map(r => r.scores.overall)),
     };
 

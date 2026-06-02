@@ -16,16 +16,75 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
-    const { familyName, parents, children, authUserId } = await req.json();
+    const body = await req.json();
+    const { familyName, parents, children, authUserId, conversationMessages, timezone } = body;
 
     if (!parents?.length || !children?.length) {
       return NextResponse.json({ error: 'Se necesita al menos un padre y un hijo' }, { status: 400 });
     }
 
+    // Validar TZ del navegador antes de aceptarla; si es inválida o ausente,
+    // dejamos que el default de la columna (Argentina) aplique.
+    let initialTimezone: string | undefined;
+    if (typeof timezone === 'string' && timezone.length > 0) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+        initialTimezone = timezone;
+      } catch {
+        // TZ inválida — caer al default
+      }
+    }
+
+    // Red de seguridad contra familias duplicadas: si este usuario ya está
+    // vinculado a una familia (o una invitación pendiente lo vinculó), NO crear
+    // una nueva. Idempotente — cubre el bug donde un padre invitado, por
+    // cualquier race del flujo de invitación, terminaba disparando onboarding.
+    if (authUserId) {
+      const { data: existingParent } = await supabase
+        .from('parents')
+        .select('family_id')
+        .eq('auth_user_id', authUserId)
+        .limit(1)
+        .maybeSingle();
+      if (existingParent?.family_id) {
+        return NextResponse.json({
+          success: true,
+          family_id: existingParent.family_id,
+          alreadyMember: true,
+        });
+      }
+
+      // ¿Invitado por correo? Si hay un slot de parent sin vincular cuyo email
+      // coincide con el de este usuario, lo unimos a ESA familia en vez de crear
+      // una nueva. Cubre el caso donde la pareja se registra sin usar el link.
+      const { data: authUserRes } = await supabase.auth.admin.getUserById(authUserId);
+      const userEmail = authUserRes?.user?.email;
+      if (userEmail) {
+        const { data: slots } = await supabase
+          .from('parents')
+          .select('id, family_id')
+          .eq('email', userEmail.toLowerCase())
+          .is('auth_user_id', null)
+          .limit(1);
+        const slot = slots && slots.length > 0 ? slots[0] : null;
+        if (slot?.family_id) {
+          await supabase
+            .from('parents')
+            .update({ auth_user_id: authUserId })
+            .eq('id', slot.id)
+            .is('auth_user_id', null);
+          return NextResponse.json({ success: true, family_id: slot.family_id, alreadyMember: true });
+        }
+      }
+    }
+
     // Create family
+    const familyInsert: { name: string; timezone?: string } = { name: familyName || 'Mi Familia' };
+    if (initialTimezone) familyInsert.timezone = initialTimezone;
+
     const { data: family, error: famErr } = await supabase
       .from('families')
-      .insert({ name: familyName || 'Mi Familia' })
+      .insert(familyInsert)
       .select()
       .single();
 
@@ -35,12 +94,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Create parents — link the first parent to the authenticated user
-    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string }, index: number) => ({
+    const parentInserts = parents.map((p: { name: string; role: string; avatar_emoji: string; phone?: string }, index: number) => ({
       family_id: family.id,
       name: p.name,
       role: p.role,
       avatar_emoji: p.avatar_emoji || (p.role === 'mama' ? '👩' : '👨'),
       auth_user_id: index === 0 && authUserId ? authUserId : null,
+      phone: p.phone || null,
     }));
 
     const { data: createdParents, error: parErr } = await supabase
@@ -78,16 +138,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Error al crear hijos: ' + childErr.message }, { status: 500 });
     }
 
-    // Create welcome message from Nanny
-    const childNames = createdChildren?.map((c: { emoji: string; name: string }) => `${c.emoji} ${c.name}`).join(' y ') || 'tus hijos';
-    await supabase.from('messages').insert({
-      family_id: family.id,
-      sender_id: null,
-      sender_type: 'nanny',
-      content: `¡Hola familia! 👋 Soy Nanny, su asistente. Ya conozco a ${childNames}. Escriban aquí como normalmente se coordinan — yo detecto citas, tareas y les ayudo a organizarse. ¿En qué puedo ayudarles?`,
-      message_type: 'text',
-      metadata: { intent: 'CHAT' },
-    });
+    // Persist onboarding conversation messages if provided
+    const primaryParent = createdParents?.[0];
+
+    if (Array.isArray(conversationMessages) && conversationMessages.length > 0) {
+      const baseTime = new Date();
+      baseTime.setMinutes(baseTime.getMinutes() - conversationMessages.length);
+
+      const messageInserts = conversationMessages.map((msg: { role: string; content: string }, i: number) => {
+        const msgTime = new Date(baseTime.getTime() + i * 60000);
+        return {
+          family_id: family.id,
+          sender_id: msg.role === 'user' ? (primaryParent?.id || null) : null,
+          sender_type: msg.role === 'user' ? 'parent' : 'nanny',
+          content: msg.content,
+          message_type: 'text',
+          metadata: { intent: 'CHAT', onboarding: true },
+          created_at: msgTime.toISOString(),
+        };
+      });
+
+      await supabase.from('messages').insert(messageInserts);
+    } else {
+      // Fallback: create a single welcome message if no conversation provided
+      const childNames = createdChildren?.map((c: { name: string }) => c.name).join(' y ') || 'tus hijos';
+      await supabase.from('messages').insert({
+        family_id: family.id,
+        sender_id: null,
+        sender_type: 'nanny',
+        content: `¡Hola familia! 👋 Soy Nanny, su asistente. Ya conozco a ${childNames}. Escriban aquí como normalmente se coordinan — yo detecto citas, tareas y les ayudo a organizarse. ¿En qué puedo ayudarles?`,
+        message_type: 'text',
+        metadata: { intent: 'CHAT' },
+      });
+    }
 
     return NextResponse.json({
       success: true,

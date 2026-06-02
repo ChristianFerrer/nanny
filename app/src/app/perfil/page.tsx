@@ -1,46 +1,108 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Save, Plus, X, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2 } from 'lucide-react';
-import { getFamily, getParents, getChildren, updateFamily, updateParent, updateChild, addChild as addChildStore, resetFamilyCache } from '@/lib/store';
+import { LogOut, Plus, ChevronRight, Baby, Users2, Home, Copy, Check, MessageCircle, Share2, User as UserIcon, AlertTriangle } from 'lucide-react';
+import { getFamily, getParents, getChildren, resetFamilyCache } from '@/lib/store';
+import { clearCachedChat } from '@/lib/chat-cache';
 import { getSupabase } from '@/lib/supabase';
 import type { Family, Parent, Child } from '@/lib/types';
+import { formatAge } from '@/lib/age';
+import DetailHeader from '@/components/DetailHeader';
 
-const CHILD_EMOJIS = ['🧒', '👧', '👦', '👶', '🧒🏻', '👧🏽', '👦🏾', '👶🏻'];
+const TIMEZONE_LABELS: Record<string, string> = {
+  'America/Argentina/Buenos_Aires': 'Argentina (GMT-3)',
+  'America/Mexico_City': 'México CDMX (GMT-6)',
+  'America/Bogota': 'Colombia (GMT-5)',
+  'America/Lima': 'Perú (GMT-5)',
+  'America/Santiago': 'Chile (GMT-3 / -4)',
+  'America/Montevideo': 'Uruguay (GMT-3)',
+  'America/Caracas': 'Venezuela (GMT-4)',
+  'America/Guayaquil': 'Ecuador (GMT-5)',
+  'America/La_Paz': 'Bolivia (GMT-4)',
+  'America/Asuncion': 'Paraguay (GMT-3 / -4)',
+  'America/Tegucigalpa': 'Honduras (GMT-6)',
+  'America/Guatemala': 'Guatemala (GMT-6)',
+  'America/El_Salvador': 'El Salvador (GMT-6)',
+  'America/Costa_Rica': 'Costa Rica (GMT-6)',
+  'America/Panama': 'Panamá (GMT-5)',
+  'America/Santo_Domingo': 'República Dominicana (GMT-4)',
+  'America/Havana': 'Cuba (GMT-5)',
+  'America/New_York': 'EE.UU. Este (GMT-5)',
+  'America/Los_Angeles': 'EE.UU. Pacífico (GMT-8)',
+  'Europe/Madrid': 'España (GMT+1)',
+};
 
-type EditSection = null | 'family' | 'parent' | 'child' | 'newChild';
+function tzShortLabel(tz: string | null | undefined): string {
+  if (!tz) return 'Argentina';
+  return TIMEZONE_LABELS[tz] || tz;
+}
 
 export default function PerfilPage() {
   const router = useRouter();
   const [family, setFamily] = useState<Family | null>(null);
   const [parents, setParents] = useState<Parent[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
-  const [editSection, setEditSection] = useState<EditSection>(null);
-  const [editId, setEditId] = useState<string>('');
   const [loggingOut, setLoggingOut] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  // Edit state
-  const [familyName, setFamilyName] = useState('');
-  const [parentName, setParentName] = useState('');
-  const [parentPhone, setParentPhone] = useState('');
-  const [parentEmail, setParentEmail] = useState('');
-  const [parentRole, setParentRole] = useState<'mama' | 'papa'>('mama');
-  const [parentAvatar, setParentAvatar] = useState('👩');
-
-  const [childName, setChildName] = useState('');
-  const [childBirthDate, setChildBirthDate] = useState('');
-  const [childEmoji, setChildEmoji] = useState('🧒');
-  const [childSchool, setChildSchool] = useState('');
-  const [childTeacher, setChildTeacher] = useState('');
-  const [childGrade, setChildGrade] = useState('');
-  const [childAllergies, setChildAllergies] = useState('');
-  const [childMedicalNotes, setChildMedicalNotes] = useState('');
-  const [childPersonalityNotes, setChildPersonalityNotes] = useState('');
-
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState('');
+
+  const handleInviteByEmail = async () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+    setInviteStatus('sending');
+    setInviteError('');
+    try {
+      const res = await fetch('/api/invite-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setInviteStatus('sent');
+        setInviteEmail('');
+        setTimeout(() => setInviteStatus('idle'), 4000);
+      } else {
+        setInviteStatus('error');
+        setInviteError(
+          data.code === 'INVALID_EMAIL' ? 'Email inválido'
+          : data.code === 'SELF_INVITE' ? 'Ese es tu propio correo'
+          : data.code === 'ALREADY_MEMBER' ? 'Ese correo ya está en tu familia'
+          : 'No se pudo guardar la invitación'
+        );
+      }
+    } catch {
+      setInviteStatus('error');
+      setInviteError('Sin conexión. Intentalo de nuevo.');
+    }
+  };
+
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch('/api/reset-user', { method: 'POST' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Reset failed');
+      const supabase = getSupabase();
+      await supabase.auth.signOut();
+      resetFamilyCache();
+      clearCachedChat();
+      window.location.href = '/login';
+    } catch (err) {
+      alert(`No se pudieron borrar los datos: ${err instanceof Error ? err.message : 'error desconocido'}`);
+      setResetting(false);
+      setConfirmReset(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -54,15 +116,15 @@ export default function PerfilPage() {
       setChildren(c);
     } catch {
       setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    if (loadError) {
-      router.replace('/login');
-    }
+    if (loadError) router.replace('/login');
   }, [loadError, router]);
 
   const handleLogout = async () => {
@@ -70,351 +132,184 @@ export default function PerfilPage() {
     const supabase = getSupabase();
     await supabase.auth.signOut();
     resetFamilyCache();
+    clearCachedChat(); // localStorage del chat — evita leak entre cuentas
     window.location.href = '/login';
   };
 
-  const openEditFamily = () => {
-    if (!family) return;
-    setFamilyName(family.name);
-    setEditSection('family');
-  };
-
-  const openEditParent = (p: Parent) => {
-    setEditId(p.id);
-    setParentName(p.name);
-    setParentPhone(p.phone || '');
-    setParentEmail(p.email || '');
-    setParentRole(p.role);
-    setParentAvatar(p.avatar_emoji);
-    setEditSection('parent');
-  };
-
-  const openEditChild = (c: Child) => {
-    setEditId(c.id);
-    setChildName(c.name);
-    setChildBirthDate(c.birth_date || '');
-    setChildEmoji(c.emoji);
-    setChildSchool(c.school || '');
-    setChildTeacher(c.teacher || '');
-    setChildGrade(c.grade || '');
-    setChildAllergies(c.allergies?.join(', ') || '');
-    setChildMedicalNotes(c.medical_notes || '');
-    setChildPersonalityNotes(c.personality_notes || '');
-    setEditSection('child');
-  };
-
-  const openAddChild = () => {
-    setChildName('');
-    setChildBirthDate('');
-    setChildEmoji('🧒');
-    setChildSchool('');
-    setChildTeacher('');
-    setChildGrade('');
-    setChildAllergies('');
-    setChildMedicalNotes('');
-    setChildPersonalityNotes('');
-    setEditSection('newChild');
-  };
-
-  const saveFamily = async () => {
-    setSaving(true);
-    await updateFamily({ name: familyName });
-    await loadData();
-    setEditSection(null);
-    setSaving(false);
-  };
-
-  const saveParent = async () => {
-    setSaving(true);
-    await updateParent(editId, {
-      name: parentName,
-      phone: parentPhone || null,
-      email: parentEmail || null,
-      role: parentRole,
-      avatar_emoji: parentAvatar,
-    });
-    await loadData();
-    setEditSection(null);
-    setSaving(false);
-  };
-
-  const saveChild = async () => {
-    setSaving(true);
-    const data = {
-      name: childName,
-      birth_date: childBirthDate || null,
-      emoji: childEmoji,
-      school: childSchool || null,
-      teacher: childTeacher || null,
-      grade: childGrade || null,
-      allergies: childAllergies ? childAllergies.split(',').map(a => a.trim()).filter(Boolean) : [],
-      medical_notes: childMedicalNotes || null,
-      personality_notes: childPersonalityNotes || null,
+  // Escape cierra el dialog de logout
+  useEffect(() => {
+    if (!confirmLogout) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConfirmLogout(false);
     };
-    await updateChild(editId, data);
-    await loadData();
-    setEditSection(null);
-    setSaving(false);
-  };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmLogout]);
 
-  const saveNewChild = async () => {
-    if (!family) return;
-    setSaving(true);
-    await addChildStore({
-      family_id: family.id,
-      name: childName,
-      birth_date: childBirthDate || null,
-      emoji: childEmoji,
-      school: childSchool || null,
-      teacher: childTeacher || null,
-      grade: childGrade || null,
-      allergies: childAllergies ? childAllergies.split(',').map(a => a.trim()).filter(Boolean) : [],
-      medical_notes: childMedicalNotes || null,
-      personality_notes: childPersonalityNotes || null,
-    });
-    await loadData();
-    setEditSection(null);
-    setSaving(false);
-  };
+  // Escape cierra el dialog de reset (respeta el guard de resetting)
+  useEffect(() => {
+    if (!confirmReset) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !resetting) setConfirmReset(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [confirmReset, resetting]);
 
-  if (!family) return (
-    <div className="flex items-center justify-center h-screen text-[var(--nanny-gray)]">Cargando...</div>
-  );
-
-  // Modal overlay for editing
-  if (editSection) {
+  if (loading || !family) {
     return (
-      <div className="min-h-screen bg-white animate-fade-in">
-        <div className="px-5 pt-12 pb-8">
-          <button onClick={() => setEditSection(null)} className="mb-4 text-[var(--nanny-gray)]">
-            <X size={20} />
-          </button>
-
-          {editSection === 'family' && (
-            <>
-              <h1 className="text-xl font-bold mb-4">Editar familia</h1>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Nombre de la familia</label>
-                  <input type="text" value={familyName} onChange={e => setFamilyName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                <button onClick={saveFamily} disabled={saving || !familyName.trim()}
-                  className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40">
-                  <Save size={16} /> {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </>
-          )}
-
-          {editSection === 'parent' && (
-            <>
-              <h1 className="text-xl font-bold mb-4">Editar padre/madre</h1>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Rol</label>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => { setParentRole('mama'); setParentAvatar('👩'); }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        parentRole === 'mama'
-                          ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <span className="text-lg">👩</span> Mamá
-                    </button>
-                    <button
-                      onClick={() => { setParentRole('papa'); setParentAvatar('👨'); }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        parentRole === 'papa'
-                          ? 'border-[var(--nanny-purple)] bg-[var(--nanny-purple-bg)]'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <span className="text-lg">👨</span> Papá
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Nombre</label>
-                  <input type="text" value={parentName} onChange={e => setParentName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Teléfono</label>
-                  <input type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)}
-                    placeholder="Opcional"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Email</label>
-                  <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)}
-                    placeholder="Opcional"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                <button onClick={saveParent} disabled={saving || !parentName.trim()}
-                  className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40">
-                  <Save size={16} /> {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </>
-          )}
-
-          {(editSection === 'child' || editSection === 'newChild') && (
-            <>
-              <h1 className="text-xl font-bold mb-4">
-                {editSection === 'newChild' ? 'Agregar hijo' : 'Editar hijo'}
-              </h1>
-              <div className="space-y-3">
-                <div className="flex gap-1.5 mb-1">
-                  {CHILD_EMOJIS.slice(0, 6).map(emoji => (
-                    <button key={emoji} onClick={() => setChildEmoji(emoji)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center text-lg ${
-                        childEmoji === emoji ? 'bg-[var(--nanny-purple)] ring-2 ring-[var(--nanny-purple)]' : 'bg-[var(--nanny-gray-light)]'
-                      }`}>
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <input type="text" value={childName} onChange={e => setChildName(e.target.value)}
-                  placeholder="Nombre *"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                <div>
-                  <label className="text-xs text-[var(--nanny-gray)] mb-1 block">Fecha de nacimiento</label>
-                  <input type="date" value={childBirthDate} onChange={e => setChildBirthDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] text-[var(--nanny-gray)]" />
-                </div>
-                <input type="text" value={childSchool} onChange={e => setChildSchool(e.target.value)}
-                  placeholder="Colegio"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                <div className="flex gap-2">
-                  <input type="text" value={childTeacher} onChange={e => setChildTeacher(e.target.value)}
-                    placeholder="Maestra"
-                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                  <input type="text" value={childGrade} onChange={e => setChildGrade(e.target.value)}
-                    placeholder="Grado"
-                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                </div>
-                <input type="text" value={childAllergies} onChange={e => setChildAllergies(e.target.value)}
-                  placeholder="Alergias (separadas por coma)"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)]" />
-                <textarea value={childMedicalNotes} onChange={e => setChildMedicalNotes(e.target.value)}
-                  placeholder="Notas médicas"
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] resize-none" />
-                <textarea value={childPersonalityNotes} onChange={e => setChildPersonalityNotes(e.target.value)}
-                  placeholder="Notas de personalidad"
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[var(--nanny-purple-light)] resize-none" />
-                <button
-                  onClick={editSection === 'newChild' ? saveNewChild : saveChild}
-                  disabled={saving || !childName.trim()}
-                  className="w-full flex items-center justify-center gap-2 bg-[var(--nanny-purple)] text-white py-3.5 rounded-xl font-medium text-sm disabled:opacity-40">
-                  <Save size={16} /> {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </>
-          )}
+      <div className="min-h-dvh bg-white">
+        <header className="px-5 pt-header pb-5">
+          <div className="skeleton h-9 w-48 mb-2" />
+          <div className="skeleton h-4 w-32" />
+        </header>
+        <div className="px-4 space-y-3">
+          <div className="skeleton h-20 w-full rounded-2xl" />
+          <div className="skeleton h-32 w-full rounded-2xl" />
+          <div className="skeleton h-32 w-full rounded-2xl" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <div className="bg-[var(--nanny-purple)] text-white px-5 pt-12 pb-6 rounded-b-3xl">
-        <h1 className="text-2xl font-bold">{family.name}</h1>
-        <p className="text-sm opacity-80 mt-1">Configuración familiar</p>
-      </div>
+    <div className="min-h-dvh bg-white pb-24 page-enter">
+      <DetailHeader title={family.name} subtitle="Configuración" />
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Family section */}
-        <section className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-sm flex items-center gap-2">
-              <Home size={16} className="text-[var(--nanny-purple)]" /> Familia
-            </h2>
-          </div>
-          <button onClick={openEditFamily}
-            className="w-full flex items-center justify-between py-2 text-sm text-left">
-            <span className="text-[var(--nanny-gray)]">Nombre</span>
-            <span className="flex items-center gap-1 font-medium">
-              {family.name} <ChevronRight size={14} className="text-[var(--nanny-gray)]" />
-            </span>
-          </button>
-        </section>
-
-        {/* Parents section */}
-        <section className="bg-white rounded-2xl p-4 shadow-sm">
-          <h2 className="font-semibold text-sm flex items-center gap-2 mb-3">
-            <Users2 size={16} className="text-[var(--nanny-purple)]" /> Padres
+      <div className="px-4 space-y-4">
+        {/* Familia */}
+        <section>
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-2 uppercase tracking-wider flex items-center gap-1.5">
+            <Home size={12} /> Familia
           </h2>
-          {parents.map(p => (
-            <button key={p.id} onClick={() => openEditParent(p)}
-              className="w-full flex items-center justify-between py-3 border-b border-gray-50 last:border-0 text-left">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{p.avatar_emoji}</span>
-                <div>
-                  <p className="font-medium text-sm">{p.name}</p>
-                  <p className="text-xs text-[var(--nanny-gray)] capitalize">{p.role}</p>
-                </div>
-              </div>
-              <ChevronRight size={16} className="text-[var(--nanny-gray)]" />
-            </button>
-          ))}
+          <div className="list-group">
+            <Link href="/perfil/familia" className="list-row w-full focus-ring">
+              <span className="text-subhead text-[var(--text-primary)] flex-1 text-left">Nombre</span>
+              <span className="text-subhead text-[var(--text-tertiary)]">{family.name}</span>
+              <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
+            </Link>
+            <Link href="/perfil/familia" className="list-row w-full focus-ring">
+              <span className="text-subhead text-[var(--text-primary)] flex-1 text-left">Zona horaria</span>
+              <span className="text-subhead text-[var(--text-tertiary)] truncate max-w-[55%] text-right tabular-nums">
+                {tzShortLabel(family.timezone)}
+              </span>
+              <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
+            </Link>
+          </div>
         </section>
 
-        {/* Children section */}
-        <section className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-sm flex items-center gap-2">
-              <Baby size={16} className="text-[var(--nanny-purple)]" /> Hijos
-            </h2>
-            <button onClick={openAddChild}
-              className="flex items-center gap-1 text-xs text-[var(--nanny-purple)] font-medium">
-              <Plus size={14} /> Agregar
-            </button>
+        {/* Padres */}
+        <section>
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-2 uppercase tracking-wider flex items-center gap-1.5">
+            <Users2 size={12} /> Padres
+          </h2>
+          <div className="list-group">
+            {parents.map(p => (
+              <Link key={p.id} href={`/perfil/padre/${p.id}`} className="list-row w-full text-left focus-ring">
+                <span className={`size-10 rounded-full flex items-center justify-center shrink-0 ${p.role === 'mama' ? 'bg-pink-100' : 'bg-blue-100'}`}>
+                  <UserIcon size={18} className={p.role === 'mama' ? 'text-pink-600' : 'text-blue-600'} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-subhead text-[var(--text-primary)] truncate">{p.name}</p>
+                  <p className="text-footnote text-[var(--text-tertiary)]">{p.role === 'mama' ? 'Mamá' : 'Papá'}</p>
+                </div>
+                <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
+              </Link>
+            ))}
           </div>
-          {children.map(c => {
-            const age = c.birth_date ? calcAge(c.birth_date) : null;
-            return (
-              <button key={c.id} onClick={() => openEditChild(c)}
-                className="w-full flex items-center justify-between py-3 border-b border-gray-50 last:border-0 text-left">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{c.emoji}</span>
-                  <div>
-                    <p className="font-medium text-sm">{c.name}</p>
-                    <p className="text-xs text-[var(--nanny-gray)]">
-                      {age !== null ? `${age} años` : ''}{c.school ? ` · ${c.school}` : ''}
+        </section>
+
+        {/* Hijos */}
+        <section>
+          <div className="flex items-center justify-between px-2 mb-2">
+            <h2 className="text-caption text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+              <Baby size={12} /> Hijos
+            </h2>
+            <Link href="/perfil/hijo/nuevo" className="text-caption text-[var(--nanny-purple)] font-semibold inline-flex items-center gap-1">
+              <Plus size={12} /> Agregar
+            </Link>
+          </div>
+          <div className="list-group">
+            {children.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-footnote text-[var(--text-tertiary)]">Aún no hay hijos. Agrega el primero.</p>
+              </div>
+            ) : children.map(c => {
+              const age = c.birth_date ? formatAge(c.birth_date) : null;
+              return (
+                <Link key={c.id} href={`/perfil/hijo/${c.id}`} className="list-row w-full text-left focus-ring">
+                  <span
+                    className="size-10 rounded-full flex items-center justify-center text-headline font-semibold text-white shrink-0"
+                    style={{ background: c.color || 'var(--nanny-purple)' }}
+                  >
+                    {c.name.charAt(0).toUpperCase()}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-subhead text-[var(--text-primary)] truncate">{c.name}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)] truncate">
+                      {age ?? ''}{c.school ? ` · ${c.school}` : ''}
                     </p>
                   </div>
-                </div>
-                <ChevronRight size={16} className="text-[var(--nanny-gray)]" />
-              </button>
-            );
-          })}
+                  <ChevronRight size={16} className="text-[var(--text-quaternary)]" />
+                </Link>
+              );
+            })}
+          </div>
         </section>
 
-        {/* Invite partner section */}
-        <section className="bg-white rounded-2xl p-4 shadow-sm">
-          <h2 className="font-semibold text-sm flex items-center gap-2 mb-3">
-            <Share2 size={16} className="text-[var(--nanny-purple)]" /> Invitar pareja
+        {/* Invitar pareja */}
+        <section>
+          <h2 className="text-caption text-[var(--text-tertiary)] mb-2 px-2 uppercase tracking-wider flex items-center gap-1.5">
+            <Share2 size={12} /> Invitar pareja
           </h2>
-          <p className="text-xs text-[var(--nanny-gray)] mb-3">
-            Comparte el enlace para que tu pareja se una a la familia
-          </p>
-          <div className="space-y-2">
+          <div className="card space-y-3">
+            <p className="text-footnote text-pretty text-[var(--text-tertiary)]">
+              Invita por correo y tu pareja se unirá automáticamente al crear su cuenta con ese email — aunque no abra el enlace.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                value={inviteEmail}
+                onChange={(e) => { setInviteEmail(e.target.value); if (inviteStatus !== 'idle') setInviteStatus('idle'); }}
+                placeholder="correo de tu pareja"
+                aria-label="Correo de tu pareja"
+                className={`flex-1 ${inviteStatus === 'error' ? 'input-error' : ''}`}
+              />
+              <button
+                onClick={handleInviteByEmail}
+                disabled={inviteStatus === 'sending' || !inviteEmail.trim()}
+                className="btn btn-primary"
+                style={{ flexShrink: 0 }}
+              >
+                {inviteStatus === 'sending' ? 'Enviando…' : 'Invitar'}
+              </button>
+            </div>
+            {inviteStatus === 'sent' && (
+              <p className="text-footnote" style={{ color: 'var(--success)' }}>
+                Listo. Cuando tu pareja cree su cuenta con ese correo, se unirá a la familia.
+              </p>
+            )}
+            {inviteStatus === 'error' && (
+              <p className="text-footnote" style={{ color: 'var(--danger)' }}>{inviteError}</p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ background: 'var(--gray-200)' }} />
+              <span className="text-caption-2" style={{ color: 'var(--text-tertiary)' }}>o comparte el enlace</span>
+              <div className="flex-1 h-px" style={{ background: 'var(--gray-200)' }} />
+            </div>
             <button
               onClick={() => {
                 const inviteLink = `${window.location.origin}/login?invite=${family.id}`;
                 const msg = `Estoy usando Nanny para organizar las cosas de los niños. Únete aquí: ${inviteLink}`;
                 window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-medium"
+              className="btn btn-block"
+              style={{ background: '#25D366', color: '#fff' }}
             >
-              <MessageCircle size={16} /> Invitar por WhatsApp
+              <MessageCircle size={18} /> Invitar por WhatsApp
             </button>
             <button
               onClick={() => {
@@ -422,31 +317,137 @@ export default function PerfilPage() {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-medium"
+              className="btn btn-secondary btn-block"
             >
-              {copied ? <Check size={16} className="text-[var(--nanny-green)]" /> : <Copy size={16} />}
-              {copied ? 'Enlace copiado' : 'Copiar enlace'}
+              {copied ? <><Check size={18} className="text-[var(--success)]" /> Enlace copiado</> : <><Copy size={18} /> Copiar enlace</>}
             </button>
           </div>
         </section>
 
+        {/* Avanzado */}
+        <details className="text-footnote text-[var(--text-tertiary)]">
+          <summary className="cursor-pointer py-2 px-1 select-none focus-ring rounded">
+            Avanzado
+          </summary>
+          <div className="card mt-2 space-y-2">
+            <p className="text-caption text-pretty text-[var(--text-tertiary)]">
+              Nanny revisa el chat automáticamente cada noche para detectar lo que se le haya escapado durante el día. Si necesitás forzar una revisión ahora, podés hacerla desde el chat.
+            </p>
+            <button
+              onClick={() => router.push('/chat?catchup=1')}
+              className="btn btn-secondary btn-sm btn-block"
+            >
+              Re-analizar el chat ahora
+            </button>
+
+            <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--separator)' }}>
+              <p className="text-caption text-pretty text-[var(--text-tertiary)] mb-2">
+                Borrar todos los datos de esta familia (hijos, mensajes, eventos, rutinas, tareas). Esta acción no se puede deshacer.
+              </p>
+              <button
+                onClick={() => setConfirmReset(true)}
+                disabled={resetting}
+                className="btn btn-sm btn-block"
+                style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}
+              >
+                {resetting ? 'Borrando…' : 'Reiniciar mis datos'}
+              </button>
+            </div>
+          </div>
+        </details>
+
         {/* Logout */}
-        <button onClick={handleLogout} disabled={loggingOut}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-[var(--nanny-red)] text-[var(--nanny-red)] font-medium text-sm disabled:opacity-40">
-          <LogOut size={16} /> {loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+        <button
+          onClick={() => setConfirmLogout(true)}
+          disabled={loggingOut}
+          className="btn btn-block mt-2"
+          style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}
+        >
+          <LogOut size={16} /> {loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
         </button>
       </div>
+
+      {/* Confirm logout dialog */}
+      {confirmLogout && (
+        <>
+          <div className="sheet-backdrop" onClick={() => setConfirmLogout(false)} />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[var(--z-dialog)] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            aria-describedby="logout-desc"
+          >
+            <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+              <AlertTriangle size={20} className="text-[var(--danger)]" />
+            </div>
+            <h3 id="logout-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
+              ¿Cerrar sesión?
+            </h3>
+            <p id="logout-desc" className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
+              Tendrás que volver a iniciar sesión para acceder a tu familia.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setConfirmLogout(false)}
+                className="btn btn-secondary flex-1"
+                disabled={loggingOut}
+                autoFocus
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="btn btn-destructive flex-1"
+              >
+                {loggingOut ? 'Saliendo…' : 'Cerrar sesión'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Confirm reset (borrar todo) — separado del logout, doble peligro */}
+      {confirmReset && (
+        <>
+          <div className="sheet-backdrop" onClick={() => !resetting && setConfirmReset(false)} />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[var(--z-dialog)] w-[88%] max-w-[340px] bg-[var(--bg-elevated)] rounded-2xl shadow-xl animate-scale-in p-5"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="reset-title"
+            aria-describedby="reset-desc"
+          >
+            <div className="size-12 mx-auto rounded-full bg-[var(--danger-soft)] flex items-center justify-center mb-3">
+              <AlertTriangle size={20} className="text-[var(--danger)]" />
+            </div>
+            <h3 id="reset-title" className="text-headline text-balance text-center text-[var(--text-primary)]">
+              ¿Borrar TODOS los datos?
+            </h3>
+            <p id="reset-desc" className="text-footnote text-pretty text-center text-[var(--text-tertiary)] mt-1">
+              Se eliminarán los hijos, eventos, tareas, rutinas, mensajes y tu cuenta. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="btn btn-secondary flex-1"
+                disabled={resetting}
+                autoFocus
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetting}
+                className="btn btn-destructive flex-1"
+              >
+                {resetting ? 'Borrando…' : 'Sí, borrar todo'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
-}
-
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
 }

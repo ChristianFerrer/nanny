@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock } from 'lucide-react';
-import { getChild, getRoutines, getEvents, getTasks } from '@/lib/store';
-import type { Child, Routine, FamilyEvent, Task } from '@/lib/types';
+import { ArrowLeft, Heart, BookOpen, Calendar, Activity, Clock, GraduationCap, Stethoscope, Cake, Trophy, Plane, MapPin, ClipboardList, AlertTriangle, Sparkles, CheckCircle2, CheckSquare, Sunrise, Sun, Moon, Pencil, Plus, Pill, ChevronRight } from 'lucide-react';
+import { getChild, getRoutines, getEvents, getTasks, getMedications, getCachedSnapshot, invalidateTableCache } from '@/lib/store';
+import { useRealtimeFamily } from '@/lib/realtime';
+import type { Child, Routine, FamilyEvent, Task, Medication } from '@/lib/types';
+import { formatAge } from '@/lib/age';
 
-type TabId = 'identidad' | 'operativo' | 'rutinas';
+type TabId = 'identidad' | 'operativo' | 'salud' | 'rutinas';
 
 export default function HijoDetailPage() {
   const params = useParams();
@@ -15,83 +18,178 @@ export default function HijoDetailPage() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('identidad');
+  const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     const id = params.id as string;
-    const [c, r, e, t] = await Promise.all([
-      getChild(id), getRoutines(id), getEvents(), getTasks(),
-    ]);
-    setChild(c);
-    setRoutines(r);
-    setEvents(e.filter(ev => ev.child_id === id));
-    setTasks(t.filter(tk => tk.child_id === id));
+    try {
+      const [c, r, e, t, m] = await Promise.all([
+        getChild(id), getRoutines(id), getEvents(), getTasks(), getMedications(),
+      ]);
+      setChild(c);
+      setRoutines(r);
+      setEvents(e.filter(ev => ev.child_id === id));
+      setTasks(t.filter(tk => tk.child_id === id));
+      setMedications(m.filter(med => med.child_id === id));
+    } finally {
+      setLoading(false);
+    }
   }, [params.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (!child) return (
-    <div className="flex items-center justify-center h-screen text-[var(--nanny-gray)]">
-      Cargando...
-    </div>
-  );
+  // Real-time sync: el perfil del hijo refleja cambios en sus rutinas,
+  // medicaciones, eventos y tareas que el otro padre haga desde otro
+  // dispositivo, sin esperar a re-mount.
+  const familyId = getCachedSnapshot()?.family?.id || '';
+  useRealtimeFamily({
+    familyId,
+    tables: ['routines', 'medications', 'events', 'tasks'],
+    enabled: !!familyId,
+    onChange: () => {
+      invalidateTableCache('routines');
+      invalidateTableCache('medications');
+      invalidateTableCache('events');
+      invalidateTableCache('tasks');
+      loadData();
+    },
+  });
 
-  const age = child.birth_date ? calcAge(child.birth_date) : null;
+  if (loading) {
+    return (
+      <div className="min-h-dvh bg-white">
+        <div className="px-4 pt-header pb-6">
+          <div className="skeleton size-8 rounded-full mb-4" />
+          <div className="flex items-center gap-4">
+            <div className="skeleton size-20 rounded-full" />
+            <div className="flex-1">
+              <div className="skeleton h-7 w-32 mb-2" />
+              <div className="skeleton h-4 w-20" />
+            </div>
+          </div>
+        </div>
+        <div className="px-4 space-y-3">
+          <div className="skeleton h-10 w-full rounded-xl" />
+          <div className="skeleton h-32 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: 'identidad', label: 'Identidad', icon: <Heart size={14} /> },
-    { id: 'operativo', label: 'Operativo', icon: <Activity size={14} /> },
-    { id: 'rutinas', label: 'Rutinas', icon: <Clock size={14} /> },
+  if (!child) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[80dvh] text-[var(--text-tertiary)] px-6 text-center">
+        <p className="text-headline mb-2">No encontramos este perfil</p>
+        <button onClick={() => router.back()} className="btn btn-tinted btn-sm mt-2">Volver</button>
+      </div>
+    );
+  }
+
+  const age = child.birth_date ? formatAge(child.birth_date) : null;
+
+  const tabs: { id: TabId; label: string }[] = [
+    { id: 'identidad', label: 'Info' },
+    { id: 'operativo', label: 'Agenda' },
+    { id: 'salud', label: 'Salud' },
+    { id: 'rutinas', label: 'Rutinas' },
   ];
 
+  // Navegación con flechas para el tablist (sin librerías).
+  const onTabsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const idx = tabs.findIndex(t => t.id === activeTab);
+    if (idx === -1) return;
+    let next = idx;
+    if (e.key === 'ArrowRight') {
+      next = (idx + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      next = (idx - 1 + tabs.length) % tabs.length;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setActiveTab(tabs[next].id);
+    const tabButtons = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    tabButtons[next]?.focus();
+  };
+
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-[var(--nanny-purple)] text-white px-4 pt-10 pb-6 rounded-b-3xl">
-        <button onClick={() => router.back()} className="mb-3 p-1">
-          <ArrowLeft size={22} />
-        </button>
+    <div className="min-h-dvh bg-white page-enter">
+      {/* Header limpio Apple-style */}
+      <header className="px-4 pt-header pb-5">
+        <div className="flex items-center justify-between mb-5">
+          <button
+            onClick={() => router.back()}
+            aria-label="Volver"
+            className="size-10 -ml-1 rounded-full flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--gray-100)] focus-ring"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <Link
+            href={`/perfil/hijo/${child.id}`}
+            className="btn btn-tinted btn-sm"
+            aria-label="Editar perfil"
+          >
+            <Pencil size={14} /> Editar
+          </Link>
+        </div>
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-4xl">
-            {child.emoji}
+          <div
+            className="size-20 rounded-full flex items-center justify-center text-large-title font-semibold text-white shadow-sm shrink-0"
+            style={{ background: child.color || 'var(--nanny-purple)' }}
+          >
+            {child.name.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{child.name}</h1>
-            {age !== null && <p className="text-sm opacity-80">{age} años</p>}
-            {child.school && <p className="text-xs opacity-70 mt-0.5">🏫 {child.school}</p>}
-            {child.grade && <p className="text-xs opacity-70">📚 {child.grade}</p>}
+          <div className="min-w-0">
+            <h1 className="text-title-1 text-[var(--text-primary)] truncate text-balance">{child.name}</h1>
+            {age !== null && <p className="text-subhead text-[var(--text-secondary)]">{age}</p>}
+            {child.school && (
+              <p className="text-footnote text-[var(--text-tertiary)] mt-0.5 inline-flex items-center gap-1 truncate">
+                <GraduationCap size={12} /> {child.school}
+              </p>
+            )}
+            {child.grade && (
+              <p className="text-footnote text-[var(--text-tertiary)] inline-flex items-center gap-1 truncate">
+                <BookOpen size={12} /> {child.grade}
+              </p>
+            )}
           </div>
+        </div>
+      </header>
+
+      {/* Segmented control tabs (Apple-style) */}
+      <div className="sticky top-0 z-[var(--z-sticky)] glass px-4 py-2.5">
+        <div
+          role="tablist"
+          aria-label="Secciones del perfil"
+          className="bg-[var(--gray-100)] p-1 rounded-xl flex gap-0.5"
+          onKeyDown={onTabsKeyDown}
+        >
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 rounded-lg text-subhead font-semibold transition-all ${
+                activeTab === tab.id
+                  ? 'bg-white text-[var(--text-primary)] shadow-xs'
+                  : 'text-[var(--text-secondary)]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex px-4 mt-4 gap-1">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-[var(--nanny-purple)] text-white'
-                : 'bg-[var(--nanny-gray-light)] text-[var(--nanny-gray)]'
-            }`}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-      <div className="px-4 py-4 pb-20">
-        {activeTab === 'identidad' && (
-          <IdentidadTab child={child} />
-        )}
-        {activeTab === 'operativo' && (
-          <OperativoTab events={events} tasks={tasks} />
-        )}
-        {activeTab === 'rutinas' && (
-          <RutinasTab routines={routines} />
-        )}
+      <div className="px-4 py-4 pb-24">
+        {activeTab === 'identidad' && <IdentidadTab child={child} />}
+        {activeTab === 'operativo' && <OperativoTab events={events} tasks={tasks} childId={child.id} />}
+        {activeTab === 'salud' && <SaludTab child={child} medications={medications} />}
+        {activeTab === 'rutinas' && <RutinasTab routines={routines} childId={child.id} />}
       </div>
     </div>
   );
@@ -100,98 +198,172 @@ export default function HijoDetailPage() {
 function IdentidadTab({ child }: { child: Child }) {
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Basic info */}
-      <Card title="📋 Información básica">
+      <Card title="Información básica" icon={<ClipboardList size={16} className="text-[var(--nanny-purple)]" />}>
         <InfoRow label="Nombre" value={child.name} />
         {child.birth_date && (
-          <InfoRow label="Fecha de nacimiento" value={new Date(child.birth_date).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })} />
+          <InfoRow label="Nacimiento" value={new Date(child.birth_date).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })} />
         )}
         {child.school && <InfoRow label="Colegio" value={child.school} />}
         {child.teacher && <InfoRow label="Maestra" value={child.teacher} />}
         {child.grade && <InfoRow label="Grado" value={child.grade} />}
       </Card>
 
-      {/* Medical */}
-      <Card title="🏥 Salud">
-        {child.allergies && child.allergies.length > 0 ? (
-          <div>
-            <p className="text-xs text-[var(--nanny-gray)] mb-1">Alergias</p>
-            <div className="flex gap-1 flex-wrap">
-              {child.allergies.map((a, i) => (
-                <span key={i} className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs">
-                  ⚠️ {a}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--nanny-gray)]">Sin alergias registradas</p>
-        )}
-        {child.medical_notes && (
-          <div className="mt-2">
-            <p className="text-xs text-[var(--nanny-gray)] mb-1">Notas médicas</p>
-            <p className="text-sm">{child.medical_notes}</p>
-          </div>
-        )}
-      </Card>
-
-      {/* Personality */}
       {child.personality_notes && (
-        <Card title="✨ Personalidad">
-          <p className="text-sm">{child.personality_notes}</p>
+        <Card title="Personalidad" icon={<Sparkles size={16} className="text-[var(--nanny-purple)]" />}>
+          <p className="text-subhead text-[var(--text-primary)] text-pretty">{child.personality_notes}</p>
         </Card>
       )}
     </div>
   );
 }
 
-function OperativoTab({ events, tasks }: { events: FamilyEvent[]; tasks: Task[] }) {
-  const typeEmoji: Record<string, string> = {
-    doctor: '🏥', school: '🏫', birthday: '🎂', activity: '⚽', travel: '✈️', other: '📌',
-  };
-
+function SaludTab({ child, medications }: { child: Child; medications: Medication[] }) {
+  const [nowMs] = useState(() => Date.now());
+  const activeMeds = medications.filter(m => m.status === 'active');
   return (
     <div className="space-y-4 animate-fade-in">
-      <Card title={`📅 Eventos próximos (${events.length})`}>
-        {events.length === 0 ? (
-          <p className="text-sm text-[var(--nanny-gray)]">Sin eventos próximos</p>
+      <Card title="Tratamientos activos" icon={<Pill size={16} className="text-[var(--nanny-purple)]" />}>
+        {activeMeds.length === 0 ? (
+          <p className="text-footnote text-[var(--text-tertiary)]">Sin tratamientos activos</p>
         ) : (
-          <div className="space-y-2">
-            {events.slice(0, 5).map(e => (
-              <div key={e.id} className="flex items-center gap-2 py-1">
-                <span>{typeEmoji[e.event_type] || '📌'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{e.title}</p>
-                  <p className="text-xs text-[var(--nanny-gray)]">
-                    {new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
-                  </p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  e.status === 'confirmed' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'
-                }`}>
-                  {e.status === 'confirmed' ? '✓' : '⏳'}
-                </span>
-              </div>
-            ))}
+          <div className="space-y-1">
+            {activeMeds.map(m => {
+              const start = new Date(m.start_date);
+              const totalDays = m.duration_days || 1;
+              const daysPassed = Math.max(0, Math.floor((nowMs - start.getTime()) / (1000 * 60 * 60 * 24)));
+              const daysLeft = Math.max(0, totalDays - daysPassed);
+              return (
+                <Link
+                  key={m.id}
+                  href={`/tratamiento/${m.id}`}
+                  className="flex items-center gap-3 py-2 -mx-1 px-1 rounded-lg tap-highlight focus-ring"
+                >
+                  <span className="size-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--nanny-purple-tint)' }}>
+                    <Pill size={14} className="text-[var(--nanny-purple)]" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-subhead text-[var(--text-primary)] truncate">{m.medication_name}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)] truncate">
+                      {m.frequency || ''}{m.schedule_times?.length ? ` · ${m.schedule_times.join(', ')}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-caption-2 text-[var(--text-tertiary)] whitespace-nowrap tabular-nums">
+                    {daysLeft === 0 ? 'Último día' : `${daysLeft}d`}
+                  </span>
+                  <ChevronRight size={14} className="text-[var(--text-quaternary)]" />
+                </Link>
+              );
+            })}
           </div>
         )}
       </Card>
 
-      <Card title={`📋 Tareas pendientes (${tasks.length})`}>
+      <Card title="Alergias y condiciones" icon={<Stethoscope size={16} className="text-[var(--text-secondary)]" />}>
+        {child.allergies && child.allergies.length > 0 ? (
+          <div>
+            <p className="text-caption text-[var(--text-tertiary)] mb-2 uppercase tracking-wider">Alergias</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {child.allergies.map((a, i) => {
+                const isSevere = /\b(severa?|grave|anafil|emergencia|epi|pen)\b/i.test(a);
+                return (
+                  <span
+                    key={i}
+                    className={`badge ${isSevere ? 'badge-danger' : 'badge-neutral'}`}
+                  >
+                    {isSevere && <AlertTriangle size={10} />} {a}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-footnote text-[var(--text-tertiary)]">Sin alergias registradas</p>
+        )}
+        {child.medical_notes && (
+          <div className="mt-3">
+            <p className="text-caption text-[var(--text-tertiary)] mb-1 uppercase tracking-wider">Notas médicas</p>
+            <p className="text-subhead text-[var(--text-primary)] text-pretty">{child.medical_notes}</p>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function OperativoTab({ events, tasks, childId }: { events: FamilyEvent[]; tasks: Task[]; childId: string }) {
+  const [showAllEvents, setShowAllEvents] = useState(false);
+  const typeIcons: Record<string, { icon: React.ReactNode; bg: string }> = {
+    doctor: { icon: <Stethoscope size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    school: { icon: <GraduationCap size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    birthday: { icon: <Cake size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    activity: { icon: <Trophy size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    travel: { icon: <Plane size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+    other: { icon: <MapPin size={14} className="text-[var(--nanny-purple)]" />, bg: 'bg-[var(--nanny-purple-tint)]' },
+  };
+
+  const eventsToShow = showAllEvents ? events : events.slice(0, 5);
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <Card title={`Eventos (${events.length})`} icon={<Calendar size={16} className="text-[var(--nanny-purple)]" />}>
+        {events.length === 0 ? (
+          <p className="text-footnote text-[var(--text-tertiary)]">Sin eventos próximos</p>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {eventsToShow.map(e => {
+                const ti = typeIcons[e.event_type] || typeIcons.other;
+                return (
+                  <div key={e.id} className="flex items-center gap-3 py-1">
+                    <span className={`size-9 rounded-xl ${ti.bg} flex items-center justify-center shrink-0`}>{ti.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-subhead text-[var(--text-primary)] truncate">{e.title}</p>
+                      <p className="text-footnote text-[var(--text-tertiary)]">
+                        {new Date(e.date_start).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <span className={`badge ${e.status === 'confirmed' ? 'badge-success' : 'badge-warning'}`}>
+                      {e.status === 'confirmed' ? <><CheckCircle2 size={10} /> Conf.</> : <><Clock size={10} /> Pend.</>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {events.length > 5 && (
+              <button
+                onClick={() => setShowAllEvents(v => !v)}
+                className="mt-3 w-full text-center text-footnote text-[var(--nanny-purple)] font-semibold py-2 rounded-lg hover:bg-[var(--nanny-purple-tint)] transition-colors"
+              >
+                {showAllEvents ? 'Mostrar menos' : `Ver agenda completa (${events.length}) →`}
+              </button>
+            )}
+            {!showAllEvents && events.length > 5 && (
+              <Link
+                href={`/semana?child=${childId}`}
+                className="block mt-1 text-center text-caption text-[var(--text-tertiary)]"
+              >
+                Ir a la vista de semana
+              </Link>
+            )}
+          </>
+        )}
+      </Card>
+
+      <Card title={`Tareas pendientes (${tasks.length})`} icon={<CheckSquare size={16} className="text-[var(--nanny-purple)]" />}>
         {tasks.length === 0 ? (
-          <p className="text-sm text-[var(--nanny-gray)]">Sin tareas pendientes</p>
+          <p className="text-footnote text-[var(--text-tertiary)]">Sin tareas pendientes</p>
         ) : (
           <div className="space-y-2">
             {tasks.map(t => (
-              <div key={t.id} className="flex items-center gap-2 py-1">
-                <span className={`w-2 h-2 rounded-full ${
-                  t.priority === 'high' || t.priority === 'urgent' ? 'bg-[var(--nanny-orange)]' : 'bg-[var(--nanny-blue)]'
+              <div key={t.id} className="flex items-center gap-3 py-1">
+                <span className={`size-2 rounded-full shrink-0 ${
+                  t.priority === 'high' || t.priority === 'urgent' ? 'bg-[var(--warning)]' : 'bg-[var(--info)]'
                 }`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{t.title}</p>
+                  <p className="text-subhead text-[var(--text-primary)] truncate">{t.title}</p>
                   {t.due_date && (
-                    <p className="text-xs text-[var(--nanny-gray)]">
-                      Vence: {new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+                    <p className="text-footnote text-[var(--text-tertiary)]">
+                      Vence {new Date(t.due_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
                     </p>
                   )}
                 </div>
@@ -204,35 +376,58 @@ function OperativoTab({ events, tasks }: { events: FamilyEvent[]; tasks: Task[] 
   );
 }
 
-function RutinasTab({ routines }: { routines: Routine[] }) {
+function RutinasTab({ routines, childId }: { routines: Routine[]; childId: string }) {
+  // Agrupar por momento del día según time_start (no por la columna `type`,
+  // que puede ser school/activity/meal/... y no se mapea 1:1 a momento).
+  // Las rutinas sin time_start van al final como "Todo el día".
+  const dayShort = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const bucket = (r: Routine): 'morning' | 'afternoon' | 'night' | 'untimed' => {
+    if (!r.time_start) return 'untimed';
+    const h = parseInt(r.time_start.slice(0, 2), 10);
+    if (h < 12) return 'morning';
+    if (h < 18) return 'afternoon';
+    return 'night';
+  };
+
   const grouped = {
-    morning: routines.filter(r => r.type === 'morning'),
-    afternoon: routines.filter(r => r.type === 'afternoon'),
-    night: routines.filter(r => r.type === 'night'),
+    morning: routines.filter(r => bucket(r) === 'morning').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    afternoon: routines.filter(r => bucket(r) === 'afternoon').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    night: routines.filter(r => bucket(r) === 'night').sort((a, b) => (a.time_start || '').localeCompare(b.time_start || '')),
+    untimed: routines.filter(r => bucket(r) === 'untimed'),
   };
 
   const sections = [
-    { key: 'morning' as const, title: '🌅 Mañana', items: grouped.morning },
-    { key: 'afternoon' as const, title: '☀️ Tarde', items: grouped.afternoon },
-    { key: 'night' as const, title: '🌙 Noche', items: grouped.night },
+    { key: 'morning' as const, title: 'Mañana', icon: <Sunrise size={16} className="text-[var(--nanny-purple)]" />, items: grouped.morning },
+    { key: 'afternoon' as const, title: 'Tarde', icon: <Sun size={16} className="text-[var(--nanny-purple)]" />, items: grouped.afternoon },
+    { key: 'night' as const, title: 'Noche', icon: <Moon size={16} className="text-[var(--nanny-purple)]" />, items: grouped.night },
+    { key: 'untimed' as const, title: 'Sin horario', icon: <Clock size={16} className="text-[var(--nanny-purple)]" />, items: grouped.untimed },
   ];
+
+  const formatDays = (dow: number[]): string => {
+    if (dow.length === 7) return 'Todos los días';
+    const sorted = [...dow].sort();
+    if (sorted.length === 5 && sorted.join(',') === '1,2,3,4,5') return 'Lun-Vie';
+    if (sorted.length === 2 && sorted.join(',') === '0,6') return 'Fin de semana';
+    return sorted.map(d => dayShort[d]).join(', ');
+  };
 
   return (
     <div className="space-y-4 animate-fade-in">
       {sections.map(section => (
         section.items.length > 0 && (
-          <Card key={section.key} title={section.title}>
+          <Card key={section.key} title={section.title} icon={section.icon}>
             <div className="space-y-2">
               {section.items.map(routine => (
-                <div key={routine.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                  <div className="text-xs text-[var(--nanny-purple)] font-mono w-16">
-                    {routine.time_start || '--:--'}
+                <div key={routine.id} className="flex items-center gap-3 py-1.5">
+                  <div className="text-footnote text-[var(--nanny-purple)] font-mono w-14 shrink-0">
+                    {routine.time_start ? routine.time_start.slice(0, 5) : '--:--'}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{routine.name}</p>
-                    {routine.description && (
-                      <p className="text-xs text-[var(--nanny-gray)]">{routine.description}</p>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-subhead text-[var(--text-primary)] truncate">{routine.name}</p>
+                    <p className="text-footnote text-[var(--text-tertiary)] truncate">
+                      {formatDays(routine.days_of_week)}
+                      {routine.time_end ? ` · hasta ${routine.time_end.slice(0, 5)}` : ''}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -240,21 +435,31 @@ function RutinasTab({ routines }: { routines: Routine[] }) {
           </Card>
         )
       ))}
+
+      <Link
+        href={`/hijo/${childId}/rutina/nueva`}
+        className="block w-full card-flat text-[var(--nanny-purple)] text-subhead font-semibold py-4 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+      >
+        <Plus size={16} /> Agregar rutina
+      </Link>
+
       {routines.length === 0 && (
-        <div className="text-center py-8 text-[var(--nanny-gray)]">
-          <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
-          <p className="text-sm">Sin rutinas registradas</p>
-          <p className="text-xs mt-1">Puedes agregar rutinas desde el chat</p>
+        <div className="card-flat text-center py-8 px-5">
+          <div className="size-12 mx-auto rounded-2xl bg-[var(--nanny-purple-tint)] flex items-center justify-center mb-3">
+            <BookOpen size={22} className="text-[var(--nanny-purple)]" />
+          </div>
+          <p className="text-subhead text-[var(--text-primary)]">Sin rutinas todavía</p>
+          <p className="text-footnote text-[var(--text-tertiary)] mt-1 text-pretty">Agrega una desde el botón de arriba o decile a Nanny en el chat.</p>
         </div>
       )}
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm">
-      <h3 className="font-semibold text-sm mb-3">{title}</h3>
+    <div className="card">
+      <h3 className="text-headline text-[var(--text-primary)] mb-3 flex items-center gap-2 text-balance">{icon}{title}</h3>
       {children}
     </div>
   );
@@ -262,20 +467,10 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-[var(--nanny-gray)]">{label}</span>
-      <span className="text-sm font-medium">{value}</span>
+    <div className="flex justify-between py-2 border-b border-[var(--separator)] last:border-0">
+      <span className="text-footnote text-[var(--text-tertiary)]">{label}</span>
+      <span className="text-subhead text-[var(--text-primary)]">{value}</span>
     </div>
   );
 }
 
-function calcAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
-}
